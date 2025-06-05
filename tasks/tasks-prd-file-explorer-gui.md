@@ -1,21 +1,12 @@
 ## Relevant Files
 
-- `src/main.py` - Entry point launching the GUI.
-- `src/file_explorer.py` - Handles directory scanning, creation, and refresh logic.
-- `src/gui.py` - Defines UI components (dialogs, tree view, file viewer).
-- `requirements.txt` - Lists Python dependencies (e.g., Tkinter, pytest).
-- `tests/test_file_explorer.py` - Unit tests for `file_explorer.py`.
-- `tests/test_gui.py` - Unit tests for `gui.py`.
-- `tests/test_setup_dirs.py` - Tests that `src/` and `tests/` directories exist
-- `tests/test_pytest_config.py` - Tests that pytest.ini exists and has proper configuration
-- `pytest.ini` - Pytest configuration file with testpaths and patterns
-- `tests/test_placeholder_files.py` - Tests that placeholder test files exist for main modules
-- `tests/test_initial_setup.py` - Tests that pytest setup is working correctly
-- `src/__init__.py` - Init file to make src a Python package
-- `tests/test_open_folder_button.py` - Tests that GUI has Open Folder button and handler
-- `tests/test_open_folder_dialog.py` - Tests that open_folder_dialog calls filedialog.askdirectory
-- `tests/test_new_folder_button.py` - Tests that GUI has New Folder button and handler stub
-- `tests/test_new_folder_dialog.py` - Tests that new_folder_dialog uses simpledialog.askstring and os.mkdir
+- `src/main.py`: Application entry point with error handling
+- `src/gui.py`: Main GUI class with dialogs and layout
+- `src/file_explorer.py`: FileExplorer class for directory scanning
+- `src/__init__.py`: Package initialization  
+- `requirements.txt`: Project dependencies
+- `pytest.ini`: Test configuration
+- `tests/`: Comprehensive test suite with 31 tests
 
 ## Notes
 
@@ -44,10 +35,10 @@
 ## Tasks
 
 - [ ] 3.0 Develop `file_explorer.py` module for directory scanning and auto-refresh
-  - [ ] 3.1 Create `FileExplorer` class with `scan_directory(path)` method
-  - [ ] 3.2 Implement `create_directory(parent_path, new_name)` method
-  - [ ] 3.3 Add `refresh()` method to re-scan the current directory
-  - [ ] 3.4 Write unit tests for `scan_directory` using `tmp_path` fixtures
+  - [x] 3.1 Create `FileExplorer` class with `scan_directory(path)` method
+  - [x] 3.2 Implement `create_directory(parent_path, new_name)` method
+  - [x] 3.3 Add `refresh()` method to re-scan the current directory
+  - [x] 3.4 Write unit tests for `scan_directory` using `tmp_path` fixtures
   - [ ] 3.5 Write unit tests for `create_directory` using `tmp_path`
 - [ ] 4.0 Build tree view component in `gui.py` to display the file hierarchy
   - [ ] 4.1 Add a `ttk.Treeview` widget to the sidebar layout
