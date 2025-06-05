@@ -1,0 +1,42 @@
+---
+description: Guidelines for carrying out a task from the task-list
+globs: 
+alwaysApply: false
+---
+# Task List Management
+
+Guidelines for managing task lists in markdown files to track progress on completing a PRD
+
+## Task Implementation
+- **One sub-task at a time:** Do **NOT** start the next sub-task until you ask the user for permission and they say "yes" or "y"
+- **Completion protocol:**  
+  1. When you finish a **sub-task**, immediately mark it as completed by changing `[ ]` to `[x]`.  
+  2. If **all** subtasks underneath a parent task are now `[x]`, also mark the **parent task** as completed.  
+- Stop after each sub-task and wait for the user's go-ahead.
+- **Test-Driven Development (TDD):** For each sub-task, start by writing unit test(s) that capture the expected behavior. Run the tests to confirm they fail. Then implement the code changes to make the tests pass. Only after the tests pass should you apply the completion protocol.
+- **Test suite enforcement:** After implementing a sub-task, run the project's test suite (e.g., `pytest`). Do **not** mark the sub-task as complete until all tests pass. If tests fail, iterate on the code changes for that sub-task until the suite passes, then apply the completion protocol.
+
+## Task List Maintenance
+
+1. **Update the task list as you work:**
+   - Mark tasks and subtasks as completed (`[x]`) per the protocol above.
+   - Add new tasks as they emerge.
+
+2. **Maintain the "Relevant Files" section:**
+   - List every file created or modified.
+   - Give each file a one-line description of its purpose.
+
+## AI Instructions
+
+When working with task lists, the AI must:
+
+- **Adopt Test-Driven Development:** Before starting work on a sub-task, write the corresponding unit test(s), run them to verify failure, then implement code to satisfy the tests, and ensure they pass before proceeding.
+1. Regularly update the task list file after finishing any significant work.
+2. Follow the completion protocol:
+   - Mark each finished **sub-task** `[x]` only after verifying the test suite passes.
+   - Mark the **parent task** `[x]` once **all** its subtasks are `[x]` and the test suite is green.
+3. Add newly discovered tasks.
+4. Keep "Relevant Files" accurate and up to date.
+5. Before starting work, check which sub-task is next.
+6. After implementing a sub-task, update the file and then pause for user approval.
+7. After marking a sub-task complete, immediately run the full test suite; if any tests fail, revert the completion mark, fix the code for that sub-task, and re-run tests until they pass before re-marking as complete.
