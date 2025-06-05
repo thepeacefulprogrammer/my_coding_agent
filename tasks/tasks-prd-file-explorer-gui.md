@@ -16,7 +16,7 @@
 
 ## Task Breakdown
 
-**Total Progress: 2/5 tasks complete**
+**Total Progress: 3/5 tasks complete**
 
 ### Task 1.0: Project Setup and Initial Configuration
 - [x] **1.1:** Create project directory structure (`src/`, `tests/`)
@@ -32,14 +32,15 @@
 - [x] **2.4:** Implement `new_folder_dialog()` using `simpledialog.askstring` and `os.mkdir`
 - [x] **2.5:** Write tests mocking dialogs to verify behavior
 
+### Task 3.0: Develop `file_explorer.py` module for directory scanning and auto-refresh
+- [x] **3.1:** Create `FileExplorer` class with `scan_directory(path)` method
+- [x] **3.2:** Implement `create_directory(parent_path, new_name)` method
+- [x] **3.3:** Add `refresh()` method to re-scan the current directory
+- [x] **3.4:** Write unit tests for `scan_directory` using `tmp_path` fixtures
+- [x] **3.5:** Write unit tests for `create_directory` using `tmp_path`
+
 ## Tasks
 
-- [ ] 3.0 Develop `file_explorer.py` module for directory scanning and auto-refresh
-  - [x] 3.1 Create `FileExplorer` class with `scan_directory(path)` method
-  - [x] 3.2 Implement `create_directory(parent_path, new_name)` method
-  - [x] 3.3 Add `refresh()` method to re-scan the current directory
-  - [x] 3.4 Write unit tests for `scan_directory` using `tmp_path` fixtures
-  - [ ] 3.5 Write unit tests for `create_directory` using `tmp_path`
 - [ ] 4.0 Build tree view component in `gui.py` to display the file hierarchy
   - [ ] 4.1 Add a `ttk.Treeview` widget to the sidebar layout
   - [ ] 4.2 Implement `populate_tree(treeview, data)` to insert items

@@ -259,6 +259,191 @@ def test_scan_directory_special_characters(tmp_path):
     assert "dir_with_underscores" in dir_names, "Expected to find dir with underscores"
     assert "123numbers" in dir_names, "Expected to find dir starting with numbers"
 
+# Tests using tmp_path fixtures for create_directory
+
+def test_create_directory_simple_case(tmp_path):
+    """Test create_directory with simple valid inputs using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Create directory
+    new_dir_name = "new_folder"
+    result = explorer.create_directory(str(tmp_path), new_dir_name)
+    
+    # Should return full path and create directory
+    expected_path = tmp_path / new_dir_name
+    assert result == str(expected_path), f"Expected create_directory to return {expected_path}"
+    assert expected_path.exists(), "Expected directory to be created on filesystem"
+    assert expected_path.is_dir(), "Expected created path to be a directory"
+
+def test_create_directory_with_special_characters(tmp_path):
+    """Test create_directory with special characters in name using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Test various special character combinations
+    test_names = [
+        "folder with spaces",
+        "folder-with-hyphens",
+        "folder_with_underscores",
+        "folder123numbers",
+        "CamelCaseFolder",
+        "UPPERCASE_FOLDER"
+    ]
+    
+    for dir_name in test_names:
+        result = explorer.create_directory(str(tmp_path), dir_name)
+        expected_path = tmp_path / dir_name
+        
+        assert result == str(expected_path), f"Failed to create directory: {dir_name}"
+        assert expected_path.exists(), f"Directory not created on filesystem: {dir_name}"
+        assert expected_path.is_dir(), f"Created path is not a directory: {dir_name}"
+
+def test_create_directory_with_whitespace_cleanup(tmp_path):
+    """Test create_directory cleans whitespace from names using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Test whitespace cleanup
+    test_cases = [
+        ("  leading_spaces", "leading_spaces"),
+        ("trailing_spaces  ", "trailing_spaces"),
+        ("  both_sides  ", "both_sides"),
+        ("\ttab_characters\t", "tab_characters"),
+        (" \tmixed whitespace \n", "mixed whitespace")
+    ]
+    
+    for input_name, expected_clean in test_cases:
+        result = explorer.create_directory(str(tmp_path), input_name)
+        expected_path = tmp_path / expected_clean
+        
+        assert result == str(expected_path), f"Failed whitespace cleanup for: '{input_name}'"
+        assert expected_path.exists(), f"Cleaned directory not created: '{expected_clean}'"
+
+def test_create_directory_prevents_duplicates(tmp_path):
+    """Test create_directory prevents duplicate directory creation using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Create directory first time
+    dir_name = "duplicate_test"
+    first_result = explorer.create_directory(str(tmp_path), dir_name)
+    expected_path = tmp_path / dir_name
+    
+    assert first_result == str(expected_path), "First creation should succeed"
+    assert expected_path.exists(), "Directory should be created"
+    
+    # Try to create same directory again
+    second_result = explorer.create_directory(str(tmp_path), dir_name)
+    
+    assert second_result is None, "Second creation should return None (already exists)"
+    assert expected_path.exists(), "Directory should still exist"
+
+def test_create_directory_invalid_inputs(tmp_path):
+    """Test create_directory handles invalid inputs using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Test invalid directory names
+    invalid_names = [
+        "",           # Empty string
+        "   ",        # Whitespace only
+        "\t\n",       # Whitespace characters only
+        None,         # None value
+    ]
+    
+    for invalid_name in invalid_names:
+        result = explorer.create_directory(str(tmp_path), invalid_name)
+        assert result is None, f"Should return None for invalid name: {repr(invalid_name)}"
+    
+    # Verify no directories were created
+    existing_items = list(tmp_path.iterdir())
+    assert len(existing_items) == 0, "No directories should be created for invalid names"
+
+def test_create_directory_nonexistent_parent(tmp_path):
+    """Test create_directory with non-existent parent directory using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Try to create directory in non-existent parent
+    nonexistent_parent = tmp_path / "does_not_exist"
+    result = explorer.create_directory(str(nonexistent_parent), "new_folder")
+    
+    assert result is None, "Should return None for non-existent parent"
+    
+    # Verify nothing was created
+    created_path = nonexistent_parent / "new_folder"
+    assert not created_path.exists(), "No directory should be created with invalid parent"
+
+def test_create_directory_with_file_as_parent(tmp_path):
+    """Test create_directory when parent path is a file using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Create a file
+    file_path = tmp_path / "not_a_directory.txt"
+    file_path.write_text("This is a file, not a directory")
+    
+    # Try to create directory with file as parent
+    result = explorer.create_directory(str(file_path), "new_folder")
+    
+    assert result is None, "Should return None when parent is a file"
+
+def test_create_directory_nested_structure(tmp_path):
+    """Test create_directory can create nested directory structures using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Create a series of nested directories
+    level1_result = explorer.create_directory(str(tmp_path), "level1")
+    assert level1_result is not None, "Level 1 creation should succeed"
+    
+    level2_result = explorer.create_directory(level1_result, "level2")
+    assert level2_result is not None, "Level 2 creation should succeed"
+    
+    level3_result = explorer.create_directory(level2_result, "level3")
+    assert level3_result is not None, "Level 3 creation should succeed"
+    
+    # Verify the full nested structure exists
+    final_path = tmp_path / "level1" / "level2" / "level3"
+    assert final_path.exists(), "Full nested structure should exist"
+    assert final_path.is_dir(), "Final path should be a directory"
+
+def test_create_directory_integration_with_scan(tmp_path):
+    """Test create_directory integration with scan_directory using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Initial scan should find empty directory
+    initial_scan = explorer.scan_directory(str(tmp_path))
+    assert len(initial_scan['directories']) == 0, "Should start with empty directory"
+    
+    # Create some directories
+    created_dirs = []
+    for i in range(3):
+        dir_name = f"test_dir_{i}"
+        result = explorer.create_directory(str(tmp_path), dir_name)
+        assert result is not None, f"Creation of {dir_name} should succeed"
+        created_dirs.append(dir_name)
+    
+    # Refresh scan should detect new directories
+    updated_scan = explorer.refresh()
+    assert len(updated_scan['directories']) == 3, "Should find 3 created directories"
+    
+    # Check all created directories are found
+    found_dirs = [os.path.basename(d) for d in updated_scan['directories']]
+    for created_dir in created_dirs:
+        assert created_dir in found_dirs, f"Should find created directory: {created_dir}"
+
 def test_refresh_requires_initial_scan():
     """Test that refresh requires an initial scan_directory call"""
     from src.file_explorer import FileExplorer
