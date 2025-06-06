@@ -6,7 +6,7 @@
 - `src/__init__.py`: Package initialization  
 - `requirements.txt`: Project dependencies
 - `pytest.ini`: Test configuration
-- `tests/`: Comprehensive test suite with 31 tests
+- `tests/`: Comprehensive test suite with 123 tests
 
 ## Notes
 
@@ -16,7 +16,7 @@
 
 ## Task Breakdown
 
-**Total Progress: 3/5 tasks complete**
+**Total Progress: 5/5 tasks complete**
 
 ### Task 1.0: Project Setup and Initial Configuration
 - [x] **1.1:** Create project directory structure (`src/`, `tests/`)
@@ -41,16 +41,25 @@
 
 ## Tasks
 
-- [ ] 4.0 Build tree view component in `gui.py` to display the file hierarchy
-  - [ ] 4.1 Add a `ttk.Treeview` widget to the sidebar layout
-  - [ ] 4.2 Implement `populate_tree(treeview, data)` to insert items
-  - [ ] 4.3 Bind expand/collapse functionality to tree items
-  - [ ] 4.4 Connect tree refresh to `FileExplorer.refresh()`
-  - [ ] 4.5 Write unit tests for `populate_tree` logic
-- [ ] 5.0 Implement file content viewer pane in `gui.py` to load and render file contents
-  - [ ] 5.1 Add a read-only `Text` widget with scrollbar to the main layout
-  - [ ] 5.2 Extend `FileExplorer` with `read_file(path)` method
-  - [ ] 5.3 Implement tree selection handler to call `read_file` and update text widget
-  - [ ] 5.4 Ensure file viewer pane scrolls properly (scrollbar binding)
-  - [ ] 5.5 Write unit tests for `read_file` method
-  - [ ] 5.6 Write unit tests for selection handler logic 
+- [x] 4.0 Build tree view component in `gui.py` to display the file hierarchy
+  - [x] 4.1 Add a `ttk.Treeview` widget to the sidebar layout
+  - [x] 4.2 Implement `populate_tree(treeview, data)` to insert items
+  - [x] 4.3 Bind expand/collapse functionality to tree items
+  - [x] 4.4 Connect tree refresh to `FileExplorer.refresh()`
+  - [x] 4.5 Write unit tests for `populate_tree` logic
+  
+- [x] 5.0 Implement file content viewer pane in `gui.py` to load and render file contents
+  - [x] 5.1 Add a read-only `Text` widget with scrollbar to the main layout
+  - [x] 5.2 Extend `FileExplorer` with `read_file(path)` method
+  - [x] 5.3 Implement tree selection handler to call `read_file` and update text widget
+  - [x] 5.4 Ensure file viewer pane scrolls properly (scrollbar binding)
+  - [x] 5.5 Write unit tests for `read_file` method
+  - [x] 5.6 Write unit tests for selection handler logic 
+
+## Post-MVP Bug Fixes
+
+- [x] 6.1 Fix open folder handler to populate tree view with directory contents
+  - Fixed bug where selecting a folder via "Open Folder" dialog would not display contents in tree view
+  - Added automatic directory scanning and tree population when folder is opened
+  - Added error handling for inaccessible directories  
+  - Added comprehensive unit tests for both success and error scenarios 

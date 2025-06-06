@@ -106,4 +106,36 @@ class FileExplorer:
             return None
         
         # Re-scan the current directory
-        return self.scan_directory(self.current_directory) 
+        return self.scan_directory(self.current_directory)
+    
+    def read_file(self, path):
+        """
+        Read the contents of a file
+        
+        Args:
+            path (str): Path to the file to read
+            
+        Returns:
+            str: File contents as a string, or None if the file cannot be read
+        """
+        try:
+            # Check if path exists and is a file
+            if not os.path.exists(path) or not os.path.isfile(path):
+                return None
+            
+            # Try to read the file with UTF-8 encoding first
+            try:
+                with open(path, 'r', encoding='utf-8') as file:
+                    return file.read()
+            except UnicodeDecodeError:
+                # If UTF-8 fails, try with default encoding and error handling
+                try:
+                    with open(path, 'r', encoding='utf-8', errors='replace') as file:
+                        return file.read()
+                except UnicodeDecodeError:
+                    # If it's truly binary, return None
+                    return None
+                    
+        except (OSError, PermissionError, IOError):
+            # Handle file access errors gracefully
+            return None 

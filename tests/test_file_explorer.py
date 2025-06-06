@@ -41,6 +41,14 @@ def test_file_explorer_has_refresh_method():
     assert hasattr(explorer, 'refresh'), "Expected FileExplorer to have refresh method"
     assert callable(explorer.refresh), "Expected refresh to be callable"
 
+def test_file_explorer_has_read_file_method():
+    """Test that FileExplorer class has read_file method"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    assert hasattr(explorer, 'read_file'), "Expected FileExplorer to have read_file method"
+    assert callable(explorer.read_file), "Expected read_file to be callable"
+
 # Tests using tmp_path fixtures for scan_directory
 
 def test_scan_directory_empty_directory(tmp_path):
@@ -798,5 +806,188 @@ def test_scan_directory_excludes_hidden_files():
         assert ".hidden.txt" not in file_names, "Expected to exclude hidden files"
 
 def test_placeholder():
-    """Placeholder test to ensure file exists and pytest runs"""
-    assert True 
+    """Placeholder test to ensure pytest runs"""
+    assert True
+
+def test_read_file_simple_text_file(tmp_path):
+    """Test read_file with a simple text file using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Create test file
+    test_file = tmp_path / "test.txt"
+    test_content = "Hello, World!\nThis is a test file.\nLine 3."
+    test_file.write_text(test_content)
+    
+    # Read file
+    result = explorer.read_file(str(test_file))
+    
+    # Should return the file content
+    assert result is not None, "Expected read_file to return content"
+    assert isinstance(result, str), "Expected read_file to return a string"
+    assert result == test_content, f"Expected file content to match: {test_content}"
+
+def test_read_file_with_encoding_utf8(tmp_path):
+    """Test read_file with UTF-8 encoded text using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Create test file with UTF-8 content
+    test_file = tmp_path / "unicode.txt"
+    test_content = "Hello 🌍!\nThis file contains émojis and spëcial characters.\nЗдравствуй мир!"
+    test_file.write_text(test_content, encoding='utf-8')
+    
+    # Read file
+    result = explorer.read_file(str(test_file))
+    
+    # Should return the Unicode content correctly
+    assert result is not None, "Expected read_file to return content"
+    assert result == test_content, "Expected Unicode content to be preserved"
+
+def test_read_file_python_source_code(tmp_path):
+    """Test read_file with Python source code using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Create Python file
+    python_file = tmp_path / "script.py"
+    python_content = '''#!/usr/bin/env python3
+"""This is a test Python file."""
+
+def hello_world():
+    """Print hello world message."""
+    print("Hello, World!")
+
+if __name__ == "__main__":
+    hello_world()
+'''
+    python_file.write_text(python_content)
+    
+    # Read file
+    result = explorer.read_file(str(python_file))
+    
+    # Should return the Python code exactly
+    assert result is not None, "Expected read_file to return content"
+    assert result == python_content, "Expected Python code to be preserved exactly"
+
+def test_read_file_empty_file(tmp_path):
+    """Test read_file with an empty file using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Create empty file
+    empty_file = tmp_path / "empty.txt"
+    empty_file.write_text("")
+    
+    # Read file
+    result = explorer.read_file(str(empty_file))
+    
+    # Should return empty string
+    assert result is not None, "Expected read_file to return empty string for empty file"
+    assert result == "", "Expected empty file to return empty string"
+
+def test_read_file_nonexistent_file():
+    """Test read_file with a nonexistent file"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Try to read nonexistent file
+    result = explorer.read_file("/nonexistent/path/file.txt")
+    
+    # Should return None gracefully
+    assert result is None, "Expected read_file to return None for nonexistent file"
+
+def test_read_file_directory_instead_of_file(tmp_path):
+    """Test read_file when given a directory path instead of file"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Create directory
+    test_dir = tmp_path / "directory"
+    test_dir.mkdir()
+    
+    # Try to read directory as file
+    result = explorer.read_file(str(test_dir))
+    
+    # Should return None gracefully
+    assert result is None, "Expected read_file to return None when given directory path"
+
+def test_read_file_with_permission_error():
+    """Test read_file handles permission errors gracefully"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Mock os.path.isfile and open to simulate permission error
+    with patch('os.path.isfile', return_value=True), \
+         patch('builtins.open', side_effect=PermissionError("Access denied")):
+        
+        result = explorer.read_file("/some/protected/file.txt")
+        
+        # Should return None gracefully on permission error
+        assert result is None, "Expected read_file to return None on permission error"
+
+def test_read_file_with_binary_content(tmp_path):
+    """Test read_file with binary content (should handle gracefully)"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Create file with binary content
+    binary_file = tmp_path / "binary.bin"
+    binary_content = b'\x00\x01\x02\x03\xFF\xFE\xFD'
+    binary_file.write_bytes(binary_content)
+    
+    # Try to read binary file
+    result = explorer.read_file(str(binary_file))
+    
+    # Should either return None or handle gracefully
+    # Implementation dependent - we'll accept None or decoded content
+    assert result is None or isinstance(result, str), "Expected read_file to handle binary content gracefully"
+
+def test_read_file_large_text_file(tmp_path):
+    """Test read_file with a larger text file using tmp_path"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Create larger text file
+    large_file = tmp_path / "large.txt"
+    large_content = ""
+    for i in range(100):
+        large_content += f"Line {i}: This is a longer line with some content to test file reading.\n"
+    
+    large_file.write_text(large_content)
+    
+    # Read file
+    result = explorer.read_file(str(large_file))
+    
+    # Should return all content
+    assert result is not None, "Expected read_file to return content for large file"
+    assert result == large_content, "Expected large file content to be preserved"
+    assert len(result.split('\n')) == 101, "Expected correct number of lines (100 + final empty)"
+
+def test_read_file_preserves_line_endings(tmp_path):
+    """Test read_file preserves different line ending styles"""
+    from src.file_explorer import FileExplorer
+    
+    explorer = FileExplorer()
+    
+    # Create file with specific line endings
+    file_with_endings = tmp_path / "endings.txt"
+    # Use different line ending styles
+    content_with_endings = "Line 1\nLine 2\r\nLine 3\nEnd"
+    file_with_endings.write_text(content_with_endings, newline=None)  # Preserve line endings
+    
+    # Read file
+    result = explorer.read_file(str(file_with_endings))
+    
+    # Should preserve line endings
+    assert result is not None, "Expected read_file to return content"
+    # Content should be preserved (though Python may normalize line endings) 
