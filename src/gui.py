@@ -8,10 +8,12 @@ try:
     from .file_explorer import FileExplorer
     from .syntax_manager import SyntaxManager
     from .folder_dialog import askdirectory_custom
+    from .code_editor import CodeEditor
 except ImportError:
     from file_explorer import FileExplorer
     from syntax_manager import SyntaxManager
     from folder_dialog import askdirectory_custom
+    from code_editor import CodeEditor
 
 class GUI:
     """Main GUI class for the file explorer application"""
@@ -26,6 +28,9 @@ class GUI:
         # Set window title and size
         self.root.title("Vibe Coding - File Explorer")
         self.root.geometry("800x600")
+        
+        # Bind cleanup on window close
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # Create main menu
         self.create_menu()
@@ -100,25 +105,24 @@ class GUI:
         self.file_content_scrollbar = tk.Scrollbar(text_container)
         self.file_content_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Create file content display (right side) using CodeView for syntax highlighting
-        self.file_content_codeview = CodeView(
-            text_container,
-            yscrollcommand=self.file_content_scrollbar.set,
-            wrap='none',
-            state='disabled',
-            font=('Consolas', 10),
-            bg='#2E3440',  # Dark background
-            fg='#D8DEE9',  # Light foreground 
-            tab_width=4,
-            autohide_scrollbar=False,
-            selectbackground='#4C566A',  # Selection background
-            insertbackground='#D8DEE9',   # Cursor color
-            color_scheme=None  # Disable default color scheme so we can apply our own
+        # Create CodeEditor for syntax highlighting with color scheme support
+        self.code_editor = CodeEditor(
+            text_container, 
+            self.syntax_manager, 
+            scrollbar=self.file_content_scrollbar,
+            color_scheme="monokai"
         )
-        self.file_content_codeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Configure scrollbar to work with CodeView widget
-        self.file_content_scrollbar.config(command=self.file_content_codeview.yview)
+        # Create initial widget without automatic grid layout
+        widget = self.code_editor.create_widget()
+        self.code_editor.configure_scrollbar(widget)
+        self.code_editor.current_widget = widget
+        
+        # Use pack geometry manager instead of grid
+        widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        
+        # Get the current widget for compatibility
+        self.file_content_codeview = self.code_editor.current_widget
     
     def open_folder_handler(self):
         """Handle opening a folder"""
@@ -367,43 +371,86 @@ class GUI:
             self.update_file_content("[Error loading file content]")
     
     def update_file_content(self, content, filename=None):
-        """Update the file content CodeView widget with new content and syntax highlighting
+        """Update the file content using CodeEditor with proper syntax highlighting
         
         Args:
             content (str): Content to display in the CodeView widget
             filename (str, optional): Filename for syntax highlighting detection
         """
         try:
-            # Temporarily enable the CodeView widget for editing
-            self.file_content_codeview.config(state='normal')
+            if filename:
+                # Get appropriate lexer for syntax highlighting
+                lexer = self.syntax_manager.get_lexer_for_file(filename)
+                
+                # Always recreate widget to ensure proper syntax highlighting and color scheme
+                if True:  # Simplified approach - always recreate for syntax highlighting
+                    # Need to create new widget with different lexer
+                    old_widget = self.code_editor.current_widget
+                    
+                    # Create new widget with proper lexer and color scheme
+                    new_widget = self.code_editor.create_widget(lexer=lexer)
+                    
+                    # Replace the old widget in the GUI layout
+                    if old_widget:
+                        try:
+                            # Safely unpack and destroy old widget
+                            old_widget.pack_forget()
+                            old_widget.destroy()
+                        except tk.TclError:
+                            # Widget may already be destroyed
+                            pass
+                    
+                    try:
+                        # Pack the new widget
+                        new_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+                        
+                        # Update CodeEditor state
+                        self.code_editor.current_widget = new_widget
+                        self.code_editor.configure_scrollbar(new_widget)
+                        
+                        # Update GUI reference
+                        self.file_content_codeview = new_widget
+                    except tk.TclError as e:
+                        print(f"Widget packing error: {e}")
+                        # Fall back to current widget
+                        pass
             
-            # Clear existing content
-            self.file_content_codeview.delete('1.0', 'end')
-            
-            # Insert new content
-            self.file_content_codeview.insert('1.0', content)
-            
-            # NOTE: Syntax highlighting would require recreating the widget with proper lexer
-            # This is a known limitation of the Chlorophyll library - lexer must be set during construction
-            # For now, we have a dark theme but limited syntax highlighting
-            
-            print(f"✅ Updated content for {filename or 'text file'}")
-            
-            # Make CodeView widget read-only again
-            self.file_content_codeview.config(state='disabled')
-            
-            # Reset scroll position to top
-            self.file_content_codeview.see('1.0')
+            # Update content in the current widget
+            widget = self.code_editor.current_widget
+            if widget:
+                # Enable for editing
+                widget.config(state='normal')
+                
+                # Clear and insert content
+                widget.delete('1.0', 'end')
+                if filename:
+                    # Read content from file for proper encoding handling
+                    try:
+                        with open(filename, 'r', encoding='utf-8') as f:
+                            file_content = f.read()
+                        widget.insert('1.0', file_content)
+                    except Exception:
+                        widget.insert('1.0', content)
+                else:
+                    widget.insert('1.0', content)
+                
+                # Set back to read-only and scroll to top
+                widget.config(state='disabled')
+                widget.see('1.0')
+                
+                print(f"✅ Updated content for {filename or 'text file'} with syntax highlighting")
             
         except Exception as e:
             print(f"❌ Error in update_file_content: {e}")
-            # Handle any errors gracefully - fallback to plain text display
+            # Fallback to basic content update
             try:
-                self.file_content_codeview.config(state='normal')
-                self.file_content_codeview.delete('1.0', 'end')
-                self.file_content_codeview.insert('1.0', content)
-                self.file_content_codeview.config(state='disabled')
-                self.file_content_codeview.see('1.0')
+                widget = self.code_editor.current_widget
+                if widget:
+                    widget.config(state='normal')
+                    widget.delete('1.0', 'end')
+                    widget.insert('1.0', content)
+                    widget.config(state='disabled')
+                    widget.see('1.0')
             except:
                 pass
     
@@ -443,3 +490,17 @@ class GUI:
         except Exception as e:
             # Handle any errors gracefully
             pass
+    
+    def on_closing(self):
+        """Handle window closing with proper cleanup"""
+        try:
+            # Clean up CodeEditor resources
+            if hasattr(self, 'code_editor') and self.code_editor:
+                self.code_editor.destroy_widget_safely()
+                if hasattr(self.code_editor, 'invalidate_cache'):
+                    self.code_editor.invalidate_cache()
+        except Exception as e:
+            print(f"Cleanup warning: {e}")
+        finally:
+            # Destroy the window
+            self.root.destroy()

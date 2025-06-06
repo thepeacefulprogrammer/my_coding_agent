@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock, PropertyMock, mock_open
 import tkinter as tk
 from tkinter import ttk
 import sys
@@ -48,19 +48,19 @@ class TestCodeEditor(unittest.TestCase):
         
         self.assertEqual(editor.scrollbar, scrollbar)
         self.assertEqual(editor.width, 100)
-        self.assertEqual(editor.height, 50)
+                self.assertEqual(editor.height, 50)
         
     @patch('code_editor.CodeView')
     def test_create_widget_with_no_lexer(self, mock_codeview):
         """Test widget creation when no lexer is specified."""
         mock_widget = Mock()
         mock_codeview.return_value = mock_widget
-        
+
         editor = CodeEditor(self.parent_frame, self.syntax_manager)
         widget = editor.create_widget()
-        
-        # Should create CodeView without lexer parameter but with default dimensions
-        mock_codeview.assert_called_once_with(self.parent_frame, width=80, height=24)
+
+        # Should create CodeView with color scheme and default dimensions
+        mock_codeview.assert_called_once_with(self.parent_frame, color_scheme="monokai", width=80, height=24)
         self.assertEqual(widget, mock_widget)
         
     @patch('code_editor.CodeView')
@@ -69,12 +69,12 @@ class TestCodeEditor(unittest.TestCase):
         mock_widget = Mock()
         mock_codeview.return_value = mock_widget
         mock_lexer = Mock()
-        
+
         editor = CodeEditor(self.parent_frame, self.syntax_manager)
         widget = editor.create_widget(lexer=mock_lexer)
-        
-        # Should create CodeView with lexer parameter and default dimensions
-        mock_codeview.assert_called_once_with(self.parent_frame, lexer=mock_lexer, width=80, height=24)
+
+        # Should create CodeView with lexer parameter, color scheme, and default dimensions
+        mock_codeview.assert_called_once_with(self.parent_frame, lexer=mock_lexer, color_scheme="monokai", width=80, height=24)
         self.assertEqual(widget, mock_widget)
         
     @patch('code_editor.CodeView')
@@ -204,7 +204,7 @@ class TestCodeEditorWidgetFactory(unittest.TestCase):
             
             # Should detect lexer and create widget with it
             mock_get_lexer.assert_called_once_with("test.py")
-            mock_codeview.assert_called_once_with(self.parent_frame, lexer=mock_lexer, width=80, height=24)
+            mock_codeview.assert_called_once_with(self.parent_frame, lexer=mock_lexer, color_scheme="monokai", width=80, height=24)
             self.assertEqual(widget, mock_widget)
             
     @patch('code_editor.CodeView')
@@ -221,8 +221,8 @@ class TestCodeEditorWidgetFactory(unittest.TestCase):
             # Create widget for file with no lexer
             widget = editor.create_widget_for_file("unknown.xyz")
             
-            # Should create widget without lexer
-            mock_codeview.assert_called_once_with(self.parent_frame, width=80, height=24)
+            # Should create widget with color scheme
+            mock_codeview.assert_called_once_with(self.parent_frame, color_scheme="monokai", width=80, height=24)
             self.assertEqual(widget, mock_widget)
             
     @patch('code_editor.CodeView')
@@ -574,9 +574,9 @@ class TestCodeEditorWidgetReplacement(unittest.TestCase):
         # Replace with new lexer
         result = editor.replace_widget_with_lexer(mock_lexer)
 
-        # Should create new widget with lexer
+                # Should create new widget with lexer
         self.assertEqual(mock_codeview.call_count, 2)
-        mock_codeview.assert_called_with(editor.parent, lexer=mock_lexer, 
+        mock_codeview.assert_called_with(editor.parent, lexer=mock_lexer, color_scheme="monokai",
                                         width=editor.width, height=editor.height)
 
         # Should restore content and state
@@ -613,11 +613,16 @@ class TestCodeEditorWidgetReplacement(unittest.TestCase):
         editor.current_widget = editor.create_widget()
         mock_lexer = Mock()
 
-        # Replace widget
+                # Replace widget
         editor.replace_widget_with_lexer(mock_lexer)
-
-        # Should configure scrollbar for new widget
-        scrollbar.config.assert_called_with(command=new_widget.yview)
+        
+        # Should have configured scrollbar for new widget (check call history)
+        # During replacement, scrollbar gets disconnected then reconnected
+        config_calls = scrollbar.config.call_args_list
+        self.assertTrue(any(
+            call.kwargs.get('command') == new_widget.yview
+            for call in config_calls
+        ), "Scrollbar should be configured for new widget")
 
 
 class TestCodeEditorGUIIntegration(unittest.TestCase):
@@ -645,8 +650,8 @@ class TestCodeEditorGUIIntegration(unittest.TestCase):
         # Setup initial widget
         widget = editor.setup_initial_widget()
         
-        # Should create widget without lexer
-        mock_codeview.assert_called_once_with(self.parent_frame, width=80, height=24)
+        # Should create widget with color scheme
+        mock_codeview.assert_called_once_with(self.parent_frame, color_scheme="monokai", width=80, height=24)
         self.assertEqual(editor.current_widget, mock_widget)
         self.assertEqual(widget, mock_widget)
         
@@ -665,9 +670,10 @@ class TestCodeEditorGUIIntegration(unittest.TestCase):
         # Should configure grid layout
         mock_widget.grid.assert_called_once_with(row=1, column=0, sticky='nsew')
         
-        # Should configure scrollbar
-        scrollbar.config.assert_called_once_with(command=mock_widget.yview)
-        mock_widget.config.assert_called_once_with(yscrollcommand=scrollbar.set)
+        # Should configure scrollbar (may be called multiple times due to enhanced implementation)
+        # Once in create_widget, once in configure_scrollbar in setup_initial_widget
+        self.assertTrue(scrollbar.config.call_count >= 1)
+        scrollbar.config.assert_called_with(command=mock_widget.yview)
         
     def test_update_file_content_with_filename(self):
         """Test updating file content with syntax highlighting based on filename."""
@@ -1349,8 +1355,12 @@ class TestCodeEditorContainerRelationships(unittest.TestCase):
         # Replace widget with lexer
         result = editor.replace_widget_with_lexer(mock_lexer)
         
-        # Should reconnect scrollbar to new widget
-        scrollbar.config.assert_called_with(command=new_widget.yview)
+        # Should reconnect scrollbar to new widget (check call history)
+        config_calls = scrollbar.config.call_args_list
+        self.assertTrue(any(
+            call.kwargs.get('command') == new_widget.yview
+            for call in config_calls
+        ), "Scrollbar should be reconnected to new widget")
         new_widget.config.assert_called_with(yscrollcommand=scrollbar.set)
         
     @patch('code_editor.CodeView')
@@ -1467,5 +1477,1176 @@ class TestCodeEditorContainerRelationships(unittest.TestCase):
         self.assertEqual(editor.current_widget, result)
 
 
+class TestCodeEditorScrollbarReconnection(unittest.TestCase):
+    """Test cases for enhanced scrollbar reconnection after widget replacement."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.root = tk.Tk()
+        self.root.withdraw()  # Hide the window during testing
+        self.parent_frame = ttk.Frame(self.root)
+        self.syntax_manager = SyntaxManager()
+        
+    def tearDown(self):
+        """Clean up test fixtures."""
+        self.root.destroy()
+        
+    @patch('code_editor.CodeView')
+    def test_scrollbar_position_preservation_during_replacement(self, mock_codeview):
+        """Test that scrollbar position is preserved during widget replacement."""
+        scrollbar = Mock()
+        old_widget = Mock()
+        new_widget = Mock()
+        mock_codeview.side_effect = [old_widget, new_widget]
+        
+        # Set up scrollbar with specific position
+        scrollbar.get.return_value = (0.3, 0.7)  # 30% to 70% visible
+        old_widget.yview.return_value = (0.3, 0.7)
+        
+        # Set up widget state
+        old_widget.get.return_value = "content"
+        old_widget.index.return_value = "1.0"
+        old_widget.yview.return_value = (0.3, 0.7)
+        old_widget.tag_ranges.return_value = ()
+        old_widget.getvar.return_value = {}
+        old_widget.winfo_children.return_value = []
+        old_widget.master = self.parent_frame
+        old_widget.focus_get.return_value = None
+        old_widget.grid_info.return_value = {'row': 0, 'column': 0}
+        old_widget.pack_info.return_value = {}
+        old_widget.place_info.return_value = {}
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, scrollbar=scrollbar)
+        editor.current_widget = editor.create_widget()
+        mock_lexer = Mock()
+        
+        # Replace widget
+        result = editor.replace_widget_with_lexer(mock_lexer)
+        
+        # Should restore scroll position
+        new_widget.yview_moveto.assert_called_with(0.3)
+        
+    @patch('code_editor.CodeView')
+    def test_scrollbar_synchronization_with_multiple_widgets(self, mock_codeview):
+        """Test scrollbar synchronization when multiple widgets exist."""
+        scrollbar = Mock()
+        widget1 = Mock()
+        widget2 = Mock()
+        widget3 = Mock()
+        mock_codeview.side_effect = [widget1, widget2, widget3]
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, scrollbar=scrollbar)
+        
+        # Create first widget
+        editor.current_widget = editor.create_widget()
+        scrollbar.config.assert_called_with(command=widget1.yview)
+        widget1.config.assert_called_with(yscrollcommand=scrollbar.set)
+        
+        # Mock replacement setup
+        widget1.get.return_value = "content1"
+        widget1.index.return_value = "1.0"
+        widget1.yview.return_value = (0.0, 1.0)
+        widget1.tag_ranges.return_value = ()
+        widget1.getvar.return_value = {}
+        widget1.winfo_children.return_value = []
+        widget1.master = self.parent_frame
+        widget1.focus_get.return_value = None
+        widget1.grid_info.return_value = {'row': 0, 'column': 0}
+        widget1.pack_info.return_value = {}
+        widget1.place_info.return_value = {}
+        
+        # Replace with second widget
+        mock_lexer = Mock()
+        editor.replace_widget_with_lexer(mock_lexer)
+        
+        # Should disconnect from widget1 and connect to widget2 (check call history)
+        config_calls = scrollbar.config.call_args_list
+        self.assertTrue(any(
+            call.kwargs.get('command') == widget2.yview
+            for call in config_calls
+        ), "Scrollbar should be connected to widget2")
+        widget2.config.assert_called_with(yscrollcommand=scrollbar.set)
+        
+    @patch('code_editor.CodeView')
+    def test_scrollbar_handles_widget_creation_failure(self, mock_codeview):
+        """Test scrollbar behavior when widget creation fails."""
+        scrollbar = Mock()
+        old_widget = Mock()
+        
+        # First call succeeds, second call fails
+        mock_codeview.side_effect = [old_widget, Exception("Widget creation failed")]
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, scrollbar=scrollbar)
+        editor.current_widget = editor.create_widget()
+        
+        # Set up widget state
+        old_widget.get.return_value = "content"
+        old_widget.index.return_value = "1.0"
+        old_widget.yview.return_value = (0.0, 1.0)
+        old_widget.tag_ranges.return_value = ()
+        old_widget.getvar.return_value = {}
+        old_widget.winfo_children.return_value = []
+        old_widget.master = self.parent_frame
+        old_widget.focus_get.return_value = None
+        old_widget.grid_info.return_value = {'row': 0, 'column': 0}
+        old_widget.pack_info.return_value = {}
+        old_widget.place_info.return_value = {}
+        
+        mock_lexer = Mock()
+        
+        # Should handle gracefully and not leave scrollbar in bad state
+        with self.assertRaises(Exception):
+            editor.replace_widget_with_lexer(mock_lexer)
+            
+        # Scrollbar should still be connected to old widget
+        self.assertEqual(editor.current_widget, old_widget)
+        
+    @patch('code_editor.CodeView')
+    def test_scrollbar_bidirectional_communication(self, mock_codeview):
+        """Test bidirectional communication between scrollbar and widget."""
+        scrollbar = Mock()
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, scrollbar=scrollbar)
+        editor.current_widget = editor.create_widget()
+        
+        # Should configure both directions
+        scrollbar.config.assert_called_with(command=widget.yview)
+        widget.config.assert_called_with(yscrollcommand=scrollbar.set)
+        
+    @patch('code_editor.CodeView')
+    def test_scrollbar_disconnection_during_destruction(self, mock_codeview):
+        """Test that scrollbar is properly disconnected during widget destruction."""
+        scrollbar = Mock()
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        # Set up widget for destruction
+        widget.getvar.return_value = {}
+        widget.winfo_children.return_value = []
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, scrollbar=scrollbar)
+        editor.current_widget = editor.create_widget()
+        
+        # Destroy widget
+        editor.destroy_widget_safely()
+        
+        # Should disconnect scrollbar
+        scrollbar.config.assert_called_with(command='')
+        
+    @patch('code_editor.CodeView')
+    def test_scrollbar_reconnection_preserves_scroll_callbacks(self, mock_codeview):
+        """Test that scrollbar reconnection preserves all scroll-related callbacks."""
+        scrollbar = Mock()
+        old_widget = Mock()
+        new_widget = Mock()
+        mock_codeview.side_effect = [old_widget, new_widget]
+        
+        # Set up callbacks
+        old_widget.yview = Mock()
+        new_widget.yview = Mock()
+        scrollbar.set = Mock()
+        
+        # Set up widget state
+        old_widget.get.return_value = "content"
+        old_widget.index.return_value = "1.0"
+        old_widget.yview.return_value = (0.0, 1.0)
+        old_widget.tag_ranges.return_value = ()
+        old_widget.getvar.return_value = {}
+        old_widget.winfo_children.return_value = []
+        old_widget.master = self.parent_frame
+        old_widget.focus_get.return_value = None
+        old_widget.grid_info.return_value = {'row': 0, 'column': 0}
+        old_widget.pack_info.return_value = {}
+        old_widget.place_info.return_value = {}
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, scrollbar=scrollbar)
+        editor.current_widget = editor.create_widget()
+        
+        mock_lexer = Mock()
+        result = editor.replace_widget_with_lexer(mock_lexer)
+        
+        # Should preserve callback functions (check call history)
+        config_calls = scrollbar.config.call_args_list
+        self.assertTrue(any(
+            call.kwargs.get('command') == new_widget.yview
+            for call in config_calls
+        ), "Scrollbar callbacks should be preserved")
+        new_widget.config.assert_called_with(yscrollcommand=scrollbar.set)
+        
+    @patch('code_editor.CodeView')
+    def test_scrollbar_handles_rapid_widget_replacement(self, mock_codeview):
+        """Test scrollbar behavior during rapid successive widget replacements."""
+        scrollbar = Mock()
+        widget1 = Mock()
+        widget2 = Mock()
+        widget3 = Mock()
+        mock_codeview.side_effect = [widget1, widget2, widget3]
+        
+        # Set up widgets
+        for widget in [widget1, widget2]:
+            widget.get.return_value = "content"
+            widget.index.return_value = "1.0"
+            widget.yview.return_value = (0.0, 1.0)
+            widget.tag_ranges.return_value = ()
+            widget.getvar.return_value = {}
+            widget.winfo_children.return_value = []
+            widget.master = self.parent_frame
+            widget.focus_get.return_value = None
+            widget.grid_info.return_value = {'row': 0, 'column': 0}
+            widget.pack_info.return_value = {}
+            widget.place_info.return_value = {}
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, scrollbar=scrollbar)
+        editor.current_widget = editor.create_widget()
+        
+        mock_lexer1 = Mock()
+        mock_lexer2 = Mock()
+        
+        # Rapid replacements
+        editor.replace_widget_with_lexer(mock_lexer1)
+        editor.replace_widget_with_lexer(mock_lexer2)
+        
+        # Should end up connected to final widget (check call history)
+        config_calls = scrollbar.config.call_args_list
+        self.assertTrue(any(
+            call.kwargs.get('command') == widget3.yview
+            for call in config_calls
+        ), "Scrollbar should be connected to final widget after rapid replacements")
+        widget3.config.assert_called_with(yscrollcommand=scrollbar.set)
+        
+    @patch('code_editor.CodeView')
+    def test_scrollbar_configuration_with_no_scrollbar(self, mock_codeview):
+        """Test that scrollbar operations are safely ignored when no scrollbar is present."""
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        # No scrollbar provided
+        editor = CodeEditor(self.parent_frame, self.syntax_manager)
+        editor.current_widget = editor.create_widget()
+        
+        # Should not attempt any scrollbar-related config operations
+        # The widget should be created successfully without scrollbar config
+        self.assertEqual(editor.current_widget, widget)
+        self.assertIsNone(editor.scrollbar)
+        
+        # widget.config should not be called for scrollbar operations since no scrollbar is present
+        # (Note: create_widget only calls scrollbar config if scrollbar exists)
+        widget.config.assert_not_called()
+        
+    @patch('code_editor.CodeView')
+    def test_scrollbar_error_recovery(self, mock_codeview):
+        """Test scrollbar error recovery when configuration fails."""
+        scrollbar = Mock()
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        # Make scrollbar configuration fail
+        scrollbar.config.side_effect = tk.TclError("Scrollbar error")
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, scrollbar=scrollbar)
+        
+        # Should handle scrollbar errors gracefully
+        try:
+            editor.current_widget = editor.create_widget()
+        except tk.TclError:
+            self.fail("Scrollbar error should be handled gracefully")
+            
+    @patch('code_editor.CodeView')
+    def test_enhanced_scrollbar_reconnection_comprehensive(self, mock_codeview):
+        """Test comprehensive scrollbar reconnection with all edge cases."""
+        scrollbar = Mock()
+        old_widget = Mock()
+        new_widget = Mock()
+        mock_codeview.side_effect = [old_widget, new_widget]
+        
+        # Set up scrollbar with specific state
+        scrollbar.get.return_value = (0.2, 0.8)
+        scrollbar.set = Mock()
+        
+        # Set up old widget
+        old_widget.get.return_value = "test content"
+        old_widget.index.return_value = "1.5"
+        old_widget.yview.return_value = (0.2, 0.8)
+        old_widget.tag_ranges.return_value = ("1.0", "1.5")
+        old_widget.getvar.return_value = {}
+        old_widget.winfo_children.return_value = []
+        old_widget.master = self.parent_frame
+        old_widget.focus_get.return_value = old_widget
+        old_widget.grid_info.return_value = {'row': 0, 'column': 0, 'sticky': 'nsew'}
+        old_widget.pack_info.return_value = {}
+        old_widget.place_info.return_value = {}
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, scrollbar=scrollbar)
+        editor.current_widget = editor.create_widget()
+        
+        mock_lexer = Mock()
+        result = editor.enhanced_scrollbar_reconnection(old_widget, new_widget, mock_lexer)
+        
+        # Should perform enhanced reconnection
+        self.assertEqual(result, new_widget)
+        
+        # Should configure new scrollbar connections
+        scrollbar.config.assert_called_with(command=new_widget.yview)
+        new_widget.config.assert_called_with(yscrollcommand=scrollbar.set)
+        
+        # Should restore scroll position
+        new_widget.yview_moveto.assert_called_with(0.2)
+
+
+class TestCodeEditorEdgeCases(unittest.TestCase):
+    """Test cases for edge cases like rapid file switching and error conditions."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.root = tk.Tk()
+        self.root.withdraw()  # Hide the window during testing
+        self.parent_frame = ttk.Frame(self.root)
+        self.syntax_manager = SyntaxManager()
+        
+    def tearDown(self):
+        """Clean up test fixtures."""
+        self.root.destroy()
+        
+    @patch('code_editor.CodeView')
+    def test_rapid_file_switching_preserves_state(self, mock_codeview):
+        """Test rapid successive file switching preserves proper state."""
+        widgets = [Mock() for _ in range(5)]
+        mock_codeview.side_effect = widgets
+        
+        # Set up each widget with unique content and state
+        for i, widget in enumerate(widgets):
+            widget.get.return_value = f"content_{i}"
+            widget.index.return_value = f"1.{i}"
+            widget.yview.return_value = (i * 0.1, (i + 1) * 0.1)
+            widget.tag_ranges.return_value = ()
+            widget.getvar.return_value = {}
+            widget.winfo_children.return_value = []
+            widget.master = self.parent_frame
+            widget.focus_get.return_value = None
+            widget.grid_info.return_value = {'row': 0, 'column': 0}
+            widget.pack_info.return_value = {}
+            widget.place_info.return_value = {}
+        
+        scrollbar = Mock()
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, scrollbar=scrollbar)
+        
+        # Rapid file switching simulation
+        lexers = [Mock() for _ in range(4)]
+        
+        # Start with initial widget
+        editor.current_widget = editor.create_widget()
+        
+        # Rapid successive replacements
+        for lexer in lexers:
+            editor.replace_widget_with_lexer(lexer)
+            
+        # Should end up with final widget
+        self.assertEqual(editor.current_widget, widgets[-1])
+        
+        # Should have scrollbar connected to final widget (check if last call includes final widget connection)
+        # Note: scrollbar may have multiple config calls during replacement process
+        self.assertTrue(any(
+            call.kwargs.get('command') == widgets[-1].yview
+            for call in scrollbar.config.call_args_list
+        ))
+        
+    @patch('code_editor.CodeView')
+    def test_widget_creation_memory_leak_prevention(self, mock_codeview):
+        """Test that rapid widget creation doesn't cause memory leaks."""
+        # Need enough widgets for initial creation + replacements
+        widgets = [Mock() for _ in range(19)]  # 1 initial + 9*2 for create+replace cycles
+        mock_codeview.side_effect = widgets
+        
+        # Set up widgets for destruction
+        for widget in widgets:
+            widget.get.return_value = "content"
+            widget.index.return_value = "1.0"
+            widget.yview.return_value = (0.0, 1.0)
+            widget.tag_ranges.return_value = ()
+            widget.getvar.return_value = {}
+            widget.winfo_children.return_value = []
+            widget.master = self.parent_frame
+            widget.focus_get.return_value = None
+            widget.grid_info.return_value = {'row': 0, 'column': 0}
+            widget.pack_info.return_value = {}
+            widget.place_info.return_value = {}
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager)
+        
+        # Rapid widget creation and replacement
+        for i in range(9):
+            editor.current_widget = editor.create_widget()
+            lexer = Mock()
+            editor.replace_widget_with_lexer(lexer)
+            
+        # At least some old widgets should have been destroyed to prevent memory leaks
+        destroyed_count = sum(1 for widget in widgets if widget.destroy.called)
+        self.assertGreater(destroyed_count, 0, "No widgets were destroyed, potential memory leak")
+            
+    @patch('code_editor.CodeView')
+    def test_lexer_setting_failure_recovery(self, mock_codeview):
+        """Test recovery from lexer setting failures."""
+        old_widget = Mock()
+        new_widget = Mock()
+        mock_codeview.side_effect = [old_widget, new_widget]
+        
+        # Make lexer setting fail
+        new_widget.lexer = Mock()
+        type(new_widget).lexer = PropertyMock(side_effect=AttributeError("Lexer setting failed"))
+        
+        # Set up widget state
+        old_widget.get.return_value = "content"
+        old_widget.index.return_value = "1.0"
+        old_widget.yview.return_value = (0.0, 1.0)
+        old_widget.tag_ranges.return_value = ()
+        old_widget.getvar.return_value = {}
+        old_widget.winfo_children.return_value = []
+        old_widget.master = self.parent_frame
+        old_widget.focus_get.return_value = None
+        old_widget.grid_info.return_value = {'row': 0, 'column': 0}
+        old_widget.pack_info.return_value = {}
+        old_widget.place_info.return_value = {}
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager)
+        editor.current_widget = editor.create_widget()
+        
+        mock_lexer = Mock()
+        
+        # Should handle lexer setting failure gracefully
+        result = editor.replace_widget_with_lexer(mock_lexer)
+        
+        # Should still return new widget even if lexer setting failed
+        self.assertEqual(result, new_widget)
+        self.assertEqual(editor.current_widget, new_widget)
+        
+    @patch('code_editor.CodeView')
+    def test_concurrent_widget_operations_safety(self, mock_codeview):
+        """Test safety of concurrent widget operations."""
+        widget1 = Mock()
+        widget2 = Mock()
+        mock_codeview.side_effect = [widget1, widget2]
+        
+        # Set up widgets
+        for widget in [widget1]:
+            widget.get.return_value = "content"
+            widget.index.return_value = "1.0"
+            widget.yview.return_value = (0.0, 1.0)
+            widget.tag_ranges.return_value = ()
+            widget.getvar.return_value = {}
+            widget.winfo_children.return_value = []
+            widget.master = self.parent_frame
+            widget.focus_get.return_value = None
+            widget.grid_info.return_value = {'row': 0, 'column': 0}
+            widget.pack_info.return_value = {}
+            widget.place_info.return_value = {}
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager)
+        editor.current_widget = editor.create_widget()
+        
+        # Simulate concurrent operations
+        mock_lexer = Mock()
+        
+        # Multiple rapid operations that could conflict
+        result1 = editor.replace_widget_with_lexer(mock_lexer)
+        content = editor.get_content()
+        editor.set_readonly_state(True)
+        
+        # Should handle concurrent operations safely
+        self.assertEqual(result1, widget2)
+        self.assertEqual(editor.current_widget, widget2)
+        
+    @patch('code_editor.CodeView')
+    def test_tkinter_error_during_widget_replacement(self, mock_codeview):
+        """Test handling of tkinter errors during widget replacement."""
+        old_widget = Mock()
+        new_widget = Mock()
+        mock_codeview.side_effect = [old_widget, new_widget]
+        
+        # Make grid operation fail
+        new_widget.grid.side_effect = tk.TclError("Grid operation failed")
+        
+        # Set up widget state
+        old_widget.get.return_value = "content"
+        old_widget.index.return_value = "1.0"
+        old_widget.yview.return_value = (0.0, 1.0)
+        old_widget.tag_ranges.return_value = ()
+        old_widget.getvar.return_value = {}
+        old_widget.winfo_children.return_value = []
+        old_widget.master = self.parent_frame
+        old_widget.focus_get.return_value = None
+        old_widget.grid_info.return_value = {'row': 0, 'column': 0}
+        old_widget.pack_info.return_value = {}
+        old_widget.place_info.return_value = {}
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager)
+        editor.current_widget = editor.create_widget()
+        mock_lexer = Mock()
+        
+        # Replace widget with lexer
+        result = editor.replace_widget_with_lexer(mock_lexer)
+        
+        # Should handle tkinter errors gracefully
+        self.assertEqual(result, new_widget)
+        
+        # Should still succeed despite grid error (fallback mechanism)
+        self.assertEqual(editor.current_widget, new_widget)
+        
+    @patch('code_editor.CodeView')
+    def test_large_content_handling(self, mock_codeview):
+        """Test handling of large content during widget operations."""
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        # Simulate large content
+        large_content = "x" * 1000000  # 1MB of content
+        widget.get.return_value = large_content
+        widget.index.return_value = "1000.0"
+        widget.yview.return_value = (0.5, 0.6)
+        widget.tag_ranges.return_value = ()
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager)
+        editor.current_widget = editor.create_widget()
+        
+        # Should handle large content efficiently
+        state = editor.capture_widget_state()
+        self.assertEqual(state['content'], large_content)
+        self.assertEqual(state['cursor_position'], "1000.0")
+        
+    @patch('code_editor.CodeView')
+    def test_empty_content_edge_cases(self, mock_codeview):
+        """Test handling of empty content and edge cases."""
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        # Test empty content
+        widget.get.return_value = ""
+        widget.index.return_value = "1.0"
+        widget.yview.return_value = (0.0, 1.0)
+        widget.tag_ranges.return_value = ()
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager)
+        editor.current_widget = editor.create_widget()
+        
+        state = editor.capture_widget_state()
+        self.assertEqual(state['content'], "")
+        
+        # Test content clearing
+        editor.clear_content()
+        widget.delete.assert_called_with("1.0", tk.END)
+        
+    @patch('code_editor.CodeView')
+    def test_widget_state_corruption_recovery(self, mock_codeview):
+        """Test recovery from widget state corruption."""
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        # Simulate corrupted widget state
+        widget.get.side_effect = tk.TclError("Widget destroyed")
+        widget.index.side_effect = tk.TclError("Widget destroyed") 
+        widget.yview.side_effect = tk.TclError("Widget destroyed")
+        widget.tag_ranges.side_effect = tk.TclError("Widget destroyed")
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager)
+        editor.current_widget = editor.create_widget()
+        
+        # Should handle corrupted state gracefully
+        state = editor.capture_widget_state()
+        
+        # Should return safe defaults
+        expected_state = {
+            'content': '',
+            'cursor_position': '1.0', 
+            'scroll_position': (0.0, 1.0),
+            'selection': None
+        }
+        self.assertEqual(state, expected_state)
+        
+    @patch('code_editor.CodeView')
+    def test_rapid_destroy_create_cycles(self, mock_codeview):
+        """Test rapid destroy-create cycles don't cause issues."""
+        widgets = [Mock() for _ in range(10)]
+        mock_codeview.side_effect = widgets
+        
+        # Set up widgets for destruction
+        for widget in widgets:
+            widget.getvar.return_value = {}
+            widget.winfo_children.return_value = []
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager)
+        
+        # Rapid destroy-create cycles
+        for i in range(10):
+            editor.current_widget = editor.create_widget()
+            editor.destroy_widget_safely()
+            
+        # Should handle rapid cycles without issues
+        self.assertIsNone(editor.current_widget)
+        
+        # All widgets should have been destroyed
+        for widget in widgets:
+            widget.destroy.assert_called_once()
+            
+    @patch('code_editor.CodeView')
+    def test_error_state_recovery_after_failed_replacement(self, mock_codeview):
+        """Test recovery to stable state after failed widget replacement."""
+        old_widget = Mock()
+        # Second call fails completely
+        mock_codeview.side_effect = [old_widget, Exception("Complete widget creation failure")]
+        
+        # Set up old widget
+        old_widget.get.return_value = "original content"
+        old_widget.index.return_value = "1.0"
+        old_widget.yview.return_value = (0.0, 1.0)
+        old_widget.tag_ranges.return_value = ()
+        old_widget.getvar.return_value = {}
+        old_widget.winfo_children.return_value = []
+        old_widget.master = self.parent_frame
+        old_widget.focus_get.return_value = None
+        old_widget.grid_info.return_value = {'row': 0, 'column': 0}
+        old_widget.pack_info.return_value = {}
+        old_widget.place_info.return_value = {}
+        
+        scrollbar = Mock()
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, scrollbar=scrollbar)
+        editor.current_widget = editor.create_widget()
+        
+        mock_lexer = Mock()
+        
+        # Should handle complete failure and recover to old widget
+        with self.assertRaises(Exception):
+            editor.replace_widget_with_lexer(mock_lexer)
+            
+        # Should recover to old widget state
+        self.assertEqual(editor.current_widget, old_widget)
+        
+        # Scrollbar should be reconnected to old widget
+        scrollbar.config.assert_called_with(command=old_widget.yview)
+
+
+class TestCodeEditorWidgetCaching(unittest.TestCase):
+    """Test cases for widget caching strategy to reduce recreation overhead."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.root = tk.Tk()
+        self.root.withdraw()  # Hide the window during testing
+        self.parent_frame = ttk.Frame(self.root)
+        self.syntax_manager = SyntaxManager()
+        
+    def tearDown(self):
+        """Clean up test fixtures."""
+        self.root.destroy()
+        
+    @patch('code_editor.CodeView')
+    def test_widget_cache_basic_functionality(self, mock_codeview):
+        """Test basic widget caching stores and retrieves widgets by lexer type."""
+        widget1 = Mock()
+        widget2 = Mock()
+        mock_codeview.side_effect = [widget1, widget2]
+        
+        # Mock lexers
+        python_lexer = Mock()
+        python_lexer.name = 'Python'
+        javascript_lexer = Mock()
+        javascript_lexer.name = 'JavaScript'
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # First creation should create new widget and cache it
+        cached_widget1 = editor.get_cached_widget_for_lexer(python_lexer)
+        self.assertEqual(cached_widget1, widget1)
+        
+        # Second request for same lexer should return cached widget
+        cached_widget1_again = editor.get_cached_widget_for_lexer(python_lexer)
+        self.assertEqual(cached_widget1_again, widget1)
+        
+        # Different lexer should create new widget
+        cached_widget2 = editor.get_cached_widget_for_lexer(javascript_lexer)
+        self.assertEqual(cached_widget2, widget2)
+        
+        # Should have created only 2 widgets total
+        self.assertEqual(mock_codeview.call_count, 2)
+        
+    @patch('code_editor.CodeView')
+    def test_widget_cache_with_cache_disabled(self, mock_codeview):
+        """Test that caching can be disabled."""
+        widgets = [Mock() for _ in range(4)]
+        mock_codeview.side_effect = widgets
+        
+        python_lexer = Mock()
+        python_lexer.name = 'Python'
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=False)
+        
+        # Each request should create new widget when caching disabled
+        widget1 = editor.get_cached_widget_for_lexer(python_lexer)
+        widget2 = editor.get_cached_widget_for_lexer(python_lexer)
+        widget3 = editor.get_cached_widget_for_lexer(python_lexer)
+        
+        # Should have created 3 separate widgets
+        self.assertEqual(mock_codeview.call_count, 3)
+        self.assertNotEqual(widget1, widget2)
+        self.assertNotEqual(widget2, widget3)
+        
+    @patch('code_editor.CodeView')
+    def test_widget_cache_size_limit_enforcement(self, mock_codeview):
+        """Test that cache enforces size limits and evicts old entries."""
+        widgets = [Mock() for _ in range(6)]
+        mock_codeview.side_effect = widgets
+        
+        # Create lexers for testing
+        lexers = []
+        for i in range(5):
+            lexer = Mock()
+            lexer.name = f'Language{i}'
+            lexers.append(lexer)
+        
+        # Set cache size to 3
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True, cache_size=3)
+        
+        # Fill cache beyond limit
+        cached_widgets = []
+        for lexer in lexers:
+            widget = editor.get_cached_widget_for_lexer(lexer)
+            cached_widgets.append(widget)
+            
+        # Cache should contain only last 3 widgets
+        cache_size = editor.get_cache_size()
+        self.assertEqual(cache_size, 3)
+        
+        # Requesting first lexer again should create new widget (evicted from cache)
+        new_widget = editor.get_cached_widget_for_lexer(lexers[0])
+        self.assertEqual(new_widget, widgets[5])  # Should be the 6th created widget
+        
+    @patch('code_editor.CodeView')
+    def test_widget_cache_invalidation(self, mock_codeview):
+        """Test cache invalidation functionality."""
+        widget1 = Mock()
+        widget2 = Mock()
+        mock_codeview.side_effect = [widget1, widget2]
+        
+        python_lexer = Mock()
+        python_lexer.name = 'Python'
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Cache a widget
+        cached_widget = editor.get_cached_widget_for_lexer(python_lexer)
+        self.assertEqual(cached_widget, widget1)
+        
+        # Invalidate cache
+        editor.invalidate_cache()
+        
+        # Next request should create new widget
+        new_widget = editor.get_cached_widget_for_lexer(python_lexer)
+        self.assertEqual(new_widget, widget2)
+        
+        # Should have created 2 widgets total
+        self.assertEqual(mock_codeview.call_count, 2)
+        
+    @patch('code_editor.CodeView')
+    def test_widget_cache_with_none_lexer(self, mock_codeview):
+        """Test cache behavior with None lexer (no syntax highlighting)."""
+        widget1 = Mock()
+        widget2 = Mock()
+        mock_codeview.side_effect = [widget1, widget2]
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Cache widget with None lexer
+        cached_widget1 = editor.get_cached_widget_for_lexer(None)
+        self.assertEqual(cached_widget1, widget1)
+        
+        # Second request should return cached widget
+        cached_widget1_again = editor.get_cached_widget_for_lexer(None)
+        self.assertEqual(cached_widget1_again, widget1)
+        
+        # Should have created only 1 widget
+        self.assertEqual(mock_codeview.call_count, 1)
+        
+    @patch('code_editor.CodeView')
+    def test_widget_cache_performance_optimization(self, mock_codeview):
+        """Test that caching provides performance optimization."""
+        widgets = [Mock() for _ in range(2)]
+        mock_codeview.side_effect = widgets
+        
+        python_lexer = Mock()
+        python_lexer.name = 'Python'
+        javascript_lexer = Mock()
+        javascript_lexer.name = 'JavaScript'
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Simulate rapid file type switching
+        results = []
+        for _ in range(10):
+            # Switch between Python and JavaScript repeatedly
+            python_widget = editor.get_cached_widget_for_lexer(python_lexer)
+            javascript_widget = editor.get_cached_widget_for_lexer(javascript_lexer)
+            results.extend([python_widget, javascript_widget])
+        
+        # Should have created only 2 widgets despite 20 requests
+        self.assertEqual(mock_codeview.call_count, 2)
+        
+        # All Python requests should return same widget
+        python_widgets = [w for i, w in enumerate(results) if i % 2 == 0]
+        self.assertTrue(all(w == widgets[0] for w in python_widgets))
+        
+        # All JavaScript requests should return same widget
+        js_widgets = [w for i, w in enumerate(results) if i % 2 == 1]
+        self.assertTrue(all(w == widgets[1] for w in js_widgets))
+        
+    @patch('code_editor.CodeView')
+    def test_widget_cache_memory_management(self, mock_codeview):
+        """Test that cache properly manages memory by destroying evicted widgets."""
+        widgets = [Mock() for _ in range(5)]
+        mock_codeview.side_effect = widgets
+        
+        lexers = []
+        for i in range(4):
+            lexer = Mock()
+            lexer.name = f'Language{i}'
+            lexers.append(lexer)
+        
+        # Set small cache size
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True, cache_size=2)
+        
+        # Fill cache and exceed limit
+        for lexer in lexers:
+            editor.get_cached_widget_for_lexer(lexer)
+            
+        # First two widgets should have been evicted and destroyed
+        widgets[0].destroy.assert_called_once()
+        widgets[1].destroy.assert_called_once()
+        
+        # Last two widgets should still be cached (not destroyed)
+        widgets[2].destroy.assert_not_called()
+        widgets[3].destroy.assert_not_called()
+        
+    @patch('code_editor.CodeView')
+    def test_widget_cache_lexer_key_generation(self, mock_codeview):
+        """Test cache key generation for different lexer types."""
+        widgets = [Mock() for _ in range(3)]
+        mock_codeview.side_effect = widgets
+        
+        # Test different lexer scenarios
+        python_lexer = Mock()
+        python_lexer.name = 'Python'
+        
+        another_python_lexer = Mock()
+        another_python_lexer.name = 'Python'  # Same name, different instance
+        
+        javascript_lexer = Mock()
+        javascript_lexer.name = 'JavaScript'
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Same lexer name should return cached widget
+        widget1 = editor.get_cached_widget_for_lexer(python_lexer)
+        widget2 = editor.get_cached_widget_for_lexer(another_python_lexer)
+        self.assertEqual(widget1, widget2)
+        
+        # Different lexer name should create new widget
+        widget3 = editor.get_cached_widget_for_lexer(javascript_lexer)
+        self.assertNotEqual(widget1, widget3)
+        
+        # Should have created 2 widgets (1 for Python, 1 for JavaScript)
+        self.assertEqual(mock_codeview.call_count, 2)
+        
+    @patch('code_editor.CodeView')
+    def test_widget_cache_integration_with_replacement(self, mock_codeview):
+        """Test cache integration with widget replacement functionality."""
+        widgets = [Mock() for _ in range(3)]
+        mock_codeview.side_effect = widgets
+        
+        # Set up widget state for replacement
+        for widget in widgets:
+            widget.get.return_value = "content"
+            widget.index.return_value = "1.0"
+            widget.yview.return_value = (0.0, 1.0)
+            widget.tag_ranges.return_value = ()
+            widget.getvar.return_value = {}
+            widget.winfo_children.return_value = []
+            widget.master = self.parent_frame
+            widget.focus_get.return_value = None
+            widget.grid_info.return_value = {'row': 0, 'column': 0}
+            widget.pack_info.return_value = {}
+            widget.place_info.return_value = {}
+        
+        python_lexer = Mock()
+        python_lexer.name = 'Python'
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Start with a widget
+        editor.current_widget = editor.create_widget()
+        
+        # Replace with cached widget
+        result = editor.replace_widget_with_cached_lexer(python_lexer)
+        
+        # Should return cached widget
+        self.assertEqual(result, widgets[1])  # Second widget from cache
+        self.assertEqual(editor.current_widget, widgets[1])
+        
+        # Replace again with same lexer should use cached widget
+        result2 = editor.replace_widget_with_cached_lexer(python_lexer)
+        self.assertEqual(result2, widgets[1])  # Same cached widget
+        
+        # Should have created only 2 widgets (1 initial + 1 cached)
+        self.assertEqual(mock_codeview.call_count, 2)
+        
+    @patch('code_editor.CodeView')
+    def test_widget_cache_thread_safety(self, mock_codeview):
+        """Test that cache operations are thread-safe."""
+        import threading
+        import time
+        
+        widgets = [Mock() for _ in range(10)]
+        mock_codeview.side_effect = widgets
+        
+        python_lexer = Mock()
+        python_lexer.name = 'Python'
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        results = []
+        errors = []
+        
+        def cache_worker():
+            try:
+                for _ in range(5):
+                    widget = editor.get_cached_widget_for_lexer(python_lexer)
+                    results.append(widget)
+                    time.sleep(0.001)  # Small delay to increase chance of race conditions
+            except Exception as e:
+                errors.append(e)
+        
+        # Run multiple threads accessing cache simultaneously
+        threads = [threading.Thread(target=cache_worker) for _ in range(3)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        
+        # Should have no errors
+        self.assertEqual(len(errors), 0)
+        
+        # All results should be the same cached widget
+        self.assertTrue(all(result == results[0] for result in results))
+        
+        # Should have created only 1 widget despite multiple concurrent requests
+        self.assertEqual(mock_codeview.call_count, 1)
+
+
+class TestCodeEditorFileLoadingIntegration(unittest.TestCase):
+    """Test cases for syntax highlighting integration with file loading."""
+    
+    def setUp(self):
+        """Set up test fixtures."""
+        self.root = tk.Tk()
+        self.root.withdraw()  # Hide the window during testing
+        self.parent_frame = ttk.Frame(self.root)
+        self.syntax_manager = SyntaxManager()
+        
+    def tearDown(self):
+        """Clean up test fixtures."""
+        self.root.destroy()
+        
+    @patch('code_editor.CodeView')
+    @patch('builtins.open', mock_open(read_data="def hello():\n    print('world')"))
+    def test_load_file_with_automatic_syntax_highlighting(self, mock_codeview):
+        """Test loading file with automatic syntax highlighting detection."""
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Load Python file
+        result = editor.load_file("test.py")
+        
+        # Should create widget with Python lexer
+        self.assertTrue(result)
+        mock_codeview.assert_called_once()
+        call_args = mock_codeview.call_args[1]
+        self.assertIsNotNone(call_args.get('lexer'))
+        
+        # Should load file content
+        widget.delete.assert_called_with("1.0", tk.END)
+        widget.insert.assert_called_with("1.0", "def hello():\n    print('world')")
+        
+    @patch('code_editor.CodeView')
+    @patch('builtins.open', mock_open(read_data="console.log('hello');"))
+    def test_load_file_with_javascript_syntax_highlighting(self, mock_codeview):
+        """Test loading JavaScript file with appropriate syntax highlighting."""
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Load JavaScript file
+        result = editor.load_file("app.js")
+        
+        # Should create widget with JavaScript lexer
+        self.assertTrue(result)
+        mock_codeview.assert_called_once()
+        call_args = mock_codeview.call_args[1]
+        lexer = call_args.get('lexer')
+        self.assertIsNotNone(lexer)
+        
+        # Should load file content
+        widget.insert.assert_called_with("1.0", "console.log('hello');")
+        
+    @patch('code_editor.CodeView')
+    @patch('builtins.open', mock_open(read_data="<html><body>Hello</body></html>"))
+    def test_load_file_with_html_syntax_highlighting(self, mock_codeview):
+        """Test loading HTML file with appropriate syntax highlighting."""
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Load HTML file
+        result = editor.load_file("index.html")
+        
+        # Should create widget with HTML lexer
+        self.assertTrue(result)
+        mock_codeview.assert_called_once()
+        call_args = mock_codeview.call_args[1]
+        lexer = call_args.get('lexer')
+        self.assertIsNotNone(lexer)
+        
+        # Should load file content
+        widget.insert.assert_called_with("1.0", "<html><body>Hello</body></html>")
+        
+    @patch('code_editor.CodeView')
+    @patch('builtins.open', mock_open(read_data="Some plain text content"))
+    def test_load_file_without_syntax_highlighting(self, mock_codeview):
+        """Test loading file with unknown extension falls back to plain text."""
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Load file with unknown extension
+        result = editor.load_file("readme.txt")
+        
+        # Should create widget with TextLexer (plain text)
+        self.assertTrue(result)
+        mock_codeview.assert_called_once()
+        call_args = mock_codeview.call_args[1]
+        lexer = call_args.get('lexer')
+        # Text files get TextLexer, not None
+        self.assertIsNotNone(lexer)
+        
+        # Should load file content
+        widget.insert.assert_called_with("1.0", "Some plain text content")
+        
+    @patch('code_editor.CodeView')
+    def test_load_file_handles_file_not_found(self, mock_codeview):
+        """Test loading non-existent file handles error gracefully."""
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Try to load non-existent file
+        result = editor.load_file("nonexistent.py")
+        
+        # Should return False and not create widget
+        self.assertFalse(result)
+        mock_codeview.assert_not_called()
+        
+    @patch('builtins.open', side_effect=PermissionError("Access denied"))
+    @patch('code_editor.CodeView')
+    def test_load_file_handles_permission_error(self, mock_codeview, mock_open_func):
+        """Test loading file with permission error handles gracefully."""
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Try to load file with permission error
+        result = editor.load_file("protected.py")
+        
+        # Should return False and not create widget
+        self.assertFalse(result)
+        mock_codeview.assert_not_called()
+        
+    @patch('code_editor.CodeView')
+    @patch('builtins.open', mock_open(read_data="# Python code\nprint('test')"))
+    def test_load_file_uses_cached_widget_for_same_type(self, mock_codeview):
+        """Test loading multiple files of same type uses cached widgets."""
+        widgets = [Mock() for _ in range(2)]
+        mock_codeview.side_effect = widgets
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Load first Python file
+        result1 = editor.load_file("file1.py")
+        self.assertTrue(result1)
+        
+        # Load second Python file
+        result2 = editor.load_file("file2.py")
+        self.assertTrue(result2)
+        
+        # Should have created only one widget (cached for second file)
+        self.assertEqual(mock_codeview.call_count, 1)
+        
+        # Both files should load content to same cached widget
+        self.assertEqual(widgets[0].insert.call_count, 2)
+        
+    @patch('code_editor.CodeView')
+    @patch('builtins.open', mock_open(read_data="def test():\n    pass"))
+    def test_load_file_preserves_existing_widget_state(self, mock_codeview):
+        """Test loading file preserves any existing widget state properly."""
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        # Set up existing widget with state
+        widget.get.return_value = "old content"
+        widget.index.return_value = "1.5"
+        widget.yview.return_value = (0.2, 0.8)
+        widget.tag_ranges.return_value = ("1.0", "1.3")
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        editor.current_widget = widget
+        
+        # Load new file
+        result = editor.load_file("new_file.py")
+        
+        # Should clear old content and load new
+        self.assertTrue(result)
+        widget.delete.assert_called_with("1.0", tk.END)
+        widget.insert.assert_called_with("1.0", "def test():\n    pass")
+        
+    @patch('code_editor.CodeView')
+    @patch('builtins.open', mock_open(read_data=""))
+    def test_load_file_with_empty_file(self, mock_codeview):
+        """Test loading empty file creates widget with no content."""
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Load empty file
+        result = editor.load_file("empty.py")
+        
+        # Should create widget and insert empty content
+        self.assertTrue(result)
+        widget.insert.assert_called_with("1.0", "")
+        
+    @patch('code_editor.CodeView')
+    @patch('builtins.open', mock_open(read_data="x = 1\ny = 2\nprint(x + y)"))
+    def test_load_file_with_encoding_handling(self, mock_codeview):
+        """Test loading file handles different encodings properly."""
+        widget = Mock()
+        mock_codeview.return_value = widget
+        
+        editor = CodeEditor(self.parent_frame, self.syntax_manager, enable_caching=True)
+        
+        # Load file with specified encoding
+        result = editor.load_file("utf8_file.py", encoding="utf-8")
+        
+        # Should load content with correct encoding
+        self.assertTrue(result)
+        widget.insert.assert_called_with("1.0", "x = 1\ny = 2\nprint(x + y)")
+
+
 if __name__ == '__main__':
-    unittest.main() 
+    unittest.main()

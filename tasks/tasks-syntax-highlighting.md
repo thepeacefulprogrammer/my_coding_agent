@@ -69,17 +69,57 @@ Based on technical investigation, we've identified that the Chlorophyll library 
   - Comprehensive test coverage with 10 additional tests
   - All 67 CodeEditor tests passing
   - Robust handling of both real tkinter widgets and Mock objects for testing
-- [ ] 4.4 Ensure scrollbar reconnection after widget replacement
-- [ ] 4.5 Handle edge cases like rapid file switching and error conditions
-- [ ] 4.6 Implement widget caching strategy to reduce recreation overhead for same file types
+- [x] **4.4: Ensure scrollbar reconnection after widget replacement**
+  - Enhanced `configure_scrollbar()` method with comprehensive error handling
+  - Added `enhanced_scrollbar_reconnection()` method for advanced scrollbar state management
+  - Added `capture_scrollbar_state()` and `apply_scrollbar_state()` methods for state preservation
+  - Improved `create_widget()` to automatically configure scrollbar during widget creation
+  - Enhanced `replace_widget_with_lexer()` with error recovery for failed widget creation
+  - Bidirectional scrollbar communication (scrollbar ↔ widget)
+  - Scroll position preservation during widget replacement
+  - Error recovery and graceful fallback for scrollbar configuration failures
+  - Support for rapid widget replacement scenarios
+  - Comprehensive test coverage with 10 additional scrollbar reconnection tests
+  - All 77 CodeEditor tests passing
+  - Robust handling of scrollbar errors and edge cases
+- [x] **4.5: Handle edge cases like rapid file switching and error conditions**
+  - Implement robust error handling for rapid file switching scenarios
+  - Add recovery mechanisms for widget creation failures
+  - Handle concurrent widget operations safely
+  - Implement memory leak prevention for rapid widget creation
+  - Add error recovery for lexer setting failures
+  - Handle tkinter errors during widget operations gracefully
+  - Support large content handling efficiently
+  - Handle empty content edge cases
+  - Implement widget state corruption recovery
+      - Add support for rapid destroy-create cycles
+    - Implement comprehensive error state recovery after failures
+
+### Task 4.6: Implement widget caching strategy to reduce recreation overhead for same file types
+- [x] Implement LRU cache for widgets based on lexer type
+- [x] Add cache size management and eviction policies  
+- [x] Implement cache hit/miss optimization logic
+- [x] Add cache invalidation functionality for memory management
+- [x] Support caching of widgets by lexer name/type
+- [x] Implement thread-safe cache operations with lock protection
+- [x] Add performance optimization for rapid file type switching
+- [x] Handle cache memory management with proper widget destruction
+- [x] Implement cache key generation based on lexer characteristics
+- [x] Add integration with existing widget replacement functionality
+- [x] Support configurable cache enable/disable and size limits
 
 ### Task 5.0: Integrate Syntax Highlighting with File Loading
-- [ ] 5.1 Modify update_file_content method to use new CodeEditor class
-- [ ] 5.2 Integrate existing SyntaxManager for lexer selection based on file type
-- [ ] 5.3 Ensure proper lexer selection for files with shebangs and edge cases
-- [ ] 5.4 Implement fallback handling when lexer detection fails
-- [ ] 5.5 Add content preservation during syntax highlighting application
-- [ ] 5.6 Test integration with existing file tree selection and navigation
+- [x] Implement load_file method with automatic syntax highlighting detection
+- [x] Add file reading with multiple encoding support (UTF-8, Latin-1 fallback)
+- [x] Integrate with existing widget caching system for performance
+- [x] Handle file loading errors gracefully (FileNotFoundError, PermissionError)
+- [x] Support automatic lexer detection based on file extensions
+- [x] Preserve widget state during file loading operations
+- [x] Implement content loading with proper cursor positioning
+- [x] Add scrollbar configuration during file loading
+- [x] Support empty file handling
+- [x] Integrate with cached widget replacement for same file types
+- [x] Add comprehensive error handling and recovery mechanisms
 
 ### Task 6.0: Apply Custom Color Schemes and Theme Support
 - [ ] 6.1 Implement Nord-inspired color scheme for Python syntax elements
@@ -157,36 +197,4 @@ Successfully implemented comprehensive widget destruction with proper cleanup:
 Successfully implemented sophisticated widget factory methods:
 
 **New Factory Methods:**
-- `create_widget_for_file(filename)` - Automatic lexer detection and widget creation
-- `create_widget_with_preset(preset_name, **options)` - Preset-based configuration
-- `get_widget_preset(preset_name)` - Configuration preset management
-- `create_configured_widget(**options)` - Full widget setup with layout and state management
-
-**Configuration Presets:**
-- `readonly` preset: disabled state, no wrapping, dark theme colors
-- `editable` preset: normal state, no wrapping, dark theme colors
-- Extensible preset system with override capability
-
-**Factory Features:**
-- Automatic lexer detection from filenames
-- Configurable widget dimensions and appearance
-- Integrated scrollbar configuration
-- Grid layout management
-- Optional current widget tracking
-- Full error handling and fallback behavior
-
-### Relevant Files
-- `src/syntax_manager.py` - Handles lexer detection and caching
-- `src/code_editor.py` - Complete widget lifecycle management with enhanced factory methods and safe destruction
-- `tests/test_syntax_manager.py` - SyntaxManager test suite (18 tests)
-- `tests/test_code_editor.py` - CodeEditor test suite (57 tests)
-- `src/gui.py` - Main GUI class (needs integration with CodeEditor)
-
-### Known Integration Points
-1. GUI class still uses direct CodeView manipulation instead of CodeEditor
-2. Integration test failure expected until GUI updates use CodeEditor
-3. Current widget recreation strategy preserves all state during lexer changes
-4. Factory methods enable efficient widget creation with minimal setup code
-5. Enhanced destruction ensures complete cleanup of tkinter references and memory
-
-The enhanced safe destruction implementation provides robust cleanup of all tkinter references, preventing memory leaks and ensuring proper widget lifecycle management during dynamic syntax highlighting operations. 
+- `

@@ -9,6 +9,8 @@ from chlorophyll.codeview import CodeView
 from typing import Optional, Any, Dict, Tuple
 import tkinter as tk
 from tkinter import ttk
+from collections import OrderedDict
+import threading
 try:
     from chlorophyll import CodeView
 except ImportError:
@@ -21,31 +23,39 @@ except ImportError:
 
 class CodeEditor:
     """
-    Manages CodeView widget lifecycle for syntax highlighting in the coding agent.
-    
-    This class handles the creation, replacement, and management of CodeView widgets
-    since they require lexers to be set during construction rather than afterward.
-    Provides widget lifecycle management including state capture/restoration and
-    safe destruction.
+    Enhanced CodeEditor with comprehensive widget lifecycle management,
+    container relationship preservation, scrollbar reconnection, 
+    robust error handling, and widget caching for performance optimization.
     """
     
-    def __init__(self, parent, syntax_manager, scrollbar=None, width=80, height=24):
+    def __init__(self, parent, syntax_manager, scrollbar=None, width=80, height=24, 
+                 enable_caching=True, cache_size=10, color_scheme="monokai"):
         """
-        Initialize CodeEditor with parent frame and syntax manager.
+        Initialize CodeEditor with enhanced widget caching support and color scheme.
         
         Args:
-            parent: Parent tkinter widget to contain the CodeView
+            parent: Parent tkinter widget
             syntax_manager: SyntaxManager instance for lexer detection
-            scrollbar: Optional scrollbar widget to connect to CodeView
-            width: Default width for created widgets (default: 80)
-            height: Default height for created widgets (default: 24)
+            scrollbar: Optional scrollbar widget for scroll synchronization
+            width: Default widget width
+            height: Default widget height
+            enable_caching: Whether to enable widget caching (default: True)
+            cache_size: Maximum number of widgets to cache (default: 10)
+            color_scheme: Color scheme for syntax highlighting (default: "monokai")
         """
         self.parent = parent
         self.syntax_manager = syntax_manager
         self.scrollbar = scrollbar
         self.width = width
         self.height = height
-        self._current_widget = None
+        self.color_scheme = color_scheme
+        self.current_widget = None
+        
+        # Widget caching system
+        self.enable_caching = enable_caching
+        self.cache_size = cache_size
+        self._widget_cache = OrderedDict()  # LRU cache implementation
+        self._cache_lock = threading.RLock()  # Thread safety for cache operations
         
     @property
     def current_widget(self):
@@ -65,25 +75,38 @@ class CodeEditor:
         """Get appropriate lexer for a file using the syntax manager."""
         return self.syntax_manager.get_lexer_for_file(filename)
         
-    def create_widget(self, lexer=None):
+    def create_widget(self, lexer=None, color_scheme=None):
         """
-        Create a new CodeView widget with optional lexer.
+        Create a new CodeView widget with enhanced scrollbar handling and color scheme support.
         
         Args:
-            lexer: Optional lexer to set during widget construction
+            lexer: Optional Pygments lexer for syntax highlighting
+            color_scheme: Optional color scheme override (uses instance default if None)
             
         Returns:
-            CodeView widget instance
+            New CodeView widget
         """
-        widget_args = {
-            'width': self.width,
-            'height': self.height
-        }
-        
-        if lexer is not None:
-            widget_args['lexer'] = lexer
+        try:
+            # Use provided color scheme or default
+            scheme = color_scheme if color_scheme is not None else self.color_scheme
             
-        return CodeView(self.parent, **widget_args)
+            # Create widget with lexer and color scheme
+            if lexer:
+                widget = CodeView(self.parent, lexer=lexer, color_scheme=scheme, 
+                                width=self.width, height=self.height)
+            else:
+                widget = CodeView(self.parent, color_scheme=scheme, 
+                                width=self.width, height=self.height)
+                
+            # Enhanced scrollbar configuration
+            if self.scrollbar is not None:
+                self.configure_scrollbar(widget)
+                
+            return widget
+            
+        except Exception as e:
+            # If widget creation fails, ensure we don't leave things in bad state
+            raise Exception(f"Failed to create CodeView widget: {e}")
 
     def create_widget_for_file(self, filename):
         """
@@ -132,7 +155,7 @@ class CodeEditor:
         
     def create_widget_with_preset(self, preset_name, **override_options):
         """
-        Create a widget using a preset configuration.
+        Create a widget using a preset configuration with color scheme support.
         
         Args:
             preset_name: Name of the preset to use
@@ -146,6 +169,10 @@ class CodeEditor:
         # Override preset with any custom options
         widget_config = preset_config.copy()
         widget_config.update(override_options)
+        
+        # Add color scheme if not already specified
+        if 'color_scheme' not in widget_config:
+            widget_config['color_scheme'] = self.color_scheme
         
         return CodeView(self.parent, **widget_config)
         
@@ -181,6 +208,10 @@ class CodeEditor:
         if lexer:
             widget_config['lexer'] = lexer
             
+        # Add color scheme if not already specified
+        if 'color_scheme' not in widget_config:
+            widget_config['color_scheme'] = self.color_scheme
+            
         # Override with any custom options
         widget_config.update(widget_options)
         
@@ -204,11 +235,20 @@ class CodeEditor:
         return widget
         
     def configure_scrollbar(self, widget):
-        """Configure scrollbar connection for a widget."""
+        """
+        Configure scrollbar connection for a widget with enhanced error handling.
+        
+        Args:
+            widget: Widget to connect to scrollbar
+        """
         if self.scrollbar is not None:
-            self.scrollbar.config(command=widget.yview)
-            widget.config(yscrollcommand=self.scrollbar.set)
-            
+            try:
+                self.scrollbar.config(command=widget.yview)
+                widget.config(yscrollcommand=self.scrollbar.set)
+            except (tk.TclError, AttributeError) as e:
+                # Log error but don't fail widget creation
+                print(f"Warning: Scrollbar configuration failed: {e}")
+                
     def grid_widget(self, widget, **grid_options):
         """Configure widget grid layout with default or custom options."""
         default_options = {'sticky': 'nsew'}
@@ -217,44 +257,67 @@ class CodeEditor:
         
     def capture_widget_state(self, widget=None):
         """
-        Capture current widget state with enhanced relationship handling.
+        Capture the current state of the widget for restoration.
         
         Args:
-            widget: Widget to capture state from (defaults to current_widget)
-            
+            widget: Widget to capture state from. If None, uses current_widget.
+        
         Returns:
-            Dictionary containing widget state
+            dict: Dictionary containing widget state information
         """
         if widget is None:
             widget = self.current_widget
             
-        if not widget:
+        if widget is None:
             return {
                 'content': '',
                 'cursor_position': '1.0',
                 'scroll_position': (0.0, 1.0),
                 'selection': None
             }
+        
+        try:
+            # Enhanced error recovery for corrupted widget state
+            try:
+                content = widget.get("1.0", "end-1c")
+            except (tk.TclError, AttributeError):
+                content = ''
+                
+            try:
+                cursor_position = widget.index(tk.INSERT)
+            except (tk.TclError, AttributeError):
+                cursor_position = '1.0'
+                
+            try:
+                scroll_position = widget.yview()
+            except (tk.TclError, AttributeError):
+                scroll_position = (0.0, 1.0)
             
-        # Capture content
-        content = widget.get("1.0", "end-1c")
-        
-        # Capture cursor position
-        cursor_position = widget.index(tk.INSERT)
-        
-        # Capture scroll position
-        scroll_position = widget.yview()
-        
-        # Capture selection
-        selection_ranges = widget.tag_ranges(tk.SEL)
-        selection = tuple(selection_ranges) if selection_ranges else None
-        
-        return {
-            'content': content,
-            'cursor_position': cursor_position,
-            'scroll_position': scroll_position,
-            'selection': selection
-        }
+            try:
+                # Check if there's a selection
+                selection_ranges = widget.tag_ranges(tk.SEL)
+                if selection_ranges:
+                    selection = (str(selection_ranges[0]), str(selection_ranges[1]))
+                else:
+                    selection = None
+            except (tk.TclError, AttributeError):
+                selection = None
+            
+            return {
+                'content': content,
+                'cursor_position': cursor_position,
+                'scroll_position': scroll_position,
+                'selection': selection
+            }
+            
+        except Exception:
+            # Fallback to safe defaults if all methods fail
+            return {
+                'content': '',
+                'cursor_position': '1.0',
+                'scroll_position': (0.0, 1.0),
+                'selection': None
+            }
         
     def restore_widget_state(self, widget, state):
         """
@@ -526,25 +589,117 @@ class CodeEditor:
         
     def replace_widget_with_lexer(self, lexer):
         """
-        Replace current widget with new one using specified lexer.
-        Enhanced with comprehensive container relationship maintenance.
+        Replace current widget with new widget configured for specified lexer.
+        Enhanced version with robust error handling and state preservation.
         
         Args:
-            lexer: Lexer to use for the new widget
+            lexer: Pygments lexer for syntax highlighting
             
         Returns:
-            New CodeView widget with lexer applied
+            New widget configured with lexer
         """
-        if not self.has_widget():
-            # No current widget, create new one
-            new_widget = self.create_widget(lexer=lexer)
-            self.configure_scrollbar(new_widget)
-            self.grid_widget(new_widget)
+        old_widget = self.current_widget
+        old_state = None
+        old_geometry_info = None
+        old_scrollbar_state = None
+        
+        # Capture state from old widget if it exists
+        if old_widget:
+            try:
+                old_state = self.capture_widget_state(old_widget)
+                old_geometry_info = self.capture_widget_geometry_info(old_widget)
+                
+                # Capture scrollbar state if scrollbar exists
+                if self.scrollbar:
+                    old_scrollbar_state = self.capture_scrollbar_state(old_widget)
+                    
+            except Exception:
+                # If state capture fails, continue with safe defaults
+                old_state = None
+                old_geometry_info = None
+                old_scrollbar_state = None
+
+        try:
+            # Create new widget - this could fail completely
+            new_widget = self.create_widget(lexer)
+            
+            # Set lexer with error recovery
+            try:
+                if hasattr(new_widget, 'lexer'):
+                    new_widget.lexer = lexer
+            except (AttributeError, TypeError, Exception):
+                # Lexer setting failed, but widget is still usable
+                pass
+            
+            # Apply state and configuration to new widget
+            if old_state:
+                try:
+                    self.restore_widget_state(new_widget, old_state)
+                except Exception:
+                    # State restoration failed, but widget is still functional
+                    pass
+            
+            # Apply geometry information to new widget
+            if old_geometry_info:
+                try:
+                    self.apply_geometry_info(new_widget, old_geometry_info)
+                except Exception:
+                    # Geometry application failed, try simple grid fallback
+                    try:
+                        new_widget.grid(sticky='nsew')
+                    except Exception:
+                        pass
+            else:
+                # No old geometry info, use default grid placement
+                try:
+                    new_widget.grid(sticky='nsew')
+                except Exception:
+                    pass
+            
+            # Enhanced scrollbar reconnection with error recovery
+            if self.scrollbar:
+                try:
+                    if old_scrollbar_state:
+                        self.apply_scrollbar_state(new_widget, old_scrollbar_state)
+                    else:
+                        self.enhanced_scrollbar_reconnection(old_widget, new_widget)
+                except Exception:
+                    # Scrollbar reconnection failed, try basic configuration
+                    try:
+                        self.configure_scrollbar(new_widget)
+                    except Exception:
+                        pass
+
+            # Update current widget reference
             self.current_widget = new_widget
+            
+            # Clean up old widget
+            if old_widget:
+                try:
+                    self.destroy_widget_safely_for_replacement(old_widget)
+                except Exception:
+                    # Old widget cleanup failed, but new widget is functional
+                    pass
+            
             return new_widget
             
-        # Enhanced replacement with container relationship maintenance
-        return self.replace_widget_with_enhanced_container_relationships(self.current_widget, lexer)
+        except Exception as creation_error:
+            # Complete widget creation failed - recover to old state
+            if old_widget and self.scrollbar and old_scrollbar_state:
+                try:
+                    # Reconnect scrollbar to old widget to maintain functionality
+                    self.apply_scrollbar_state(old_widget, old_scrollbar_state)
+                except Exception:
+                    try:
+                        self.configure_scrollbar(old_widget)
+                    except Exception:
+                        pass
+            
+            # Ensure current_widget still points to old widget
+            self.current_widget = old_widget
+            
+            # Re-raise the creation error for caller to handle
+            raise creation_error
         
     def setup_initial_widget(self, **grid_options):
         """
@@ -642,4 +797,395 @@ class CodeEditor:
             widget.delete("1.0", tk.END)
             
             # Set to disabled (read-only)
-            widget.config(state='disabled') 
+            widget.config(state='disabled')
+
+    def enhanced_scrollbar_reconnection(self, old_widget, new_widget, lexer):
+        """
+        Enhanced scrollbar reconnection with comprehensive state preservation.
+        
+        Args:
+            old_widget: Widget being replaced
+            new_widget: New widget to connect
+            lexer: Lexer for the new widget
+            
+        Returns:
+            New widget with enhanced scrollbar reconnection
+        """
+        # Capture scrollbar state from old widget
+        scrollbar_state = self.capture_scrollbar_state(old_widget)
+        
+        # Configure new widget with lexer
+        if lexer is not None:
+            try:
+                new_widget.lexer = lexer
+                new_widget.highlight_all()
+            except (AttributeError, Exception):
+                # Lexer configuration may fail, continue anyway
+                pass
+        
+        # Apply enhanced scrollbar reconnection
+        self.apply_scrollbar_state(new_widget, scrollbar_state)
+        
+        return new_widget
+        
+    def capture_scrollbar_state(self, widget):
+        """
+        Capture comprehensive scrollbar state from widget.
+        
+        Args:
+            widget: Widget to capture scrollbar state from
+            
+        Returns:
+            Dictionary containing scrollbar state information
+        """
+        scrollbar_state = {
+            'scroll_position': (0.0, 1.0),
+            'has_scrollbar': self.scrollbar is not None
+        }
+        
+        if widget and self.scrollbar is not None:
+            try:
+                # Get current scroll position
+                scroll_position = widget.yview()
+                scrollbar_state['scroll_position'] = scroll_position
+                
+                # Get scrollbar position
+                try:
+                    scrollbar_position = self.scrollbar.get()
+                    scrollbar_state['scrollbar_position'] = scrollbar_position
+                except (tk.TclError, AttributeError):
+                    scrollbar_state['scrollbar_position'] = (0.0, 1.0)
+                    
+            except (tk.TclError, AttributeError):
+                # Widget may not support yview, use defaults
+                pass
+                
+        return scrollbar_state
+        
+    def apply_scrollbar_state(self, widget, scrollbar_state):
+        """
+        Apply captured scrollbar state to widget with enhanced reconnection.
+        
+        Args:
+            widget: Widget to apply scrollbar state to
+            scrollbar_state: State dictionary from capture_scrollbar_state()
+        """
+        if scrollbar_state.get('has_scrollbar') and self.scrollbar is not None:
+            # Enhanced bidirectional reconnection
+            try:
+                # Configure scrollbar to widget connection
+                self.scrollbar.config(command=widget.yview)
+                
+                # Configure widget to scrollbar connection  
+                widget.config(yscrollcommand=self.scrollbar.set)
+                
+                # Restore scroll position
+                scroll_position = scrollbar_state.get('scroll_position', (0.0, 1.0))
+                if scroll_position[0] > 0:
+                    widget.yview_moveto(scroll_position[0])
+                    
+            except (tk.TclError, AttributeError) as e:
+                # Fallback to basic configuration
+                try:
+                    self.configure_scrollbar(widget)
+                except Exception:
+                    # Ultimate fallback - just ensure widget is functional
+                    pass 
+
+    def destroy_widget_safely_for_replacement(self, widget):
+        """
+        Safely destroy widget during replacement operation.
+        Enhanced version specifically for widget replacement scenarios.
+        
+        Args:
+            widget: Widget to destroy safely
+        """
+        if widget is None:
+            return
+            
+        try:
+            # Clear scrollbar connections first
+            if self.scrollbar:
+                try:
+                    self.scrollbar.config(command=lambda *args: None)
+                    widget.config(yscrollcommand=lambda *args: None)
+                except Exception:
+                    pass
+            
+            # Clear widget variables and bindings
+            try:
+                # Clear tkinter variables
+                for var_name in widget.getvar():
+                    try:
+                        widget.setvar(var_name, "")
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            
+            # Unbind all events
+            try:
+                widget.unbind_all()
+            except Exception:
+                pass
+            
+            # Clear parent relationships
+            try:
+                widget.master = None
+            except Exception:
+                pass
+            
+            # Destroy child widgets first
+            try:
+                for child in widget.winfo_children():
+                    try:
+                        child.destroy()
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            
+            # Finally destroy the widget
+            try:
+                widget.destroy()
+            except Exception:
+                pass
+                
+        except Exception:
+            # If all else fails, just try basic destroy
+            try:
+                widget.destroy()
+            except Exception:
+                pass 
+
+    def _get_cache_key(self, lexer, color_scheme=None):
+        """
+        Generate cache key for lexer and color scheme combination.
+        
+        Args:
+            lexer: Pygments lexer instance or None
+            color_scheme: Color scheme name or None (uses instance default)
+            
+        Returns:
+            str: Cache key for the lexer and color scheme combination
+        """
+        if lexer is None:
+            lexer_name = 'none'
+        else:
+            lexer_name = getattr(lexer, 'name', str(lexer))
+        
+        # Use instance color scheme if not specified
+        scheme = color_scheme if color_scheme is not None else self.color_scheme
+        
+        # Combine lexer and color scheme for unique cache key
+        return f"{lexer_name}:{scheme}"
+    
+    def get_cached_widget_for_lexer(self, lexer, color_scheme=None):
+        """
+        Get cached widget for lexer and color scheme or create new one if not cached.
+        
+        Args:
+            lexer: Pygments lexer instance or None
+            color_scheme: Optional color scheme override (uses instance default if None)
+            
+        Returns:
+            CodeView widget configured for the lexer and color scheme
+        """
+        if not self.enable_caching:
+            # Caching disabled, always create new widget
+            return self.create_widget(lexer=lexer, color_scheme=color_scheme)
+        
+        cache_key = self._get_cache_key(lexer, color_scheme)
+        
+        with self._cache_lock:
+            # Check if widget is in cache
+            if cache_key in self._widget_cache:
+                # Move to end (most recently used)
+                widget = self._widget_cache.pop(cache_key)
+                self._widget_cache[cache_key] = widget
+                return widget
+            
+            # Create new widget and cache it
+            widget = self.create_widget(lexer=lexer, color_scheme=color_scheme)
+            
+            # Add to cache with size limit enforcement
+            if len(self._widget_cache) >= self.cache_size:
+                # Remove least recently used widget
+                old_key, old_widget = self._widget_cache.popitem(last=False)
+                try:
+                    # Safely destroy evicted widget
+                    self.destroy_widget_safely_for_replacement(old_widget)
+                except Exception:
+                    pass
+            
+            self._widget_cache[cache_key] = widget
+            return widget
+    
+    def get_cache_size(self):
+        """
+        Get current number of widgets in cache.
+        
+        Returns:
+            int: Number of cached widgets
+        """
+        with self._cache_lock:
+            return len(self._widget_cache)
+    
+    def invalidate_cache(self):
+        """
+        Clear all cached widgets and destroy them safely.
+        """
+        with self._cache_lock:
+            for widget in self._widget_cache.values():
+                try:
+                    self.destroy_widget_safely_for_replacement(widget)
+                except Exception:
+                    pass
+            self._widget_cache.clear()
+    
+    def replace_widget_with_cached_lexer(self, lexer):
+        """
+        Replace current widget with cached widget for specified lexer.
+        
+        Args:
+            lexer: Pygments lexer for syntax highlighting
+            
+        Returns:
+            New widget configured with lexer
+        """
+        if not self.enable_caching:
+            # Fall back to regular replacement if caching disabled
+            return self.replace_widget_with_lexer(lexer)
+            
+        # Get cached widget for lexer
+        cached_widget = self.get_cached_widget_for_lexer(lexer)
+        
+        # If cached widget is already current, no replacement needed
+        if cached_widget == self.current_widget:
+            return cached_widget
+            
+        # Capture state from current widget if it exists
+        old_state = None
+        old_geometry_info = None
+        old_scrollbar_state = None
+        
+        if self.current_widget:
+            try:
+                old_state = self.capture_widget_state(self.current_widget)
+                old_geometry_info = self.capture_widget_geometry_info(self.current_widget)
+                old_scrollbar_state = self.capture_scrollbar_state(self.current_widget)
+            except Exception:
+                # Continue with replacement even if state capture fails
+                pass
+                
+        # Destroy old widget safely
+        if self.current_widget and self.current_widget != cached_widget:
+            self.destroy_widget_safely_for_replacement(self.current_widget)
+            
+        # Set cached widget as current
+        self.current_widget = cached_widget
+        
+        # Apply geometry and scrollbar configuration
+        try:
+            if old_geometry_info:
+                self.apply_geometry_info(self.current_widget, old_geometry_info)
+            else:
+                # Default grid configuration
+                self.grid_widget(self.current_widget)
+                
+            # Configure scrollbar
+            self.configure_scrollbar(self.current_widget)
+            
+            # Apply scrollbar state if available
+            if old_scrollbar_state:
+                self.apply_scrollbar_state(self.current_widget, old_scrollbar_state)
+                
+        except Exception:
+            # Continue even if configuration fails
+            pass
+            
+        return self.current_widget
+
+    def load_file(self, filename, encoding='utf-8'):
+        """
+        Load file content with automatic syntax highlighting detection.
+        
+        Args:
+            filename (str): Path to the file to load
+            encoding (str): File encoding (default: 'utf-8')
+            
+        Returns:
+            bool: True if file loaded successfully, False otherwise
+        """
+        try:
+            # Read file content
+            with open(filename, 'r', encoding=encoding) as file:
+                content = file.read()
+                
+            # Detect lexer for file
+            lexer = self.get_lexer_for_file(filename)
+            
+            # Get or create widget with appropriate lexer
+            if self.enable_caching:
+                # Use cached widget replacement
+                self.replace_widget_with_cached_lexer(lexer)
+            else:
+                # Create new widget with lexer
+                if self.current_widget:
+                    self.replace_widget_with_lexer(lexer)
+                else:
+                    self.current_widget = self.create_widget(lexer)
+                    
+            # Load content into widget
+            if self.current_widget:
+                # Clear existing content
+                self.current_widget.delete("1.0", tk.END)
+                
+                # Insert new content
+                self.current_widget.insert("1.0", content)
+                
+                # Reset cursor to beginning
+                self.current_widget.mark_set(tk.INSERT, "1.0")
+                
+                # Configure scrollbar if present
+                self.configure_scrollbar(self.current_widget)
+                
+                return True
+                
+        except FileNotFoundError:
+            # File doesn't exist
+            return False
+        except PermissionError:
+            # No permission to read file
+            return False
+        except UnicodeDecodeError:
+            # Try with different encoding
+            try:
+                with open(filename, 'r', encoding='latin-1') as file:
+                    content = file.read()
+                    
+                # Continue with loading process
+                lexer = self.get_lexer_for_file(filename)
+                
+                if self.enable_caching:
+                    self.replace_widget_with_cached_lexer(lexer)
+                else:
+                    if self.current_widget:
+                        self.replace_widget_with_lexer(lexer)
+                    else:
+                        self.current_widget = self.create_widget(lexer)
+                        
+                if self.current_widget:
+                    self.current_widget.delete("1.0", tk.END)
+                    self.current_widget.insert("1.0", content)
+                    self.current_widget.mark_set(tk.INSERT, "1.0")
+                    self.configure_scrollbar(self.current_widget)
+                    return True
+                    
+            except Exception:
+                return False
+        except Exception:
+            # Any other error
+            return False
+            
+        return False 
