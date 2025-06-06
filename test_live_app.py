@@ -6,10 +6,41 @@ Test script to verify the live application
 import tkinter as tk
 from src.gui import GUI
 import os
+import sys
 
-def test_app():
-    """Launch the app and test it"""
-    print("🚀 Launching test app...")
+def check_app_can_launch():
+    """Test that the app can launch without errors (for automated testing)"""
+    print("🧪 Testing app launch without GUI...")
+    
+    root = tk.Tk()
+    root.withdraw()  # Hide the window during automated testing
+    
+    try:
+        # Create GUI
+        gui = GUI(root)
+        
+        # Set up initial directory to current directory
+        current_dir = os.getcwd()
+        gui.current_directory = current_dir
+        gui.file_explorer.current_directory = current_dir
+        
+        # Test basic functionality without showing GUI
+        scan_result = gui.file_explorer.scan_directory(current_dir)
+        
+        print(f"✅ App can launch successfully")
+        print(f"✅ Directory scanning works: {len(scan_result.get('files', []))} files found")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error during app test: {e}")
+        return False
+    finally:
+        root.destroy()
+
+def launch_app_interactive():
+    """Launch the app interactively for manual testing"""
+    print("🚀 Launching interactive test app...")
     
     root = tk.Tk()
     root.title("Vibe Coding IDE - Test")
@@ -49,5 +80,16 @@ def test_app():
     # Start the GUI
     root.mainloop()
 
+# When run by pytest, use the non-interactive test
+# When run directly, use the interactive version
 if __name__ == "__main__":
-    test_app() 
+    if len(sys.argv) > 1 and sys.argv[1] == "--interactive":
+        launch_app_interactive()
+    else:
+        # Default to interactive when run directly
+        launch_app_interactive()
+
+# For pytest discovery - this will run the non-interactive version
+def test_live_app():
+    """Pytest-compatible test function"""
+    assert check_app_can_launch(), "App should launch successfully" 
