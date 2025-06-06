@@ -15,6 +15,7 @@ Based on technical investigation, we've identified that the Chlorophyll library 
 ### New Work Required
 - `src/code_editor.py` - New module to handle CodeView widget lifecycle and syntax highlighting (✅ DONE)
 - `tests/test_code_editor.py` - Unit tests for the new code editor module (✅ DONE)
+- `tests/test_nord_python_syntax.py` - Unit tests for Nord color scheme applied to Python syntax (✅ DONE)
 - `tests/test_syntax_highlighting_full.py` - Integration tests for complete syntax highlighting functionality
 - `test_live_app.py` - Manual testing application to verify syntax highlighting visually
 
@@ -122,7 +123,17 @@ Based on technical investigation, we've identified that the Chlorophyll library 
 - [x] Add comprehensive error handling and recovery mechanisms
 
 ### Task 6.0: Apply Custom Color Schemes and Theme Support
-- [ ] 6.1 Implement Nord-inspired color scheme for Python syntax elements
+- [x] **6.1: Implement Nord-inspired color scheme for Python syntax elements**
+  - ✅ Comprehensive Nord color scheme already implemented in `src/color_schemes.py`
+  - ✅ CodeEditor integration with Nord scheme working correctly
+  - ✅ Python lexer detection and syntax highlighting functional
+  - ✅ Created comprehensive test suite in `tests/test_nord_python_syntax.py` with 8 test methods
+  - ✅ Tests verify color mappings for Python syntax elements (keywords, functions, classes, strings, numbers, comments)
+  - ✅ Tests verify widget creation with Nord scheme and fallback handling
+  - ✅ Tests verify color contrast and Python-specific elements (decorators, magic methods, exceptions)
+  - ✅ Fixed GUI to set initial CodeView state to 'disabled' (read-only)
+  - ✅ All 238 tests passing including new Nord Python syntax tests
+  - ✅ Nord scheme provides excellent contrast with dark background and proper Python syntax highlighting
 - [ ] 6.2 Add support for JavaScript, HTML, CSS, and other common languages
 - [ ] 6.3 Create color mapping system that works with Pygments token types
 - [ ] 6.4 Ensure colors are applied after widget creation with proper lexer

@@ -12,6 +12,11 @@ from tkinter import ttk
 from collections import OrderedDict
 import threading
 try:
+    from .color_schemes import get_color_scheme, is_color_scheme_available
+except ImportError:
+    # Fallback for tests and standalone usage
+    from color_schemes import get_color_scheme, is_color_scheme_available
+try:
     from chlorophyll import CodeView
 except ImportError:
     # Mock CodeView for testing
@@ -90,12 +95,21 @@ class CodeEditor:
             # Use provided color scheme or default
             scheme = color_scheme if color_scheme is not None else self.color_scheme
             
+            # Check if it's a custom color scheme (from our color_schemes module)
+            custom_scheme = get_color_scheme(scheme)
+            if custom_scheme:
+                # Use our custom color scheme
+                actual_scheme = custom_scheme
+            else:
+                # Use the scheme name directly (for built-in Chlorophyll schemes)
+                actual_scheme = scheme
+            
             # Create widget with lexer and color scheme
             if lexer:
-                widget = CodeView(self.parent, lexer=lexer, color_scheme=scheme, 
+                widget = CodeView(self.parent, lexer=lexer, color_scheme=actual_scheme, 
                                 width=self.width, height=self.height)
             else:
-                widget = CodeView(self.parent, color_scheme=scheme, 
+                widget = CodeView(self.parent, color_scheme=actual_scheme, 
                                 width=self.width, height=self.height)
                 
             # Enhanced scrollbar configuration
@@ -105,7 +119,27 @@ class CodeEditor:
             return widget
             
         except Exception as e:
-            # If widget creation fails, ensure we don't leave things in bad state
+            # If widget creation fails with invalid color scheme, try fallback
+            if "color scheme" in str(e).lower():
+                try:
+                    # Fallback to default monokai scheme
+                    fallback_scheme = "monokai"
+                    if lexer:
+                        widget = CodeView(self.parent, lexer=lexer, color_scheme=fallback_scheme, 
+                                        width=self.width, height=self.height)
+                    else:
+                        widget = CodeView(self.parent, color_scheme=fallback_scheme, 
+                                        width=self.width, height=self.height)
+                        
+                    # Enhanced scrollbar configuration
+                    if self.scrollbar is not None:
+                        self.configure_scrollbar(widget)
+                        
+                    return widget
+                except Exception:
+                    pass
+            
+            # If all else fails, ensure we don't leave things in bad state
             raise Exception(f"Failed to create CodeView widget: {e}")
 
     def create_widget_for_file(self, filename):
@@ -172,7 +206,12 @@ class CodeEditor:
         
         # Add color scheme if not already specified
         if 'color_scheme' not in widget_config:
-            widget_config['color_scheme'] = self.color_scheme
+            # Check if it's a custom color scheme
+            custom_scheme = get_color_scheme(self.color_scheme)
+            if custom_scheme:
+                widget_config['color_scheme'] = custom_scheme
+            else:
+                widget_config['color_scheme'] = self.color_scheme
         
         return CodeView(self.parent, **widget_config)
         
@@ -210,7 +249,12 @@ class CodeEditor:
             
         # Add color scheme if not already specified
         if 'color_scheme' not in widget_config:
-            widget_config['color_scheme'] = self.color_scheme
+            # Check if it's a custom color scheme
+            custom_scheme = get_color_scheme(self.color_scheme)
+            if custom_scheme:
+                widget_config['color_scheme'] = custom_scheme
+            else:
+                widget_config['color_scheme'] = self.color_scheme
             
         # Override with any custom options
         widget_config.update(widget_options)
@@ -977,8 +1021,20 @@ class CodeEditor:
         # Use instance color scheme if not specified
         scheme = color_scheme if color_scheme is not None else self.color_scheme
         
+        # For custom color schemes, use a consistent identifier
+        if isinstance(scheme, dict):
+            # If it's already a dictionary (custom scheme), create a hash-based key
+            scheme_key = f"custom_{hash(str(sorted(scheme.items())))}"
+        else:
+            # Check if it's a custom scheme name
+            custom_scheme = get_color_scheme(scheme)
+            if custom_scheme:
+                scheme_key = f"custom_{scheme}"
+            else:
+                scheme_key = scheme
+        
         # Combine lexer and color scheme for unique cache key
-        return f"{lexer_name}:{scheme}"
+        return f"{lexer_name}:{scheme_key}"
     
     def get_cached_widget_for_lexer(self, lexer, color_scheme=None):
         """

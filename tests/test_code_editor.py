@@ -48,7 +48,7 @@ class TestCodeEditor(unittest.TestCase):
         
         self.assertEqual(editor.scrollbar, scrollbar)
         self.assertEqual(editor.width, 100)
-                self.assertEqual(editor.height, 50)
+        self.assertEqual(editor.height, 50)
         
     @patch('code_editor.CodeView')
     def test_create_widget_with_no_lexer(self, mock_codeview):

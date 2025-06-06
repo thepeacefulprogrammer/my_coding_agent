@@ -118,6 +118,9 @@ class GUI:
         self.code_editor.configure_scrollbar(widget)
         self.code_editor.current_widget = widget
         
+        # Set initial state to read-only
+        widget.config(state='disabled')
+        
         # Use pack geometry manager instead of grid
         widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
