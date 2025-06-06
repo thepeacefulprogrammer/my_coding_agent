@@ -2,11 +2,14 @@ import tkinter as tk
 from tkinter import filedialog, simpledialog, messagebox
 from tkinter import ttk
 import os
+from chlorophyll import CodeView
 
 try:
     from .file_explorer import FileExplorer
+    from .syntax_manager import SyntaxManager
 except ImportError:
     from file_explorer import FileExplorer
+    from syntax_manager import SyntaxManager
 
 class GUI:
     """Main GUI class for the file explorer application"""
@@ -16,6 +19,7 @@ class GUI:
         self.root = root
         self.current_directory = None  # Track current working directory
         self.file_explorer = FileExplorer()
+        self.syntax_manager = SyntaxManager()  # Initialize syntax manager
         
         # Set window title and size
         self.root.title("Vibe Coding - File Explorer")
@@ -90,24 +94,23 @@ class GUI:
         text_container = tk.Frame(self.content_frame)
         text_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Create scrollbar for file content text
+        # Create scrollbar for file content
         self.file_content_scrollbar = tk.Scrollbar(text_container)
         self.file_content_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Create read-only text widget for file content
-        self.file_content_text = tk.Text(
+        # Create CodeView widget for syntax-highlighted file content
+        self.file_content_codeview = CodeView(
             text_container, 
             yscrollcommand=self.file_content_scrollbar.set,
             state='disabled',  # Make it read-only
             wrap='none',       # No text wrapping for code viewing
             bg='white',
-            fg='black',
-            font=('Courier', 10)  # Monospace font for code
+            fg='black'
         )
-        self.file_content_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.file_content_codeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Configure scrollbar to work with text widget
-        self.file_content_scrollbar.config(command=self.file_content_text.yview)
+        # Configure scrollbar to work with CodeView widget
+        self.file_content_scrollbar.config(command=self.file_content_codeview.yview)
     
     def open_folder_handler(self):
         """Handle opening a folder"""
@@ -327,9 +330,9 @@ class GUI:
             # Read file content using FileExplorer
             content = self.file_explorer.read_file(file_path)
             
-            # Update the text widget with content
+            # Update the CodeView widget with content and filename for syntax highlighting
             if content is not None:
-                self.update_file_content(content)
+                self.update_file_content(content, filename=file_path)
             else:
                 # If file is unreadable, show appropriate message
                 self.update_file_content("[Unable to read file - may be binary or protected]")
@@ -338,28 +341,47 @@ class GUI:
             # Handle any errors gracefully
             self.update_file_content("[Error loading file content]")
     
-    def update_file_content(self, content):
-        """Update the file content text widget with new content
+    def update_file_content(self, content, filename=None):
+        """Update the file content CodeView widget with new content and syntax highlighting
         
         Args:
-            content (str): Content to display in the text widget
+            content (str): Content to display in the CodeView widget
+            filename (str, optional): Filename for syntax highlighting detection
         """
         try:
-            # Temporarily enable the text widget for editing
-            self.file_content_text.config(state='normal')
+            # Get appropriate lexer for syntax highlighting
+            if filename:
+                lexer = self.syntax_manager.get_lexer_for_file(filename)
+            else:
+                # Default to text lexer if no filename provided
+                lexer = self.syntax_manager.get_lexer_by_extension('.txt')
+            
+            # Temporarily enable the CodeView widget for editing
+            self.file_content_codeview.config(state='normal')
             
             # Clear existing content
-            self.file_content_text.delete('1.0', 'end')
+            self.file_content_codeview.delete('1.0', 'end')
             
             # Insert new content
-            self.file_content_text.insert('1.0', content)
+            self.file_content_codeview.insert('1.0', content)
             
-            # Make text widget read-only again
-            self.file_content_text.config(state='disabled')
+            # Apply syntax highlighting using the lexer
+            if lexer:
+                self.file_content_codeview.highlight_all(lexer)
+            
+            # Make CodeView widget read-only again
+            self.file_content_codeview.config(state='disabled')
             
             # Reset scroll position to top
-            self.file_content_text.see('1.0')
+            self.file_content_codeview.see('1.0')
             
         except Exception as e:
-            # Handle any errors gracefully
-            pass
+            # Handle any errors gracefully - fallback to plain text display
+            try:
+                self.file_content_codeview.config(state='normal')
+                self.file_content_codeview.delete('1.0', 'end')
+                self.file_content_codeview.insert('1.0', content)
+                self.file_content_codeview.config(state='disabled')
+                self.file_content_codeview.see('1.0')
+            except:
+                pass

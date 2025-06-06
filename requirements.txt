@@ -1,1 +1,2 @@
 pytest
+chlorophyll>=0.4.2
