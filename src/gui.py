@@ -7,9 +7,11 @@ from chlorophyll import CodeView
 try:
     from .file_explorer import FileExplorer
     from .syntax_manager import SyntaxManager
+    from .folder_dialog import askdirectory_custom
 except ImportError:
     from file_explorer import FileExplorer
     from syntax_manager import SyntaxManager
+    from folder_dialog import askdirectory_custom
 
 class GUI:
     """Main GUI class for the file explorer application"""
@@ -98,14 +100,19 @@ class GUI:
         self.file_content_scrollbar = tk.Scrollbar(text_container)
         self.file_content_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Create CodeView widget for syntax-highlighted file content
+        # Create file content display (right side) using CodeView for syntax highlighting
         self.file_content_codeview = CodeView(
-            text_container, 
+            text_container,
             yscrollcommand=self.file_content_scrollbar.set,
-            state='disabled',  # Make it read-only
-            wrap='none',       # No text wrapping for code viewing
-            bg='white',
-            fg='black'
+            wrap='none',
+            state='disabled',
+            font=('Consolas', 10),
+            bg='#2E3440',  # Dark background
+            fg='#D8DEE9',  # Light foreground 
+            tab_width=4,
+            autohide_scrollbar=False,
+            selectbackground='#4C566A',  # Selection background
+            insertbackground='#D8DEE9'   # Cursor color
         )
         self.file_content_codeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
@@ -114,8 +121,12 @@ class GUI:
     
     def open_folder_handler(self):
         """Handle opening a folder"""
+        # Always show folder selection dialog regardless of tree selection
+        print("Showing folder selection dialog...")
         selected_folder = self.open_folder_dialog()
+        
         if selected_folder:
+            print(f"✅ Opening folder from dialog: {selected_folder}")
             self.current_directory = selected_folder
             
             # Set FileExplorer's current directory
@@ -125,7 +136,9 @@ class GUI:
             try:
                 scan_result = self.file_explorer.scan_directory(selected_folder)
                 self.populate_tree(self.tree_view, scan_result)
+                print(f"✅ Tree populated with {len(scan_result.get('files', []))} files, {len(scan_result.get('directories', []))} dirs")
             except Exception as e:
+                print(f"❌ Error scanning directory: {e}")
                 # Handle errors gracefully - clear tree view if scan fails
                 self.populate_tree(self.tree_view, {'directories': [], 'files': []})
                 
@@ -139,7 +152,15 @@ class GUI:
     
     def open_folder_dialog(self):
         """Show dialog to select a folder"""
-        folder_path = filedialog.askdirectory(title="Select Project Folder")
+        # Set initial directory to current directory if available, otherwise use home directory
+        initial_dir = self.current_directory if self.current_directory else os.path.expanduser("~")
+        
+        # Use our custom folder dialog that properly handles folder selection
+        folder_path = askdirectory_custom(
+            parent=self.root,
+            title="Select Project Folder",
+            initialdir=initial_dir
+        )
         return folder_path if folder_path else None
             
     def new_folder_dialog(self, parent_path=None):
@@ -210,6 +231,9 @@ class GUI:
         
         # Bind tree selection event
         treeview.bind('<<TreeviewSelect>>', self.on_tree_item_select)
+        
+        # Bind double-click event for folder navigation
+        treeview.bind('<Double-1>', self.on_tree_item_double_click)
     
     def on_tree_item_expand(self, event):
         """Handle tree item expansion to load directory contents
@@ -367,7 +391,55 @@ class GUI:
             
             # Apply syntax highlighting using the lexer
             if lexer:
-                self.file_content_codeview.highlight_all(lexer)
+                # Set the lexer for the CodeView widget
+                self.file_content_codeview.lexer = lexer
+                
+                # Apply syntax highlighting
+                self.file_content_codeview.highlight_all()
+                
+                # Check what tags were actually created
+                all_tags = self.file_content_codeview.tag_names()
+                
+                # Apply colors to all common token types that might exist
+                color_mapping = {
+                    "Token.Keyword": "#81A1C1",
+                    "Token.Keyword.Constant": "#81A1C1", 
+                    "Token.Keyword.Declaration": "#81A1C1",
+                    "Token.Keyword.Namespace": "#81A1C1",
+                    "Token.Keyword.Pseudo": "#81A1C1",
+                    "Token.Keyword.Reserved": "#81A1C1",
+                    "Token.Keyword.Type": "#81A1C1",
+                    "Token.String": "#A3BE8C",
+                    "Token.String.Double": "#A3BE8C",
+                    "Token.String.Single": "#A3BE8C",
+                    "Token.String.Doc": "#A3BE8C",
+                    "Token.Comment": "#616E88",
+                    "Token.Comment.Single": "#616E88",
+                    "Token.Comment.Multiline": "#616E88",
+                    "Token.Number": "#B48EAD",
+                    "Token.Number.Integer": "#B48EAD",
+                    "Token.Number.Float": "#B48EAD",
+                    "Token.Name.Function": "#88C0D0",
+                    "Token.Name.Function.Magic": "#88C0D0",
+                    "Token.Name.Class": "#8FBCBB",
+                    "Token.Name.Builtin": "#88C0D0",
+                    "Token.Name.Builtin.Pseudo": "#88C0D0",
+                    "Token.Operator": "#81A1C1",
+                    "Token.Punctuation": "#ECEFF4"
+                }
+                
+                # Apply colors for any matching tags
+                applied_colors = 0
+                for tag in all_tags:
+                    if tag in color_mapping:
+                        color = color_mapping[tag]
+                        self.file_content_codeview.tag_configure(tag, foreground=color)
+                        applied_colors += 1
+                
+                if applied_colors > 0:
+                    print(f"✅ Applied {applied_colors} syntax colors for {filename}")
+                else:
+                    print(f"⚠️ No matching color tags found for {filename}. Available tags: {list(all_tags)[:5]}...")
             
             # Make CodeView widget read-only again
             self.file_content_codeview.config(state='disabled')
@@ -376,6 +448,7 @@ class GUI:
             self.file_content_codeview.see('1.0')
             
         except Exception as e:
+            print(f"❌ Error in update_file_content: {e}")
             # Handle any errors gracefully - fallback to plain text display
             try:
                 self.file_content_codeview.config(state='normal')
@@ -385,3 +458,40 @@ class GUI:
                 self.file_content_codeview.see('1.0')
             except:
                 pass
+    
+    def on_tree_item_double_click(self, event):
+        """Handle double-click on tree items for navigation
+        
+        Args:
+            event: Tkinter event object containing widget and item information
+        """
+        try:
+            treeview = event.widget
+            selected_items = treeview.selection()
+            
+            if not selected_items:
+                return
+            
+            item_id = selected_items[0]
+            item_data = treeview.item(item_id)
+            values = item_data.get('values', [])
+            
+            # Check if it's a directory
+            if len(values) >= 2 and values[1] == 'directory':
+                directory_path = values[0]
+                
+                # Navigate to this directory (make it the current directory)
+                self.current_directory = directory_path
+                self.file_explorer.current_directory = directory_path
+                
+                # Scan and populate the tree with this directory as root
+                try:
+                    scan_result = self.file_explorer.scan_directory(directory_path)
+                    self.populate_tree(self.tree_view, scan_result)
+                except Exception as e:
+                    # Handle errors gracefully
+                    self.populate_tree(self.tree_view, {'directories': [], 'files': []})
+                    
+        except Exception as e:
+            # Handle any errors gracefully
+            pass

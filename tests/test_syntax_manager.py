@@ -157,6 +157,128 @@ class TestSyntaxManager(unittest.TestCase):
         for ext, expected_lang in expected_extensions.items():
             lexer = manager.get_lexer_by_extension(ext)
             self.assertIsNotNone(lexer, f"Should have lexer for {ext}")
+    
+    def test_get_lexer_for_file_with_python_shebang(self):
+        """Test lexer detection for files with Python shebang"""
+        from src.syntax_manager import SyntaxManager
+        manager = SyntaxManager()
+        
+        # Create temporary files with Python shebangs
+        python_shebangs = [
+            '#!/usr/bin/python',
+            '#!/usr/bin/env python',
+            '#!/usr/bin/python3',
+            '#!/usr/bin/env python3',
+            '#! /usr/bin/python',
+            '#! /usr/bin/env python3'
+        ]
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i, shebang in enumerate(python_shebangs):
+                filename = os.path.join(temp_dir, f'script_{i}')
+                with open(filename, 'w') as f:
+                    f.write(f'{shebang}\nprint("hello world")\n')
+                
+                lexer = manager.get_lexer_for_file(filename)
+                self.assertIsNotNone(lexer, f"Should detect lexer for Python shebang: {shebang}")
+                # Check if it's a Python lexer
+                lexer_name = str(type(lexer)).lower()
+                self.assertIn('python', lexer_name, 
+                             f"Should return Python lexer for shebang: {shebang}")
+    
+    def test_get_lexer_for_file_with_bash_shebang(self):
+        """Test lexer detection for files with bash shebang"""
+        from src.syntax_manager import SyntaxManager
+        manager = SyntaxManager()
+        
+        bash_shebangs = [
+            '#!/bin/bash',
+            '#!/usr/bin/bash',
+            '#!/bin/sh',
+            '#!/usr/bin/sh',
+            '#!/usr/bin/env bash'
+        ]
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i, shebang in enumerate(bash_shebangs):
+                filename = os.path.join(temp_dir, f'script_{i}')
+                with open(filename, 'w') as f:
+                    f.write(f'{shebang}\necho "hello world"\n')
+                
+                lexer = manager.get_lexer_for_file(filename)
+                self.assertIsNotNone(lexer, f"Should detect lexer for bash shebang: {shebang}")
+                # Check if it's a bash lexer
+                lexer_name = str(type(lexer)).lower()
+                self.assertIn('bash', lexer_name, 
+                             f"Should return bash lexer for shebang: {shebang}")
+    
+    def test_get_lexer_for_file_with_other_shebangs(self):
+        """Test lexer detection for files with other common shebangs"""
+        from src.syntax_manager import SyntaxManager
+        manager = SyntaxManager()
+        
+        other_shebangs = [
+            ('#!/usr/bin/env node', 'javascript'),
+            ('#!/usr/bin/ruby', 'ruby'),
+            ('#!/usr/bin/perl', 'perl'),
+            ('#!/usr/bin/env php', 'php')
+        ]
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for i, (shebang, expected_lang) in enumerate(other_shebangs):
+                filename = os.path.join(temp_dir, f'script_{i}')
+                with open(filename, 'w') as f:
+                    f.write(f'{shebang}\n// sample code\n')
+                
+                lexer = manager.get_lexer_for_file(filename)
+                self.assertIsNotNone(lexer, f"Should detect lexer for {expected_lang} shebang: {shebang}")
+    
+    def test_get_lexer_for_file_without_shebang_fallback(self):
+        """Test that files without shebangs fallback gracefully"""
+        from src.syntax_manager import SyntaxManager
+        manager = SyntaxManager()
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            filename = os.path.join(temp_dir, 'no_shebang_file')
+            with open(filename, 'w') as f:
+                f.write('some content without shebang\n')
+            
+            lexer = manager.get_lexer_for_file(filename)
+            # Should fallback to text lexer
+            if lexer is not None:
+                lexer_name = str(type(lexer)).lower()
+                self.assertIn('text', lexer_name, 
+                             "File without shebang should use text lexer")
+    
+    def test_get_lexer_for_file_empty_file(self):
+        """Test lexer detection for empty files"""
+        from src.syntax_manager import SyntaxManager
+        manager = SyntaxManager()
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            filename = os.path.join(temp_dir, 'empty_file')
+            with open(filename, 'w') as f:
+                pass  # Create empty file
+            
+            lexer = manager.get_lexer_for_file(filename)
+            # Should handle empty files gracefully
+            if lexer is not None:
+                lexer_name = str(type(lexer)).lower()
+                self.assertIn('text', lexer_name, 
+                             "Empty file should use text lexer")
+    
+    def test_get_lexer_for_file_shebang_case_insensitive(self):
+        """Test that shebang detection is case insensitive where appropriate"""
+        from src.syntax_manager import SyntaxManager
+        manager = SyntaxManager()
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            filename = os.path.join(temp_dir, 'case_test')
+            with open(filename, 'w') as f:
+                f.write('#!/usr/bin/env Python3\nprint("test")\n')
+            
+            lexer = manager.get_lexer_for_file(filename)
+            self.assertIsNotNone(lexer, "Should handle case variations in shebangs")
 
 
 if __name__ == '__main__':

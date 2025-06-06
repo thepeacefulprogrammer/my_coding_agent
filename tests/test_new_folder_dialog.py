@@ -1,85 +1,79 @@
-from unittest.mock import patch, MagicMock
+import unittest
 import tempfile
 import os
+from unittest.mock import patch
+import tkinter as tk
+from src.gui import GUI
 
-def test_new_folder_dialog_calls_askstring():
-    """Test that new_folder_dialog calls simpledialog.askstring"""
-    # Mock tkinter to avoid display issues
-    with patch.dict('sys.modules', {'tkinter': MagicMock(), 'tkinter.filedialog': MagicMock(), 'tkinter.simpledialog': MagicMock()}):
-        from src.gui import GUI
-        
-        # Create GUI instance with mocked root
-        mock_root = MagicMock()
-        gui = GUI(mock_root)
-        
+
+class TestNewFolderDialog(unittest.TestCase):
+    """Test new folder dialog functionality"""
+    
+    def setUp(self):
+        """Set up test environment with real tkinter root"""
+        self.root = tk.Tk()
+        self.root.withdraw()  # Hide the window during testing
+        self.gui = GUI(self.root)
+    
+    def tearDown(self):
+        """Clean up test environment"""
+        self.root.destroy()
+
+    def test_new_folder_dialog_calls_askstring(self):
+        """Test that new_folder_dialog calls simpledialog.askstring"""
         # Test that new_folder_dialog method exists
-        assert hasattr(gui, 'new_folder_dialog'), "Expected GUI to have new_folder_dialog method"
+        self.assertTrue(hasattr(self.gui, 'new_folder_dialog'), "Expected GUI to have new_folder_dialog method")
+        self.assertTrue(callable(self.gui.new_folder_dialog), "Expected new_folder_dialog to be callable")
         
-        # Mock the simpledialog and os after import
-        with patch('src.gui.simpledialog.askstring', return_value="test_folder") as mock_ask, \
-             patch('src.gui.os.mkdir') as mock_mkdir, \
-             patch('src.gui.os.path.join', return_value="/test/parent/path/test_folder") as mock_join:
+        # Mock simpledialog.askstring and os.mkdir to avoid side effects
+        with patch('tkinter.simpledialog.askstring', return_value="test_folder") as mock_ask, \
+             patch('os.mkdir') as mock_mkdir:
             
-            # Call the method
-            result = gui.new_folder_dialog("/test/parent/path")
+            # Call the method with a test parent path
+            result = self.gui.new_folder_dialog("/test/parent/path")
             
-            # Verify askstring was called
+            # Verify askstring was called with proper prompt
             mock_ask.assert_called_once_with("New Folder", "Enter folder name:")
             
-            # Verify os.path.join was called
-            mock_join.assert_called_once_with("/test/parent/path", "test_folder")
-            
-            # Verify mkdir was called with correct path
+            # Verify mkdir was called with the constructed path
             mock_mkdir.assert_called_once_with("/test/parent/path/test_folder")
             
-            # Verify it returns the created path
-            assert result == "/test/parent/path/test_folder", "Expected method to return created folder path"
+            # Verify it returns the created folder path
+            self.assertEqual(result, "/test/parent/path/test_folder")
 
-def test_new_folder_dialog_with_canceled_input():
-    """Test that new_folder_dialog handles user canceling the dialog"""
-    # Mock tkinter to avoid display issues  
-    with patch.dict('sys.modules', {'tkinter': MagicMock(), 'tkinter.filedialog': MagicMock(), 'tkinter.simpledialog': MagicMock()}):
-        from src.gui import GUI
-        
-        # Create GUI instance with mocked root
-        mock_root = MagicMock()
-        gui = GUI(mock_root)
-        
-        # Mock the simpledialog and os after import
-        with patch('src.gui.simpledialog.askstring', return_value=None) as mock_ask, \
-             patch('src.gui.os.mkdir') as mock_mkdir:
+    def test_new_folder_dialog_with_canceled_input(self):
+        """Test that new_folder_dialog handles user canceling the dialog"""
+        # Mock user canceling the dialog (returns None)
+        with patch('tkinter.simpledialog.askstring', return_value=None) as mock_ask, \
+             patch('os.mkdir') as mock_mkdir:
             
-            # Call the method
-            result = gui.new_folder_dialog("/test/parent/path")
+            result = self.gui.new_folder_dialog("/test/parent/path")
             
             # Verify askstring was called
-            mock_ask.assert_called_once_with("New Folder", "Enter folder name:")
+            mock_ask.assert_called_once()
             
-            # Verify mkdir was NOT called
+            # Should not call mkdir when user cancels
             mock_mkdir.assert_not_called()
             
-            # Verify it returns None when canceled
-            assert result is None, "Expected method to return None when user cancels"
+            # Should return None
+            self.assertIsNone(result)
 
-def test_new_folder_dialog_creates_actual_folder():
-    """Test that new_folder_dialog actually creates a folder when given valid input"""
-    # Mock tkinter to avoid display issues
-    with patch.dict('sys.modules', {'tkinter': MagicMock(), 'tkinter.filedialog': MagicMock(), 'tkinter.simpledialog': MagicMock()}):
-        from src.gui import GUI
-        
-        # Create GUI instance with mocked root
-        mock_root = MagicMock()
-        gui = GUI(mock_root)
-        
-        # Use a temporary directory for testing
+    def test_new_folder_dialog_creates_actual_folder(self):
+        """Test that new_folder_dialog actually creates a folder when given valid input"""
+        # Use a temporary directory for the test
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Mock the simpledialog to return a test folder name
-            with patch('src.gui.simpledialog.askstring', return_value="test_new_folder") as mock_ask:
-                # Call the method
-                result = gui.new_folder_dialog(temp_dir)
+            # Mock the askstring to return a folder name
+            with patch('tkinter.simpledialog.askstring', return_value="test_folder"):
+                result = self.gui.new_folder_dialog(temp_dir)
                 
-                # Verify the folder was actually created
-                expected_path = os.path.join(temp_dir, "test_new_folder")
-                assert os.path.exists(expected_path), "Expected folder to be created"
-                assert os.path.isdir(expected_path), "Expected created path to be a directory"
-                assert result == expected_path, "Expected method to return created folder path" 
+                # Verify the folder was created
+                expected_path = os.path.join(temp_dir, "test_folder")
+                self.assertTrue(os.path.exists(expected_path), "Expected folder to be created")
+                self.assertTrue(os.path.isdir(expected_path), "Expected created path to be a directory")
+                
+                # Verify it returns the correct path
+                self.assertEqual(result, expected_path)
+
+
+if __name__ == '__main__':
+    unittest.main() 

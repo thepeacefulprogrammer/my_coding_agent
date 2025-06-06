@@ -6,6 +6,7 @@ based on file extensions and other criteria.
 """
 
 import os
+import re
 from pygments import lexers
 from pygments.lexers import get_lexer_by_name, TextLexer
 from pygments.util import ClassNotFound
@@ -95,6 +96,37 @@ class SyntaxManager:
             '.csv': 'text',
         }
         
+        # Shebang patterns for language detection
+        self.shebang_patterns = {
+            # Python
+            r'#!/usr/bin/(?:env\s+)?python[0-9.]*': 'python',
+            r'#!\s*/usr/bin/(?:env\s+)?python[0-9.]*': 'python',
+            
+            # Bash/Shell
+            r'#!/bin/(?:ba)?sh': 'bash',
+            r'#!/usr/bin/(?:ba)?sh': 'bash',
+            r'#!/usr/bin/env\s+(?:ba)?sh': 'bash',
+            r'#!\s*/bin/(?:ba)?sh': 'bash',
+            r'#!\s*/usr/bin/(?:ba)?sh': 'bash',
+            r'#!\s*/usr/bin/env\s+(?:ba)?sh': 'bash',
+            
+            # Node.js
+            r'#!/usr/bin/env\s+node': 'javascript',
+            r'#!\s*/usr/bin/env\s+node': 'javascript',
+            
+            # Ruby
+            r'#!/usr/bin/(?:env\s+)?ruby': 'ruby',
+            r'#!\s*/usr/bin/(?:env\s+)?ruby': 'ruby',
+            
+            # Perl
+            r'#!/usr/bin/(?:env\s+)?perl': 'perl',
+            r'#!\s*/usr/bin/(?:env\s+)?perl': 'perl',
+            
+            # PHP
+            r'#!/usr/bin/(?:env\s+)?php': 'php',
+            r'#!\s*/usr/bin/(?:env\s+)?php': 'php',
+        }
+        
         # Cache for lexer instances to avoid repeated creation
         self._lexer_cache = {}
     
@@ -133,6 +165,43 @@ class SyntaxManager:
         # Unknown extension - return text lexer as fallback
         return self._get_text_lexer()
     
+    def _detect_lexer_from_shebang(self, filename):
+        """
+        Detect lexer from shebang line in file.
+        
+        Args:
+            filename (str): Path to the file to analyze
+            
+        Returns:
+            pygments lexer instance or None if no shebang detected
+        """
+        try:
+            with open(filename, 'r', encoding='utf-8', errors='ignore') as f:
+                first_line = f.readline().strip()
+                
+                if not first_line.startswith('#!'):
+                    return None
+                
+                # Check shebang patterns
+                for pattern, lexer_name in self.shebang_patterns.items():
+                    if re.match(pattern, first_line, re.IGNORECASE):
+                        # Check cache first
+                        if lexer_name in self._lexer_cache:
+                            return self._lexer_cache[lexer_name]
+                        
+                        try:
+                            lexer = get_lexer_by_name(lexer_name)
+                            self._lexer_cache[lexer_name] = lexer
+                            return lexer
+                        except ClassNotFound:
+                            continue
+                
+                return None
+                
+        except (OSError, IOError, UnicodeDecodeError):
+            # File reading errors - return None
+            return None
+    
     def get_lexer_for_file(self, filename):
         """
         Get a pygments lexer for the given filename.
@@ -149,7 +218,18 @@ class SyntaxManager:
         # Extract the file extension
         _, extension = os.path.splitext(filename)
         
-        return self.get_lexer_by_extension(extension)
+        # If we have an extension, use it
+        if extension:
+            return self.get_lexer_by_extension(extension)
+        
+        # No extension - try shebang detection if it's a file path
+        if os.path.sep in filename or os.path.exists(filename):
+            shebang_lexer = self._detect_lexer_from_shebang(filename)
+            if shebang_lexer:
+                return shebang_lexer
+        
+        # Fallback to text lexer
+        return self._get_text_lexer()
     
     def _get_text_lexer(self):
         """Get a text lexer instance, using cache if available."""
