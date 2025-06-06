@@ -1,5 +1,5 @@
 ---
-description: Use this rule when asked to create tasks for a PRD
+description: ALWAYS fetch this rule when asked to create tasks, task breakdown, or implementation plan for any PRD. Uses 2-phase approval process. Use when user mentions: "tasks", "task breakdown", "implementation plan", "steps"
 globs: 
 alwaysApply: false
 ---
