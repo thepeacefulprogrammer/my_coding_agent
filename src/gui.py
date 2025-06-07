@@ -383,67 +383,33 @@ class GUI:
             filename (str, optional): Filename for syntax highlighting detection
         """
         try:
-            if filename:
-                # Get appropriate lexer for syntax highlighting
-                lexer = self.syntax_manager.get_lexer_for_file(filename)
-                
-                # Always recreate widget to ensure proper syntax highlighting and color scheme
-                if True:  # Simplified approach - always recreate for syntax highlighting
-                    # Need to create new widget with different lexer
-                    old_widget = self.code_editor.current_widget
-                    
-                    # Create new widget with proper lexer and color scheme
-                    new_widget = self.code_editor.create_widget(lexer=lexer)
-                    
-                    # Replace the old widget in the GUI layout
-                    if old_widget:
-                        try:
-                            # Safely unpack and destroy old widget
-                            old_widget.pack_forget()
-                            old_widget.destroy()
-                        except tk.TclError:
-                            # Widget may already be destroyed
-                            pass
-                    
-                    try:
-                        # Pack the new widget
-                        new_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-                        
-                        # Update CodeEditor state
-                        self.code_editor.current_widget = new_widget
-                        self.code_editor.configure_scrollbar(new_widget)
-                        
-                        # Update GUI reference
-                        self.file_content_codeview = new_widget
-                    except tk.TclError as e:
-                        print(f"Widget packing error: {e}")
-                        # Fall back to current widget
-                        pass
+            # Use CodeEditor's built-in method which properly handles widget replacement
+            # and preserves line numbers and other settings
+            widget = self.code_editor.update_file_content(content, filename=filename)
             
-            # Update content in the current widget
-            widget = self.code_editor.current_widget
             if widget:
-                # Enable for editing
-                widget.config(state='normal')
-                
-                # Clear and insert content
-                widget.delete('1.0', 'end')
-                if filename:
-                    # Read content from file for proper encoding handling
-                    try:
-                        with open(filename, 'r', encoding='utf-8') as f:
-                            file_content = f.read()
-                        widget.insert('1.0', file_content)
-                    except Exception:
-                        widget.insert('1.0', content)
-                else:
-                    widget.insert('1.0', content)
-                
-                # Set back to read-only and scroll to top
-                widget.config(state='disabled')
-                widget.see('1.0')
-                
-                print(f"✅ Updated content for {filename or 'text file'} with syntax highlighting")
+                # Ensure the widget is properly packed in our GUI layout
+                # Check if it's already packed, if not, pack it
+                try:
+                    # If the widget is not the same as what's currently packed, repack
+                    if widget != self.file_content_codeview:
+                        # Unpack old widget if it exists
+                        if self.file_content_codeview:
+                            try:
+                                self.file_content_codeview.pack_forget()
+                            except tk.TclError:
+                                pass  # Widget may already be destroyed
+                        
+                        # Pack the new widget
+                        widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+                        
+                        # Update our reference
+                        self.file_content_codeview = widget
+                        
+                    print(f"✅ Updated content for {filename or 'text file'} with syntax highlighting and line numbers")
+                    
+                except tk.TclError as e:
+                    print(f"Widget packing error: {e}")
             
         except Exception as e:
             print(f"❌ Error in update_file_content: {e}")
@@ -456,8 +422,9 @@ class GUI:
                     widget.insert('1.0', content)
                     widget.config(state='disabled')
                     widget.see('1.0')
-            except:
-                pass
+                    print(f"✅ Fallback content update for {filename or 'text file'}")
+            except Exception as fallback_error:
+                print(f"❌ Fallback also failed: {fallback_error}")
     
     def on_tree_item_double_click(self, event):
         """Handle double-click on tree items for navigation

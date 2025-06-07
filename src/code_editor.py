@@ -911,6 +911,9 @@ class CodeEditor:
             if lexer:
                 # Replace widget with syntax highlighting
                 widget = self.replace_widget_with_lexer(lexer)
+                # Set content in the new widget
+                if widget:
+                    self._update_widget_content_directly(widget, content)
             else:
                 # No lexer found, update content directly
                 widget = self.current_widget
