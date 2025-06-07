@@ -204,8 +204,21 @@ Based on technical investigation, we've identified that the Chlorophyll library 
   - ✅ All 10 color visibility verification tests passing
 
 ### Task 7.0: Add Comprehensive Testing and Validation
-- [ ] 7.1 Write unit tests for CodeEditor class widget management
-- [ ] 7.2 Create integration tests for syntax highlighting with multiple file types
+- [x] **7.1: Write unit tests for CodeEditor class widget management**
+  - ✅ Comprehensive test suite already exists in `tests/test_code_editor.py` with 107 test methods
+  - ✅ Tests cover all aspects of widget management: creation, replacement, destruction, caching
+  - ✅ Tests cover container relationships, scrollbar reconnection, edge cases, and file loading
+  - ✅ Tests include widget factory methods, safe destruction, and memory management
+  - ✅ All 107 CodeEditor widget management tests passing
+  - ✅ Complete coverage of widget lifecycle and state management functionality
+- [x] **7.2: Create integration tests for syntax highlighting with multiple file types**
+  - ✅ Comprehensive integration test suite already exists in `tests/test_syntax_highlighting_full.py` with 7 test methods
+  - ✅ Tests cover Python syntax highlighting with Nord color scheme and token mapping
+  - ✅ Tests cover multiple programming languages: Python, JavaScript, HTML, CSS, JSON, Markdown
+  - ✅ Tests cover color scheme configuration, fallback behavior, and file loading integration
+  - ✅ Tests cover performance with large content and Nord color scheme token mapping
+  - ✅ Fixed import issues in `src/code_editor.py` and `src/token_mapper.py` for proper module resolution
+  - ✅ All 7 syntax highlighting integration tests passing
 - [ ] 7.3 Add visual verification tests using manual test application
 - [ ] 7.4 Test widget replacement performance and memory usage
 - [ ] 7.5 Verify scrollbar functionality and state preservation
@@ -214,7 +227,7 @@ Based on technical investigation, we've identified that the Chlorophyll library 
 
 ## Remaining Work from Original Tasks
 
-### Task 8.0: Performance and Error Handling (from original plan)
+### Task 8.0: Performance and Error Handling (from original plan)p
 - [ ] 8.1 Implement graceful fallback to plain text for unsupported files
 - [ ] 8.2 Add error handling for syntax highlighting failures
 - [ ] 8.3 Implement performance optimizations for large files

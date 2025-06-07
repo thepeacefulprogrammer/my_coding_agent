@@ -17,6 +17,11 @@ except ImportError:
     # Fallback for tests and standalone usage
     from color_schemes import get_color_scheme, is_color_scheme_available
 try:
+    from .token_mapper import TokenMapper
+except ImportError:
+    # Fallback for tests and standalone usage
+    from token_mapper import TokenMapper
+try:
     from chlorophyll import CodeView
 except ImportError:
     # Mock CodeView for testing
@@ -34,7 +39,8 @@ class CodeEditor:
     """
     
     def __init__(self, parent, syntax_manager, scrollbar=None, width=80, height=24, 
-                 enable_caching=True, cache_size=10, color_scheme="monokai"):
+                 enable_caching=True, cache_size=10, color_scheme="monokai", use_token_mapping=True,
+                 color_scheme_config=None):
         """
         Initialize CodeEditor with enhanced widget caching support and color scheme.
         
@@ -47,6 +53,8 @@ class CodeEditor:
             enable_caching: Whether to enable widget caching (default: True)
             cache_size: Maximum number of widgets to cache (default: 10)
             color_scheme: Color scheme for syntax highlighting (default: "monokai")
+            use_token_mapping: Whether to use Pygments token mapping for colors (default: True)
+            color_scheme_config: Optional ColorSchemeConfig instance for dynamic scheme management
         """
         self.parent = parent
         self.syntax_manager = syntax_manager
@@ -54,13 +62,42 @@ class CodeEditor:
         self.width = width
         self.height = height
         self.color_scheme = color_scheme
+        self.use_token_mapping = use_token_mapping
+        self.color_scheme_config = color_scheme_config
         self.current_widget = None
+        
+        # Initialize token mapper if using token mapping
+        if self.use_token_mapping and color_scheme:
+            try:
+                # Get the color scheme for token mapping
+                scheme = get_color_scheme(color_scheme)
+                if scheme:
+                    self.token_mapper = TokenMapper(scheme)
+                else:
+                    # Fall back to Nord scheme if requested scheme not found
+                    nord_scheme = get_color_scheme("nord")
+                    if nord_scheme:
+                        self.token_mapper = TokenMapper(nord_scheme)
+                    else:
+                        self.token_mapper = None
+                        self.use_token_mapping = False
+            except Exception:
+                self.token_mapper = None
+                self.use_token_mapping = False
+        else:
+            self.token_mapper = None
         
         # Widget caching system
         self.enable_caching = enable_caching
         self.cache_size = cache_size
         self._widget_cache = OrderedDict()  # LRU cache implementation
         self._cache_lock = threading.RLock()  # Thread safety for cache operations
+        
+        # Initialize color scheme from config if available
+        if self.color_scheme_config:
+            current_config_scheme = self.color_scheme_config.get_current_scheme_name()
+            if current_config_scheme:
+                self.color_scheme = current_config_scheme
         
     @property
     def current_widget(self):
@@ -95,14 +132,27 @@ class CodeEditor:
             # Use provided color scheme or default
             scheme = color_scheme if color_scheme is not None else self.color_scheme
             
-            # Check if it's a custom color scheme (from our color_schemes module)
-            custom_scheme = get_color_scheme(scheme)
-            if custom_scheme:
-                # Use our custom color scheme
-                actual_scheme = custom_scheme
-            else:
-                # Use the scheme name directly (for built-in Chlorophyll schemes)
-                actual_scheme = scheme
+            # Determine the actual color scheme to use
+            actual_scheme = None
+            
+            # If using token mapping and we have a token mapper, use Chlorophyll format
+            if self.use_token_mapping and self.token_mapper:
+                try:
+                    actual_scheme = self.token_mapper.get_chlorophyll_color_scheme()
+                except Exception:
+                    # Fall back to regular color scheme if token mapping fails
+                    pass
+            
+            # If no token mapping or it failed, use regular color scheme
+            if actual_scheme is None:
+                # Check if it's a custom color scheme (from our color_schemes module)
+                custom_scheme = get_color_scheme(scheme)
+                if custom_scheme:
+                    # Use our custom color scheme
+                    actual_scheme = custom_scheme
+                else:
+                    # Use the scheme name directly (for built-in Chlorophyll schemes)
+                    actual_scheme = scheme
             
             # Create widget with lexer and color scheme
             if lexer:
@@ -111,6 +161,14 @@ class CodeEditor:
             else:
                 widget = CodeView(self.parent, color_scheme=actual_scheme, 
                                 width=self.width, height=self.height)
+                
+            # Apply token colors if using token mapping
+            if self.use_token_mapping and self.token_mapper and lexer:
+                try:
+                    self.token_mapper.apply_to_widget(widget, lexer)
+                except Exception as e:
+                    # Log but don't fail if token color application fails
+                    print(f"Warning: Could not apply token colors: {e}")
                 
             # Enhanced scrollbar configuration
             if self.scrollbar is not None:
@@ -1244,4 +1302,128 @@ class CodeEditor:
             # Any other error
             return False
             
-        return False 
+        return False
+    
+    def switch_color_scheme(self, scheme_name):
+        """
+        Switch to a different color scheme dynamically.
+        
+        Args:
+            scheme_name (str): Name of the color scheme to switch to
+            
+        Returns:
+            bool: True if switch successful, False otherwise
+        """
+        # Check if color scheme config is available
+        if not self.color_scheme_config:
+            return False
+            
+        # Validate that the scheme exists
+        if scheme_name not in self.color_scheme_config.get_available_schemes():
+            return False
+            
+        try:
+            # Update current scheme in config
+            success = self.color_scheme_config.set_current_scheme(scheme_name)
+            if not success:
+                return False
+                
+            # Update our local color scheme
+            self.color_scheme = scheme_name
+            
+            # If we have a current widget, replace it with the new color scheme
+            if self.current_widget:
+                # Get current lexer
+                current_lexer = getattr(self.current_widget, 'lexer', None)
+                
+                # Capture current state
+                old_state = self.capture_widget_state(self.current_widget)
+                old_geometry_info = self.capture_widget_geometry_info(self.current_widget)
+                old_scrollbar_state = self.capture_scrollbar_state(self.current_widget)
+                
+                # Clear cache to force recreation with new scheme
+                self.invalidate_cache()
+                
+                # Create new widget with new color scheme
+                new_widget = self.create_widget(lexer=current_lexer, color_scheme=scheme_name)
+                
+                # Replace the widget
+                if new_widget:
+                    # Destroy old widget
+                    self.destroy_widget_safely_for_replacement(self.current_widget)
+                    
+                    # Set new widget as current
+                    self.current_widget = new_widget
+                    
+                    # Restore state
+                    if old_state:
+                        self.restore_widget_state(new_widget, old_state)
+                    if old_geometry_info:
+                        self.apply_geometry_info(new_widget, old_geometry_info)
+                    else:
+                        self.grid_widget(new_widget)
+                    if old_scrollbar_state:
+                        self.apply_scrollbar_state(new_widget, old_scrollbar_state)
+                        
+                    # Configure scrollbar
+                    self.configure_scrollbar(new_widget)
+                    
+            return True
+            
+        except Exception:
+            return False
+            
+    def get_available_color_schemes(self):
+        """
+        Get list of available color schemes.
+        
+        Returns:
+            List[str]: List of available color scheme names, or empty list if no config
+        """
+        if self.color_scheme_config:
+            return self.color_scheme_config.get_available_schemes()
+        return []
+        
+    def get_current_color_scheme_name(self):
+        """
+        Get the name of the current color scheme.
+        
+        Returns:
+            str: Current color scheme name
+        """
+        if self.color_scheme_config:
+            return self.color_scheme_config.get_current_scheme_name()
+        return self.color_scheme
+        
+    def register_color_scheme(self, scheme_name, scheme):
+        """
+        Register a new color scheme.
+        
+        Args:
+            scheme_name (str): Name for the color scheme
+            scheme (dict): Color scheme dictionary
+            
+        Returns:
+            bool: True if registration successful, False otherwise
+        """
+        if self.color_scheme_config:
+            return self.color_scheme_config.register_scheme(scheme_name, scheme)
+        return False
+        
+    def create_color_scheme_from_template(self, template_name, new_name, modifications):
+        """
+        Create a new color scheme from an existing template.
+        
+        Args:
+            template_name (str): Name of template scheme
+            new_name (str): Name for the new scheme
+            modifications (dict): Modifications to apply
+            
+        Returns:
+            dict: New color scheme or None if failed
+        """
+        if self.color_scheme_config:
+            return self.color_scheme_config.create_scheme_from_template(
+                template_name, new_name, modifications
+            )
+        return None
