@@ -19,7 +19,21 @@ class TestFixesVerification(unittest.TestCase):
     
     def tearDown(self):
         """Clean up test environment"""
-        self.root.destroy()
+        try:
+            # Use GUI's proper cleanup mechanism
+            if hasattr(self, 'gui') and self.gui:
+                self.gui.on_closing()
+            else:
+                # Fallback to direct destruction if no GUI
+                if hasattr(self, 'root') and self.root:
+                    self.root.destroy()
+        except Exception:
+            # If cleanup fails, try direct destruction
+            try:
+                if hasattr(self, 'root') and self.root:
+                    self.root.destroy()
+            except Exception:
+                pass
     
     def test_custom_color_scheme_applied(self):
         """Test that custom dark color scheme is applied to CodeView"""

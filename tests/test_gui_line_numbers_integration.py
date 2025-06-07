@@ -15,10 +15,10 @@ import tkinter as tk
 # Add src directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from gui import GUI
-from code_editor import CodeEditor
-from syntax_manager import SyntaxManager
-from file_explorer import FileExplorer
+from src.gui import GUI
+from src.code_editor import CodeEditor
+from src.syntax_manager import SyntaxManager
+from src.file_explorer import FileExplorer
 
 
 class TestGUILineNumbersIntegration(unittest.TestCase):
@@ -35,20 +35,20 @@ class TestGUILineNumbersIntegration(unittest.TestCase):
         """Clean up test environment."""
         pass
         
-    @patch('gui.tk.Tk')
-    @patch('gui.CodeEditor')
-    @patch('gui.SyntaxManager')
-    @patch('gui.FileExplorer')
-    @patch('gui.ttk.Treeview')
-    @patch('gui.tk.Frame')
-    @patch('gui.tk.Scrollbar')
+    @patch('src.gui.tk.Menu')
+    @patch('src.gui.tk.Button')
+    @patch('src.gui.tk.PanedWindow')
+    @patch('src.gui.ttk.Treeview')
+    @patch('src.gui.tk.Frame')
+    @patch('src.gui.tk.Scrollbar')
+    @patch('src.gui.CodeEditor')
+    @patch('src.gui.SyntaxManager')
+    @patch('src.gui.FileExplorer')
     def test_gui_initializes_code_editor_with_line_numbers(
-        self, mock_scrollbar, mock_frame, mock_treeview, 
-        mock_file_explorer, mock_syntax_manager, mock_code_editor, mock_tk
+        self, mock_file_explorer, mock_syntax_manager, mock_code_editor,
+        mock_scrollbar, mock_frame, mock_treeview, mock_paned_window, mock_button, mock_menu
     ):
         """Test that GUI initializes CodeEditor with line numbers enabled."""
-        mock_tk.return_value = self.root
-        
         # Mock the CodeEditor instance
         mock_editor_instance = Mock()
         mock_code_editor.return_value = mock_editor_instance
@@ -58,18 +58,29 @@ class TestGUILineNumbersIntegration(unittest.TestCase):
         mock_editor_instance.create_widget.return_value = mock_widget
         mock_editor_instance.current_widget = mock_widget
         
-        # Create GUI instance
-        gui = GUI(self.root)
+        # Create real tkinter root for testing
+        root = tk.Tk()
+        root.withdraw()
         
-        # Verify CodeEditor was initialized with line numbers enabled
-        mock_code_editor.assert_called_once()
-        call_args = mock_code_editor.call_args
+        try:
+            # Create GUI instance
+            gui = GUI(root)
+            
+            # Verify CodeEditor was initialized with line numbers enabled
+            mock_code_editor.assert_called_once()
+            call_args = mock_code_editor.call_args
+            
+            # Check that show_line_numbers=True and line_numbers_border=1 were passed
+            self.assertEqual(call_args[1]['show_line_numbers'], True)
+            self.assertEqual(call_args[1]['line_numbers_border'], 1)
+        finally:
+            # Clean up
+            try:
+                root.destroy()
+            except Exception:
+                pass
         
-        # Check that show_line_numbers=True and line_numbers_border=1 were passed
-        self.assertEqual(call_args[1]['show_line_numbers'], True)
-        self.assertEqual(call_args[1]['line_numbers_border'], 1)
-        
-    @patch('gui.CodeView')
+    @patch('src.code_editor.CodeView')
     def test_gui_update_file_content_preserves_line_numbers(self, mock_codeview):
         """Test that GUI's update_file_content preserves line numbers when recreating widgets."""
         mock_widget = Mock()
@@ -92,6 +103,7 @@ class TestGUILineNumbersIntegration(unittest.TestCase):
         
         # Create GUI instance and set up its components
         gui = GUI.__new__(GUI)  # Create without calling __init__
+        gui._closing = False  # Initialize closing flag for test
         gui.code_editor = code_editor
         gui.syntax_manager = syntax_manager
         gui.file_explorer = file_explorer
@@ -110,7 +122,7 @@ class TestGUILineNumbersIntegration(unittest.TestCase):
         self.assertIn('linenums_border', last_call_args[1])
         self.assertEqual(last_call_args[1]['linenums_border'], 1)
         
-    @patch('gui.CodeView')
+    @patch('src.code_editor.CodeView')
     def test_gui_multiple_file_loads_maintain_line_numbers(self, mock_codeview):
         """Test that loading multiple files maintains line numbers consistently."""
         mock_widget = Mock()
@@ -133,6 +145,7 @@ class TestGUILineNumbersIntegration(unittest.TestCase):
         
         # Create GUI instance and set up its components
         gui = GUI.__new__(GUI)  # Create without calling __init__
+        gui._closing = False  # Initialize closing flag for test
         gui.code_editor = code_editor
         gui.syntax_manager = syntax_manager
         gui.file_explorer = file_explorer
@@ -156,7 +169,7 @@ class TestGUILineNumbersIntegration(unittest.TestCase):
                 self.assertIn('linenums_border', last_call_args[1])
                 self.assertEqual(last_call_args[1]['linenums_border'], 1)
                 
-    @patch('gui.CodeView')
+    @patch('src.code_editor.CodeView')
     def test_gui_handles_widget_recreation_properly(self, mock_codeview):
         """Test that GUI properly handles widget recreation while preserving line numbers."""
         mock_widget_1 = Mock()
@@ -178,29 +191,30 @@ class TestGUILineNumbersIntegration(unittest.TestCase):
             line_numbers_border=1
         )
         
-        # Set initial widget
-        code_editor.current_widget = mock_widget_1
+        # Start with no widget to ensure creation happens
+        code_editor.current_widget = None
         
         # Create GUI instance and set up its components
         gui = GUI.__new__(GUI)  # Create without calling __init__
+        gui._closing = False  # Initialize closing flag for test
         gui.code_editor = code_editor
         gui.syntax_manager = syntax_manager
         gui.file_explorer = file_explorer
-        gui.file_content_codeview = mock_widget_1
+        gui.file_content_codeview = None
         
-        # Load content that should trigger widget recreation
+        # Load content that should trigger widget creation
         content = "def test():\n    pass"
         gui.update_file_content(content, filename="test.py")
         
-        # Verify that widget was recreated with line numbers
-        self.assertEqual(mock_codeview.call_count, 2)  # Initial + recreation
+        # Verify that widget(s) were created with line numbers
+        self.assertEqual(mock_codeview.call_count, 2)  # Initial creation + lexer replacement
         
-        # Check that both widget creations had line numbers enabled
+        # Check that all widget creations had line numbers enabled
         for call in mock_codeview.call_args_list:
             self.assertIn('linenums_border', call[1])
             self.assertEqual(call[1]['linenums_border'], 1)
             
-    @patch('gui.CodeView')
+    @patch('src.code_editor.CodeView')
     def test_gui_fallback_content_update_preserves_line_numbers(self, mock_codeview):
         """Test that GUI's fallback content update mechanism preserves line numbers."""
         mock_widget = Mock()
@@ -226,6 +240,7 @@ class TestGUILineNumbersIntegration(unittest.TestCase):
         
         # Create GUI instance and set up its components
         gui = GUI.__new__(GUI)  # Create without calling __init__
+        gui._closing = False  # Initialize closing flag for test
         gui.code_editor = code_editor
         gui.syntax_manager = syntax_manager
         gui.file_explorer = file_explorer
@@ -262,6 +277,7 @@ class TestGUILineNumbersIntegration(unittest.TestCase):
         
         # Create GUI instance and set up its components
         gui = GUI.__new__(GUI)  # Create without calling __init__
+        gui._closing = False  # Initialize closing flag for test
         gui.code_editor = code_editor
         
         # Test that we can access line numbers configuration

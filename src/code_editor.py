@@ -70,6 +70,7 @@ class CodeEditor:
         self.show_line_numbers = show_line_numbers
         self.line_numbers_border = line_numbers_border
         self.current_widget = None
+        self._closing = False  # Flag to prevent operations during cleanup
         
         # Initialize token mapper if using token mapping
         if self.use_token_mapping and color_scheme:
@@ -193,6 +194,45 @@ class CodeEditor:
             # Enhanced scrollbar configuration
             if self.scrollbar is not None:
                 self.configure_scrollbar(widget)
+            
+            # Set up proper line numbers refresh using TkLineNums recommended pattern
+            # Based on TkLineNums documentation: bind <<Modified>> event to redraw line numbers
+            if self.show_line_numbers:
+                def redraw_line_numbers(event=None):
+                    """Proper line numbers redraw using TkLineNums pattern with safety checks."""
+                    try:
+                        # Check if widget still exists and is valid
+                        if (hasattr(widget, '_line_numbers') and widget._line_numbers and 
+                            hasattr(widget, 'winfo_exists') and widget.winfo_exists()):
+                            
+                            # Additional safety: check if line numbers widget is valid
+                            if hasattr(widget._line_numbers, 'winfo_exists'):
+                                if widget._line_numbers.winfo_exists():
+                                    # Direct redraw to avoid recursion issues with after_idle
+                                    widget._line_numbers.redraw()
+                            else:
+                                # Fallback: direct redraw if winfo_exists not available
+                                widget._line_numbers.redraw()
+                    except Exception:
+                        # Silently ignore errors to prevent crash loops
+                        pass
+                
+                # Bind the Modified event as recommended by TkLineNums
+                try:
+                    widget.bind("<<Modified>>", redraw_line_numbers, add=True)
+                except Exception:
+                    pass
+                
+                # Initial redraw after widget creation with safety delay
+                def safe_initial_redraw():
+                    """Safe initial redraw with widget validity check."""
+                    try:
+                        if hasattr(widget, 'winfo_exists') and widget.winfo_exists():
+                            redraw_line_numbers()
+                    except Exception:
+                        pass
+                
+                widget.after(50, safe_initial_redraw)  # Small delay instead of after_idle
                 
             return widget
             
@@ -222,6 +262,26 @@ class CodeEditor:
                     # Enhanced scrollbar configuration
                     if self.scrollbar is not None:
                         self.configure_scrollbar(widget)
+                    
+                    # Set up line numbers refresh for fallback widget too
+                    if self.show_line_numbers:
+                        def redraw_fallback_line_numbers(event=None):
+                            """Proper line numbers redraw using TkLineNums pattern."""
+                            try:
+                                if hasattr(widget, '_line_numbers') and widget._line_numbers:
+                                    # Use after_idle as recommended by TkLineNums documentation
+                                    widget.after_idle(widget._line_numbers.redraw)
+                            except Exception:
+                                pass
+                        
+                        # Bind the Modified event as recommended by TkLineNums
+                        try:
+                            widget.bind("<<Modified>>", redraw_fallback_line_numbers, add=True)
+                        except Exception:
+                            pass
+                        
+                        # Initial redraw after widget creation
+                        widget.after_idle(redraw_fallback_line_numbers)
                         
                     return widget
                 except Exception:
@@ -514,8 +574,14 @@ class CodeEditor:
         - Child widget destruction
         - Memory cleanup
         """
+        # Set closing flag to prevent recursive operations
+        self._closing = True
+        
         if self.has_widget():
             widget = self.current_widget
+            
+            # Clear reference immediately to prevent further operations
+            self.current_widget = None
             
             try:
                 # 1. Clear all event bindings
@@ -573,16 +639,13 @@ class CodeEditor:
                 # Handle any other unexpected errors gracefully
                 pass
             finally:
-                # 7. Always clear the reference and trigger memory cleanup
-                self.current_widget = None
-                
                 # 8. Force garbage collection for memory cleanup
                 try:
                     import gc
                     gc.collect()
                 except ImportError:
                     pass
-                
+
     def capture_widget_geometry_info(self, widget):
         """
         Capture complete geometry manager information for a widget.
@@ -758,13 +821,17 @@ class CodeEditor:
         Returns:
             New widget configured with lexer
         """
+        # Prevent operations during cleanup to avoid recursion
+        if self._closing:
+            return self.current_widget
+            
         old_widget = self.current_widget
         old_state = None
         old_geometry_info = None
         old_scrollbar_state = None
         
         # Capture state from old widget if it exists
-        if old_widget:
+        if old_widget and not self._closing:
             try:
                 old_state = self.capture_widget_state(old_widget)
                 old_geometry_info = self.capture_widget_geometry_info(old_widget)
@@ -781,7 +848,18 @@ class CodeEditor:
 
         try:
             # Create new widget - this could fail completely
+            if self._closing:
+                return old_widget
+                
             new_widget = self.create_widget(lexer)
+            
+            if self._closing:
+                # If closing started during creation, destroy new widget and return old
+                try:
+                    new_widget.destroy()
+                except:
+                    pass
+                return old_widget
             
             # Set lexer with error recovery
             try:
@@ -809,12 +887,6 @@ class CodeEditor:
                         new_widget.grid(sticky='nsew')
                     except Exception:
                         pass
-            else:
-                # No old geometry info, use default grid placement
-                try:
-                    new_widget.grid(sticky='nsew')
-                except Exception:
-                    pass
             
             # Enhanced scrollbar reconnection with error recovery
             if self.scrollbar:
@@ -899,29 +971,37 @@ class CodeEditor:
         Returns:
             Widget containing the updated content
         """
+        # Prevent operations during cleanup to avoid recursion
+        if self._closing:
+            return None
+            
         # Create widget if none exists
         if not self.has_widget():
+            if self._closing:
+                return None
             self.current_widget = self.create_widget()
             self.configure_scrollbar(self.current_widget)
             self.grid_widget(self.current_widget)
             
         # Determine if we need syntax highlighting
-        if filename:
+        if filename and not self._closing:
             lexer = self.get_lexer_for_file(filename)
-            if lexer:
+            if lexer and not self._closing:
                 # Replace widget with syntax highlighting
                 widget = self.replace_widget_with_lexer(lexer)
                 # Set content in the new widget
-                if widget:
+                if widget and not self._closing:
                     self._update_widget_content_directly(widget, content)
             else:
                 # No lexer found, update content directly
                 widget = self.current_widget
-                self._update_widget_content_directly(widget, content)
+                if widget and not self._closing:
+                    self._update_widget_content_directly(widget, content)
         else:
             # No filename provided, update content directly
             widget = self.current_widget
-            self._update_widget_content_directly(widget, content)
+            if widget and not self._closing:
+                self._update_widget_content_directly(widget, content)
             
         return widget
         
@@ -936,6 +1016,57 @@ class CodeEditor:
         
         # Set to disabled (read-only) for file viewing
         widget.config(state='disabled')
+        
+        # Enhanced line numbers refresh using TkLineNums recommended pattern
+        # This will trigger the <<Modified>> event binding we set up in create_widget
+        def proper_line_numbers_refresh():
+            """Enhanced line numbers refresh using multiple strategies with safety checks."""
+            try:
+                # Check if widget is still valid before any operations
+                if not (hasattr(widget, 'winfo_exists') and widget.winfo_exists()):
+                    return
+                
+                # Strategy 1: Use highlight_all to trigger syntax highlighting refresh
+                if hasattr(widget, 'highlight_all'):
+                    widget.highlight_all()
+                
+                # Strategy 2: Safe line numbers redraw using TkLineNums pattern
+                if hasattr(widget, '_line_numbers') and widget._line_numbers:
+                    try:
+                        # Check if line numbers widget is valid
+                        if hasattr(widget._line_numbers, 'winfo_exists'):
+                            if widget._line_numbers.winfo_exists():
+                                # Direct redraw to avoid recursion issues
+                                widget._line_numbers.redraw()
+                        else:
+                            # Fallback: direct redraw if winfo_exists not available
+                            widget._line_numbers.redraw()
+                    except Exception:
+                        # Ignore line numbers refresh errors
+                        pass
+                
+                # Strategy 3: Force widget update to ensure rendering is complete
+                try:
+                    widget.update_idletasks()
+                except Exception:
+                    pass
+                    
+            except Exception:
+                # Don't let refresh failures break content insertion
+                pass
+        
+        # Schedule the refresh to happen after the widget state changes are processed
+        try:
+            # Primary approach: Use small delay for proper timing
+            widget.after(25, proper_line_numbers_refresh)
+            
+        except Exception:
+            # Fallback: Immediate refresh if scheduling fails
+            try:
+                proper_line_numbers_refresh()
+            except Exception:
+                # Ultimate fallback: just continue without refresh
+                pass
         
     def set_readonly_state(self, readonly=True):
         """Set widget to read-only or editable state."""
@@ -958,6 +1089,29 @@ class CodeEditor:
                 
             # Clear content
             widget.delete("1.0", tk.END)
+            
+            # Enhanced line numbers refresh for content clearing
+            def clear_line_numbers_refresh():
+                """Enhanced line numbers refresh after clearing content."""
+                try:
+                    # Refresh syntax highlighting
+                    if hasattr(widget, 'highlight_all'):
+                        widget.highlight_all()
+                    
+                    # Direct line numbers redraw using TkLineNums pattern
+                    if hasattr(widget, '_line_numbers') and widget._line_numbers:
+                        try:
+                            # Use after_idle as recommended by TkLineNums documentation
+                            widget.after_idle(widget._line_numbers.redraw)
+                        except Exception:
+                            pass
+                            
+                except Exception:
+                    # Don't let refresh failures break content clearing
+                    pass
+            
+            # Schedule refresh after clearing
+            widget.after_idle(clear_line_numbers_refresh)
             
             # Set to disabled (read-only)
             widget.config(state='disabled')

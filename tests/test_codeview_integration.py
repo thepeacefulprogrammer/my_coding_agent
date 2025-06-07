@@ -91,10 +91,9 @@ class TestCodeViewIntegration(unittest.TestCase):
         
         gui = GUI(self.root)
         
-        # Mock the syntax manager to control lexer selection
-        gui.syntax_manager = Mock()
+        # Mock the syntax manager through the CodeEditor to control lexer selection
         mock_lexer = Mock()
-        gui.syntax_manager.get_lexer_for_file.return_value = mock_lexer
+        gui.code_editor.syntax_manager.get_lexer_for_file = Mock(return_value=mock_lexer)
         
         # Test Python content with syntax highlighting
         python_content = "def hello():\n    print('Hello, World!')"
@@ -103,7 +102,7 @@ class TestCodeViewIntegration(unittest.TestCase):
         gui.update_file_content(python_content, filename="test.py")
         
         # Should have called syntax_manager to get lexer
-        gui.syntax_manager.get_lexer_for_file.assert_called_with("test.py")
+        gui.code_editor.syntax_manager.get_lexer_for_file.assert_called_with("test.py")
     
     def test_update_file_content_fallback_without_filename(self):
         """Test that update_file_content works without filename (plain text)"""

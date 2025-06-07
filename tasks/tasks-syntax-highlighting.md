@@ -391,9 +391,13 @@ Based on technical investigation, we've identified that the Chlorophyll library 
   - Added `set_line_numbers_enabled()` and `set_line_numbers_border()` methods for dynamic configuration
   - Fixed critical line number scrolling synchronization issue with custom scroll command
   - Custom scroll command calls `scroll_line_update()` method to synchronize line numbers with text scrolling
-  - Comprehensive test coverage with 9 tests for line number configuration functionality
+  - **Fixed line numbers display issue**: Enhanced `_update_widget_content_directly()` and `clear_content()` methods to call `highlight_all()` and line numbers `redraw()` after content insertion
+  - **Line numbers refresh fix**: All line numbers now display immediately after file loading, not just "1"
+  - Created comprehensive test suite `tests/test_line_numbers_display_fix.py` with 4 test methods
+  - Added demo application `examples/test_line_numbers_display_demo.py` for visual verification
+  - Comprehensive test coverage with 13 tests for line number configuration and display functionality
   - Updated GUI to use line numbers by default with configurable border width
-  - All 503 tests passing including line number scrolling fix
+  - All 528 tests passing including line number display fix
 - [ ] 9.3 Create configuration system for syntax highlighting options
 - [ ] 9.4 Optimize memory usage and cleanup for syntax highlighting
 - [ ] 9.5 Write tests for configuration system

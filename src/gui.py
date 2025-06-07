@@ -24,6 +24,7 @@ class GUI:
         self.current_directory = None  # Track current working directory
         self.file_explorer = FileExplorer()
         self.syntax_manager = SyntaxManager()  # Initialize syntax manager
+        self._closing = False  # Flag to prevent operations during cleanup
         
         # Set window title and size
         self.root.title("Vibe Coding - File Explorer")
@@ -382,12 +383,16 @@ class GUI:
             content (str): Content to display in the CodeView widget
             filename (str, optional): Filename for syntax highlighting detection
         """
+        # Prevent operations during cleanup to avoid recursion
+        if self._closing:
+            return
+            
         try:
             # Use CodeEditor's built-in method which properly handles widget replacement
             # and preserves line numbers and other settings
             widget = self.code_editor.update_file_content(content, filename=filename)
             
-            if widget:
+            if widget and not self._closing:
                 # Ensure the widget is properly packed in our GUI layout
                 # Check if it's already packed, if not, pack it
                 try:
@@ -400,8 +405,33 @@ class GUI:
                             except tk.TclError:
                                 pass  # Widget may already be destroyed
                         
-                        # Pack the new widget
-                        widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+                        # Pack the new widget only if not closing
+                        if not self._closing:
+                            widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+                            
+                            # Force GUI to update and then refresh line numbers
+                            try:
+                                widget.update_idletasks()
+                                # Force line numbers refresh after widget is packed and displayed
+                                def refresh_packed_widget():
+                                    try:
+                                        if hasattr(widget, 'highlight_all'):
+                                            widget.highlight_all()
+                                        if hasattr(widget, '_line_numbers') and widget._line_numbers:
+                                            try:
+                                                widget._line_numbers.redraw()
+                                            except Exception:
+                                                pass
+                                    except Exception:
+                                        pass
+                                
+                                # Multiple refresh attempts to ensure it works
+                                refresh_packed_widget()  # Immediate
+                                if hasattr(widget, 'after'):
+                                    widget.after(1, refresh_packed_widget)  # Delayed
+                                    widget.after(10, refresh_packed_widget)  # More delayed
+                            except Exception:
+                                pass
                         
                         # Update our reference
                         self.file_content_codeview = widget
@@ -409,22 +439,45 @@ class GUI:
                     print(f"✅ Updated content for {filename or 'text file'} with syntax highlighting and line numbers")
                     
                 except tk.TclError as e:
-                    print(f"Widget packing error: {e}")
+                    if not self._closing:
+                        print(f"Widget packing error: {e}")
             
         except Exception as e:
-            print(f"❌ Error in update_file_content: {e}")
-            # Fallback to basic content update
-            try:
-                widget = self.code_editor.current_widget
-                if widget:
-                    widget.config(state='normal')
-                    widget.delete('1.0', 'end')
-                    widget.insert('1.0', content)
-                    widget.config(state='disabled')
-                    widget.see('1.0')
-                    print(f"✅ Fallback content update for {filename or 'text file'}")
-            except Exception as fallback_error:
-                print(f"❌ Fallback also failed: {fallback_error}")
+            if not self._closing:
+                print(f"❌ Error in update_file_content: {e}")
+                # Fallback to basic content update
+                try:
+                    widget = self.code_editor.current_widget
+                    if widget and not self._closing:
+                        widget.config(state='normal')
+                        widget.delete('1.0', 'end')
+                        widget.insert('1.0', content)
+                        widget.config(state='disabled')
+                        widget.see('1.0')
+                        
+                        # Refresh line numbers in fallback path too
+                        def refresh_fallback_line_numbers():
+                            try:
+                                if hasattr(widget, 'highlight_all'):
+                                    widget.highlight_all()
+                                if hasattr(widget, '_line_numbers') and widget._line_numbers:
+                                    try:
+                                        widget._line_numbers.redraw()
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+                        
+                        # Schedule refresh after current operations complete
+                        if hasattr(widget, 'after_idle'):
+                            widget.after_idle(refresh_fallback_line_numbers)
+                        else:
+                            refresh_fallback_line_numbers()
+                        
+                        print(f"✅ Fallback content update for {filename or 'text file'}")
+                except Exception as fallback_error:
+                    if not self._closing:
+                        print(f"❌ Fallback also failed: {fallback_error}")
     
     def on_tree_item_double_click(self, event):
         """Handle double-click on tree items for navigation
@@ -465,14 +518,69 @@ class GUI:
     
     def on_closing(self):
         """Handle window closing with proper cleanup"""
+        # Set closing flag first to prevent recursive operations
+        self._closing = True
+        
         try:
+            # Immediately unbind common events to prevent further callbacks
+            try:
+                self.root.unbind("<Configure>")
+                self.root.unbind("<Destroy>") 
+                self.root.unbind("<Map>")
+                self.root.unbind("<Unmap>")
+            except:
+                pass
+            
+            # Clear all references that could trigger events
+            if hasattr(self, 'file_content_codeview'):
+                self.file_content_codeview = None
+                
             # Clean up CodeEditor resources
             if hasattr(self, 'code_editor') and self.code_editor:
-                self.code_editor.destroy_widget_safely()
-                if hasattr(self.code_editor, 'invalidate_cache'):
-                    self.code_editor.invalidate_cache()
+                # Set closing flag on code editor
+                self.code_editor._closing = True
+                
+                # Clear current widget reference immediately
+                self.code_editor.current_widget = None
+                
+                # Clear cache without triggering destruction callbacks
+                if hasattr(self.code_editor, '_widget_cache'):
+                    self.code_editor._widget_cache.clear()
+                    
         except Exception as e:
             print(f"Cleanup warning: {e}")
-        finally:
-            # Destroy the window
+        
+        # Use after_idle to delay destruction and prevent recursion
+        self.root.after_idle(self._final_cleanup)
+            
+    def _final_cleanup(self):
+        """Final cleanup phase executed after idle to prevent recursion."""
+        try:
+            # Destroy all child widgets first
+            for child in self.root.winfo_children():
+                try:
+                    child.destroy()
+                except:
+                    pass
+            
+            # Exit mainloop first
+            self.root.quit()
+            
+            # Small delay to let tkinter process the quit
+            self.root.after(10, self._destroy_window)
+            
+        except Exception as e:
+            print(f"Final cleanup error: {e}")
+            # Force exit as last resort
+            import sys
+            sys.exit(0)
+            
+    def _destroy_window(self):
+        """Final window destruction."""
+        try:
             self.root.destroy()
+        except Exception as e:
+            print(f"Window destruction error: {e}")
+            # Force exit if normal destruction fails
+            import sys
+            sys.exit(0)
