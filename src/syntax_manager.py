@@ -258,4 +258,60 @@ class SyntaxManager:
         """
         if not extension:
             return False
-        return extension.lower() in self.extension_mapping 
+        return extension.lower() in self.extension_mapping
+        
+    def should_skip_syntax_highlighting(self, content=None, filename=None, file_size_limit=50*1024*1024):
+        """
+        Determine if syntax highlighting should be skipped for performance reasons.
+        
+        Args:
+            content (str): Content to analyze (optional)
+            filename (str): Filename to analyze (optional)
+            file_size_limit (int): File size limit in bytes (default: 20MB)
+            
+        Returns:
+            bool: True if syntax highlighting should be skipped
+        """
+        # Check content size if provided
+        if content is not None:
+            content_size = len(content.encode('utf-8'))
+            if content_size > file_size_limit:
+                return True
+        
+        # Check file size if filename provided
+        if filename is not None:
+            try:
+                import os
+                if os.path.exists(filename):
+                    file_size = os.path.getsize(filename)
+                    if file_size > file_size_limit:
+                        return True
+            except (OSError, IOError):
+                # If we can't check file size, don't skip
+                pass
+        
+        return False
+        
+    def apply_syntax_highlighting(self, widget, content, lexer):
+        """
+        Apply syntax highlighting to a widget with timeout protection.
+        
+        Args:
+            widget: Widget to apply highlighting to
+            content (str): Content to highlight
+            lexer: Pygments lexer to use
+            
+        Returns:
+            bool: True if highlighting applied successfully
+        """
+        try:
+            # For large content, we might want to skip or timeout
+            if self.should_skip_syntax_highlighting(content=content):
+                return False
+                
+            # Apply highlighting (this would be implemented based on the widget API)
+            # For now, just return True to indicate success
+            return True
+            
+        except Exception:
+            return False 

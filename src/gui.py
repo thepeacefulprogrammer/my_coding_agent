@@ -105,12 +105,14 @@ class GUI:
         self.file_content_scrollbar = tk.Scrollbar(text_container)
         self.file_content_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         
-        # Create CodeEditor for syntax highlighting with color scheme support
+        # Create CodeEditor for syntax highlighting with color scheme support and line numbers
         self.code_editor = CodeEditor(
             text_container, 
             self.syntax_manager, 
             scrollbar=self.file_content_scrollbar,
-            color_scheme="monokai"
+            color_scheme="monokai",
+            show_line_numbers=True,
+            line_numbers_border=1
         )
         
         # Create initial widget without automatic grid layout

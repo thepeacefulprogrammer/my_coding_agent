@@ -12,7 +12,7 @@ import copy
 from typing import Dict, List, Optional, Any, Union
 import re
 
-from color_schemes import get_nord_color_scheme
+from src.color_schemes import get_nord_color_scheme
 
 
 class ColorSchemeConfig:

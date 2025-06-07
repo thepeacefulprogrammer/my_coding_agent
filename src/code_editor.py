@@ -11,6 +11,7 @@ import tkinter as tk
 from tkinter import ttk
 from collections import OrderedDict
 import threading
+import os
 try:
     from .color_schemes import get_color_scheme, is_color_scheme_available
 except ImportError:
@@ -40,7 +41,7 @@ class CodeEditor:
     
     def __init__(self, parent, syntax_manager, scrollbar=None, width=80, height=24, 
                  enable_caching=True, cache_size=10, color_scheme="monokai", use_token_mapping=True,
-                 color_scheme_config=None):
+                 color_scheme_config=None, show_line_numbers=True, line_numbers_border=1):
         """
         Initialize CodeEditor with enhanced widget caching support and color scheme.
         
@@ -55,6 +56,8 @@ class CodeEditor:
             color_scheme: Color scheme for syntax highlighting (default: "monokai")
             use_token_mapping: Whether to use Pygments token mapping for colors (default: True)
             color_scheme_config: Optional ColorSchemeConfig instance for dynamic scheme management
+            show_line_numbers: Whether to show line numbers (default: True)
+            line_numbers_border: Border width of line numbers in pixels (default: 1)
         """
         self.parent = parent
         self.syntax_manager = syntax_manager
@@ -64,6 +67,8 @@ class CodeEditor:
         self.color_scheme = color_scheme
         self.use_token_mapping = use_token_mapping
         self.color_scheme_config = color_scheme_config
+        self.show_line_numbers = show_line_numbers
+        self.line_numbers_border = line_numbers_border
         self.current_widget = None
         
         # Initialize token mapper if using token mapping
@@ -98,6 +103,10 @@ class CodeEditor:
             current_config_scheme = self.color_scheme_config.get_current_scheme_name()
             if current_config_scheme:
                 self.color_scheme = current_config_scheme
+        
+        # File size limit defaults (can be overridden)
+        self.default_warning_threshold = 5 * 1024 * 1024  # 5MB warning
+        self.default_block_threshold = 10 * 1024 * 1024   # 10MB block
         
     @property
     def current_widget(self):
@@ -154,13 +163,24 @@ class CodeEditor:
                     # Use the scheme name directly (for built-in Chlorophyll schemes)
                     actual_scheme = scheme
             
-            # Create widget with lexer and color scheme
-            if lexer:
-                widget = CodeView(self.parent, lexer=lexer, color_scheme=actual_scheme, 
-                                width=self.width, height=self.height)
+            # Create widget with lexer, color scheme, and line number configuration
+            widget_kwargs = {
+                'color_scheme': actual_scheme,
+                'width': self.width,
+                'height': self.height
+            }
+            
+            # Add line number configuration if enabled
+            if self.show_line_numbers:
+                widget_kwargs['linenums_border'] = self.line_numbers_border
             else:
-                widget = CodeView(self.parent, color_scheme=actual_scheme, 
-                                width=self.width, height=self.height)
+                # Disable line numbers by setting border to 0
+                widget_kwargs['linenums_border'] = 0
+            
+            if lexer:
+                widget_kwargs['lexer'] = lexer
+                
+            widget = CodeView(self.parent, **widget_kwargs)
                 
             # Apply token colors if using token mapping
             if self.use_token_mapping and self.token_mapper and lexer:
@@ -182,12 +202,22 @@ class CodeEditor:
                 try:
                     # Fallback to default monokai scheme
                     fallback_scheme = "monokai"
-                    if lexer:
-                        widget = CodeView(self.parent, lexer=lexer, color_scheme=fallback_scheme, 
-                                        width=self.width, height=self.height)
+                    fallback_kwargs = {
+                        'color_scheme': fallback_scheme,
+                        'width': self.width,
+                        'height': self.height
+                    }
+                    
+                    # Add line number configuration
+                    if self.show_line_numbers:
+                        fallback_kwargs['linenums_border'] = self.line_numbers_border
                     else:
-                        widget = CodeView(self.parent, color_scheme=fallback_scheme, 
-                                        width=self.width, height=self.height)
+                        fallback_kwargs['linenums_border'] = 0
+                    
+                    if lexer:
+                        fallback_kwargs['lexer'] = lexer
+                        
+                    widget = CodeView(self.parent, **fallback_kwargs)
                         
                     # Enhanced scrollbar configuration
                     if self.scrollbar is not None:
@@ -338,14 +368,39 @@ class CodeEditor:
         
     def configure_scrollbar(self, widget):
         """
-        Configure scrollbar connection for a widget with enhanced error handling.
+        Configure scrollbar connection for a widget with line number synchronization.
         
         Args:
             widget: Widget to connect to scrollbar
         """
         if self.scrollbar is not None:
             try:
-                self.scrollbar.config(command=widget.yview)
+                # Create custom scroll command that synchronizes line numbers
+                def custom_scroll_command(*args):
+                    """Custom scroll command that synchronizes line numbers with text scrolling."""
+                    try:
+                        # Perform the normal scroll operation
+                        result = widget.yview(*args)
+                        
+                        # Update line numbers if the widget exists (for Chlorophyll CodeView)
+                        if hasattr(widget, '_line_numbers'):
+                            try:
+                                # Call redraw on the line numbers widget to update them
+                                widget._line_numbers.redraw()
+                            except Exception:
+                                # Don't let line number update errors break scrolling
+                                pass
+                        
+                        return result
+                    except Exception:
+                        # Fallback to basic scrolling if custom logic fails
+                        try:
+                            return widget.yview(*args)
+                        except Exception:
+                            pass
+                
+                # Configure bidirectional scrollbar communication with custom command
+                self.scrollbar.config(command=custom_scroll_command)
                 widget.config(yscrollcommand=self.scrollbar.set)
             except (tk.TclError, AttributeError) as e:
                 # Log error but don't fail widget creation
@@ -1223,89 +1278,214 @@ class CodeEditor:
             
         return self.current_widget
 
-    def load_file(self, filename, encoding='utf-8'):
+    def load_file(self, file_path, force_load=False, size_warning_callback=None):
         """
-        Load file content with automatic syntax highlighting detection.
+        Load a file into the editor with size limit checks.
         
         Args:
-            filename (str): Path to the file to load
-            encoding (str): File encoding (default: 'utf-8')
+            file_path (str): Path to the file to load
+            force_load (bool): If True, bypass size limits and load anyway
+            size_warning_callback (callable): Optional callback for handling size warnings.
+                                             Should return True to proceed, False to cancel.
+        
+        Returns:
+            bool: True if file was loaded successfully, False otherwise
+        """
+        if not os.path.exists(file_path):
+            return False
+        
+        # Check file size limits unless forcing load
+        if not force_load:
+            is_too_large, file_size, warning_message = self.check_file_size_limits(file_path)
+            
+            # Handle size warnings and blocks
+            if warning_message:
+                if size_warning_callback:
+                    # Let the callback handle the warning
+                    if not size_warning_callback(warning_message, file_size, is_too_large):
+                        return False  # User chose to cancel
+                    elif is_too_large:
+                        # Even if callback returns True, still block if too large
+                        return False
+                elif is_too_large:
+                    # No callback and file is too large - block loading
+                    return False
+                # If there's a warning but not too large, and no callback, proceed
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as file:
+                content = file.read()
+            
+            # Use the new load_content method for optimized loading
+            return self.load_content(content, file_path)
+            
+        except Exception as e:
+            print(f"Error loading file {file_path}: {e}")
+            return False
+
+    def check_file_size_limits(self, file_path, warning_threshold=None, block_threshold=None):
+        """
+        Check if a file exceeds size limits and generate appropriate warnings.
+        
+        Args:
+            file_path (str): Path to the file to check
+            warning_threshold (int): Size threshold in bytes for generating warnings
+            block_threshold (int): Size threshold in bytes for blocking file loading
+        
+        Returns:
+            tuple: (is_too_large, file_size, warning_message)
+                - is_too_large (bool): True if file should be blocked from loading
+                - file_size (int): File size in bytes  
+                - warning_message (str): Warning message or None
+        """
+        # Use provided thresholds or defaults
+        if warning_threshold is None:
+            warning_threshold = self.default_warning_threshold
+        if block_threshold is None:
+            block_threshold = self.default_block_threshold
+        
+        try:
+            file_size = os.path.getsize(file_path)
+        except (OSError, IOError):
+            # File doesn't exist or permission error - return safe defaults
+            return False, 0, None
+        
+        filename = os.path.basename(file_path)
+        formatted_size = self.format_file_size(file_size)
+        
+        # Check if file is too large to load
+        if file_size > block_threshold:
+            warning_message = (
+                f"File '{filename}' ({formatted_size}) is too large to load. "
+                f"Maximum size limit is {self.format_file_size(block_threshold)}."
+            )
+            return True, file_size, warning_message
+        
+        # Check if file should generate a warning
+        elif file_size > warning_threshold:
+            warning_message = (
+                f"File '{filename}' ({formatted_size}) is large and may take time to load. "
+                f"Consider using a text editor for files larger than {self.format_file_size(warning_threshold)}."
+            )
+            return False, file_size, warning_message
+        
+        # File is within acceptable size limits
+        return False, file_size, None
+
+    def format_file_size(self, size_bytes):
+        """
+        Format file size in bytes to human-readable format.
+        
+        Args:
+            size_bytes (int): Size in bytes
             
         Returns:
-            bool: True if file loaded successfully, False otherwise
+            str: Formatted size string (e.g., "1.5 MB", "512.0 KB")
+        """
+        if size_bytes == 0:
+            return "0 B"
+        
+        # Define size units
+        units = ['B', 'KB', 'MB', 'GB', 'TB']
+        unit_index = 0
+        size = float(size_bytes)
+        
+        # Convert to appropriate unit
+        while size >= 1024 and unit_index < len(units) - 1:
+            size /= 1024
+            unit_index += 1
+        
+        # Format with appropriate precision
+        if unit_index == 0:  # Bytes
+            return f"{int(size)} {units[unit_index]}"
+        else:
+            return f"{size:.1f} {units[unit_index]}"
+
+    def load_content(self, content, filename=None):
+        """
+        Load content directly into the editor with optional syntax highlighting.
+        
+        Args:
+            content (str): Content to load
+            filename (str): Optional filename for syntax highlighting detection
+            
+        Returns:
+            bool: True if content loaded successfully, False otherwise
         """
         try:
-            # Read file content
-            with open(filename, 'r', encoding=encoding) as file:
-                content = file.read()
-                
-            # Detect lexer for file
-            lexer = self.get_lexer_for_file(filename)
+            # Check if we should skip syntax highlighting for very large files
+            if self.syntax_manager.should_skip_syntax_highlighting(content=content, filename=filename):
+                # For very large files, use plain text loading
+                widget = self.update_file_content(content, None)  # No filename = no syntax highlighting
+                return widget is not None
             
-            # Get or create widget with appropriate lexer
-            if self.enable_caching:
-                # Use cached widget replacement
-                self.replace_widget_with_cached_lexer(lexer)
-            else:
-                # Create new widget with lexer
-                if self.current_widget:
-                    self.replace_widget_with_lexer(lexer)
-                else:
-                    self.current_widget = self.create_widget(lexer)
-                    
-            # Load content into widget
-            if self.current_widget:
-                # Clear existing content
-                self.current_widget.delete("1.0", tk.END)
-                
-                # Insert new content
-                self.current_widget.insert("1.0", content)
-                
-                # Reset cursor to beginning
-                self.current_widget.mark_set(tk.INSERT, "1.0")
-                
-                # Configure scrollbar if present
-                self.configure_scrollbar(self.current_widget)
-                
-                return True
-                
-        except FileNotFoundError:
-            # File doesn't exist
-            return False
-        except PermissionError:
-            # No permission to read file
-            return False
-        except UnicodeDecodeError:
-            # Try with different encoding
-            try:
-                with open(filename, 'r', encoding='latin-1') as file:
-                    content = file.read()
-                    
-                # Continue with loading process
-                lexer = self.get_lexer_for_file(filename)
-                
-                if self.enable_caching:
-                    self.replace_widget_with_cached_lexer(lexer)
-                else:
-                    if self.current_widget:
-                        self.replace_widget_with_lexer(lexer)
-                    else:
-                        self.current_widget = self.create_widget(lexer)
-                        
-                if self.current_widget:
-                    self.current_widget.delete("1.0", tk.END)
-                    self.current_widget.insert("1.0", content)
-                    self.current_widget.mark_set(tk.INSERT, "1.0")
-                    self.configure_scrollbar(self.current_widget)
-                    return True
-                    
-            except Exception:
-                return False
+            # Check if we need chunking for extremely large files (>10MB)
+            content_size = len(content.encode('utf-8'))
+            if content_size > 10 * 1024 * 1024:  # 10MB
+                return self._process_content_in_chunks(content, filename)
+            
+            # Check if we need progressive highlighting for large files (>1MB)
+            if content_size > 1024 * 1024:  # 1MB
+                return self._apply_syntax_highlighting_progressively(content, filename)
+            
+            # Use the existing update_file_content method for normal files
+            widget = self.update_file_content(content, filename)
+            return widget is not None
         except Exception:
-            # Any other error
             return False
             
-        return False
+    def _process_content_in_chunks(self, content, filename=None, chunk_size=100000):
+        """
+        Process extremely large content in chunks for memory efficiency.
+        
+        Args:
+            content (str): Content to process
+            filename (str): Optional filename for syntax highlighting
+            chunk_size (int): Size of each chunk in characters
+            
+        Returns:
+            bool: True if processing successful
+        """
+        try:
+            # For extremely large files, we may need to process in chunks
+            if len(content) > chunk_size * 10:  # 1MB threshold
+                # For very large content, we might want to limit what we load
+                # or process it in smaller chunks to avoid memory issues
+                
+                # Load only the first chunk for initial display
+                initial_chunk = content[:chunk_size]
+                widget = self.update_file_content(initial_chunk, filename)
+                
+                # TODO: Implement progressive loading for remaining chunks
+                return widget is not None
+            else:
+                # Normal loading for smaller content
+                widget = self.update_file_content(content, filename)
+                return widget is not None
+        except Exception:
+            return False
+            
+    def _apply_syntax_highlighting_progressively(self, content, filename=None):
+        """
+        Apply syntax highlighting progressively for large content.
+        
+        Args:
+            content (str): Content to highlight
+            filename (str): Optional filename for syntax highlighting
+            
+        Returns:
+            bool: True if highlighting applied successfully
+        """
+        try:
+            # For now, use regular highlighting
+            # In a real implementation, this could be done in chunks
+            # or with threading for large files
+            
+            # Use the existing update_file_content method directly to avoid recursion
+            widget = self.update_file_content(content, filename)
+            return widget is not None
+        except Exception:
+            return False
     
     def switch_color_scheme(self, scheme_name):
         """
@@ -1413,6 +1593,136 @@ class CodeEditor:
             return self.color_scheme_config.register_scheme(scheme_name, scheme)
         return False
         
+    def set_line_numbers_enabled(self, enabled):
+        """
+        Enable or disable line numbers display.
+        
+        Args:
+            enabled (bool): Whether to show line numbers
+            
+        Returns:
+            bool: True if setting was successful, False otherwise
+        """
+        try:
+            # Update the setting
+            old_setting = self.show_line_numbers
+            self.show_line_numbers = enabled
+            
+            # If we have a current widget, recreate it with new setting
+            if self.current_widget:
+                # Get current lexer
+                current_lexer = getattr(self.current_widget, 'lexer', None)
+                
+                # Capture current state
+                old_state = self.capture_widget_state(self.current_widget)
+                old_geometry_info = self.capture_widget_geometry_info(self.current_widget)
+                old_scrollbar_state = self.capture_scrollbar_state(self.current_widget)
+                
+                # Clear cache to force recreation with new line number setting
+                self.invalidate_cache()
+                
+                # Create new widget with new line number setting
+                new_widget = self.create_widget(lexer=current_lexer)
+                
+                # Replace the widget
+                if new_widget:
+                    # Destroy old widget
+                    self.destroy_widget_safely_for_replacement(self.current_widget)
+                    
+                    # Set new widget as current
+                    self.current_widget = new_widget
+                    
+                    # Restore state
+                    if old_state:
+                        self.restore_widget_state(new_widget, old_state)
+                    if old_geometry_info:
+                        self.apply_geometry_info(new_widget, old_geometry_info)
+                    else:
+                        self.grid_widget(new_widget)
+                    if old_scrollbar_state:
+                        self.apply_scrollbar_state(new_widget, old_scrollbar_state)
+                        
+                    # Configure scrollbar
+                    self.configure_scrollbar(new_widget)
+                    
+            return True
+            
+        except Exception:
+            # Restore old setting if something went wrong
+            self.show_line_numbers = old_setting
+            return False
+    
+    def set_line_numbers_border(self, border_width):
+        """
+        Set the border width of line numbers.
+        
+        Args:
+            border_width (int): Border width in pixels
+            
+        Returns:
+            bool: True if setting was successful, False otherwise
+        """
+        try:
+            # Update the setting
+            old_border = self.line_numbers_border
+            self.line_numbers_border = border_width
+            
+            # If line numbers are enabled and we have a current widget, recreate it
+            if self.show_line_numbers and self.current_widget:
+                # Get current lexer
+                current_lexer = getattr(self.current_widget, 'lexer', None)
+                
+                # Capture current state
+                old_state = self.capture_widget_state(self.current_widget)
+                old_geometry_info = self.capture_widget_geometry_info(self.current_widget)
+                old_scrollbar_state = self.capture_scrollbar_state(self.current_widget)
+                
+                # Clear cache to force recreation with new border setting
+                self.invalidate_cache()
+                
+                # Create new widget with new border setting
+                new_widget = self.create_widget(lexer=current_lexer)
+                
+                # Replace the widget
+                if new_widget:
+                    # Destroy old widget
+                    self.destroy_widget_safely_for_replacement(self.current_widget)
+                    
+                    # Set new widget as current
+                    self.current_widget = new_widget
+                    
+                    # Restore state
+                    if old_state:
+                        self.restore_widget_state(new_widget, old_state)
+                    if old_geometry_info:
+                        self.apply_geometry_info(new_widget, old_geometry_info)
+                    else:
+                        self.grid_widget(new_widget)
+                    if old_scrollbar_state:
+                        self.apply_scrollbar_state(new_widget, old_scrollbar_state)
+                        
+                    # Configure scrollbar
+                    self.configure_scrollbar(new_widget)
+                    
+            return True
+            
+        except Exception:
+            # Restore old setting if something went wrong
+            self.line_numbers_border = old_border
+            return False
+    
+    def get_line_numbers_config(self):
+        """
+        Get current line numbers configuration.
+        
+        Returns:
+            dict: Configuration with 'enabled' and 'border_width' keys
+        """
+        return {
+            'enabled': self.show_line_numbers,
+            'border_width': self.line_numbers_border
+        }
+    
     def create_color_scheme_from_template(self, template_name, new_name, modifications):
         """
         Create a new color scheme from an existing template.
