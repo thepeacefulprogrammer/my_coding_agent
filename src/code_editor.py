@@ -223,6 +223,28 @@ class CodeEditor:
                 except Exception:
                     pass
                 
+                # Bind scroll events to update line numbers during scrolling
+                # This fixes the issue where line numbers don't update when scrolling
+                scroll_events = [
+                    '<MouseWheel>',      # Mouse wheel scrolling
+                    '<Button-4>',        # Mouse wheel up (Linux)
+                    '<Button-5>',        # Mouse wheel down (Linux)
+                    '<Key-Up>',          # Arrow key up
+                    '<Key-Down>',        # Arrow key down
+                    '<Key-Prior>',       # Page Up
+                    '<Key-Next>',        # Page Down
+                    '<Key-Home>',        # Home key
+                    '<Key-End>',         # End key
+                    '<Control-Home>',    # Ctrl+Home
+                    '<Control-End>',     # Ctrl+End
+                ]
+                
+                for event in scroll_events:
+                    try:
+                        widget.bind(event, redraw_line_numbers, add=True)
+                    except Exception:
+                        pass
+                
                 # Initial redraw after widget creation with safety delay
                 def safe_initial_redraw():
                     """Safe initial redraw with widget validity check."""
@@ -279,6 +301,19 @@ class CodeEditor:
                             widget.bind("<<Modified>>", redraw_fallback_line_numbers, add=True)
                         except Exception:
                             pass
+                        
+                        # Bind scroll events for fallback widget too
+                        scroll_events = [
+                            '<MouseWheel>', '<Button-4>', '<Button-5>',
+                            '<Key-Up>', '<Key-Down>', '<Key-Prior>', '<Key-Next>',
+                            '<Key-Home>', '<Key-End>', '<Control-Home>', '<Control-End>'
+                        ]
+                        
+                        for event in scroll_events:
+                            try:
+                                widget.bind(event, redraw_fallback_line_numbers, add=True)
+                            except Exception:
+                                pass
                         
                         # Initial redraw after widget creation
                         widget.after_idle(redraw_fallback_line_numbers)
@@ -443,10 +478,15 @@ class CodeEditor:
                         result = widget.yview(*args)
                         
                         # Update line numbers if the widget exists (for Chlorophyll CodeView)
-                        if hasattr(widget, '_line_numbers'):
+                        if hasattr(widget, '_line_numbers') and widget._line_numbers:
                             try:
-                                # Call redraw on the line numbers widget to update them
-                                widget._line_numbers.redraw()
+                                # Check if line numbers widget is valid before redraw
+                                if hasattr(widget._line_numbers, 'winfo_exists'):
+                                    if widget._line_numbers.winfo_exists():
+                                        widget._line_numbers.redraw()
+                                else:
+                                    # Fallback: direct redraw if winfo_exists not available
+                                    widget._line_numbers.redraw()
                             except Exception:
                                 # Don't let line number update errors break scrolling
                                 pass

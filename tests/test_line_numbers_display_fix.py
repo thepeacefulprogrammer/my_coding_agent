@@ -152,8 +152,21 @@ class TestLineNumbersDisplayFix(unittest.TestCase):
         call_kwargs = mock_codeview.call_args[1]
         self.assertEqual(call_kwargs['linenums_border'], 1)
         
-        # Verify that <<Modified>> event binding was set up
-        mock_widget.bind.assert_called_with("<<Modified>>", unittest.mock.ANY, add=True)
+        # Verify that <<Modified>> event binding was set up (check all calls)
+        bind_calls = mock_widget.bind.call_args_list
+        
+        # Should have called bind for <<Modified>> and scroll events
+        event_names = [call[0][0] for call in bind_calls]
+        self.assertIn("<<Modified>>", event_names, "<<Modified>> event should be bound")
+        
+        # Should also have scroll events bound
+        expected_scroll_events = ['<MouseWheel>', '<Button-4>', '<Button-5>', '<Key-Up>', '<Key-Down>']
+        for event in expected_scroll_events:
+            self.assertIn(event, event_names, f"Scroll event {event} should be bound")
+        
+        # All bindings should use add=True
+        for call in bind_calls:
+            self.assertTrue(call[1]['add'], "All event bindings should use add=True")
         
         # Verify that refresh scheduling was called during content update
         self.assertTrue(mock_widget.after.called or mock_widget.after_idle.called, 
