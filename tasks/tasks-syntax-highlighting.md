@@ -290,7 +290,19 @@ Based on technical investigation, we've identified that the Chlorophyll library 
 ## Remaining Work from Original Tasks
 
 ### Task 8.0: Performance and Error Handling (from original plan)p
-- [ ] 8.1 Implement graceful fallback to plain text for unsupported files
+- [x] **8.1 Implement graceful fallback to plain text for unsupported files**
+  - ✅ Comprehensive graceful fallback already implemented in `SyntaxManager` class
+  - ✅ **TextLexer Fallback:** Unknown file extensions automatically fall back to `TextLexer` for plain text display
+  - ✅ **Multiple Fallback Scenarios:** Handles unknown extensions, no extensions, empty filenames, and missing lexers
+  - ✅ **Cached TextLexer:** Uses cached `TextLexer` instance for performance optimization
+  - ✅ **Shebang Detection:** Attempts shebang-based detection before falling back to plain text
+  - ✅ **Error Resilience:** Gracefully handles file reading errors and encoding issues
+  - ✅ Created comprehensive test suite in `tests/test_graceful_fallback.py` with 15 test methods
+  - ✅ **Test Coverage:** Unsupported file detection, plain text fallback, integration with caching/scrollbars/color schemes
+  - ✅ **Error Handling Tests:** Validates behavior with corrupted syntax manager, invalid content, and creation failures
+  - ✅ **Performance Tests:** Verified plain text creation speed (<50ms) and memory efficiency
+  - ✅ **Integration Verification:** Confirmed fallback works with all existing systems (caching, scrollbars, color schemes)
+  - ✅ All 15 graceful fallback tests passing, bringing total test count to 401 tests
 - [ ] 8.2 Add error handling for syntax highlighting failures
 - [ ] 8.3 Implement performance optimizations for large files
 - [ ] 8.4 Add file size limits and warnings for very large files (>10MB)
