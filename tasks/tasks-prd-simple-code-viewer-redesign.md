@@ -27,6 +27,8 @@
 - `tests/fixtures/sample_code/` - Sample code files for testing (Python, JavaScript)
 - `tests/test_dependencies.py` - Unit tests for verifying PyQt6 and Pygments availability
 - `tests/test_module_structure.py` - Unit tests for verifying core and gui module structure
+- `tests/test_assets_structure.py` - Unit tests for assets directory structure and resource management
+- `src/my_coding_agent/assets/__init__.py` - Assets management module with utility functions
 - `examples/demo_viewer.py` - Example script showing basic usage
 
 ### Notes
@@ -40,12 +42,12 @@
 
 ## Tasks
 
-- [ ] 1.0 Project Setup and Core Infrastructure
+- [x] 1.0 Project Setup and Core Infrastructure
   - [x] 1.1 Add PyQt6 and Pygments dependencies to pyproject.toml
   - [x] 1.2 Create core module structure (core/, gui/ directories)
   - [x] 1.3 Set up basic application entry point and configuration
   - [x] 1.4 Create base test fixtures for GUI testing with QApplication
-  - [ ] 1.5 Configure assets directory structure for icons and themes
+  - [x] 1.5 Configure assets directory structure for icons and themes
 
 - [ ] 2.0 Main Application Window and Layout System
   - [ ] 2.1 Create MainWindow class inheriting from QMainWindow
