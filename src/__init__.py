@@ -1,1 +1,1 @@
-# Init file for src package 
+"""Simple Code Viewer - A clean, fast code viewing application.""" 
