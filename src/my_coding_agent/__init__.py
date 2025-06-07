@@ -38,7 +38,7 @@ Attributes:
     __email__ (str): Contact email for support.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict
 
 try:
     from ._version import __version__
@@ -85,7 +85,7 @@ def get_version() -> str:
     return __version__
 
 
-def get_info() -> dict[str, str]:
+def get_info() -> Dict[str, str]:
     """Get comprehensive package information.
 
     Returns:
