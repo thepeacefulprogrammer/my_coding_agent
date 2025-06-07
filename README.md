@@ -127,8 +127,8 @@ This project is proprietary software. See [LICENSE](LICENSE) for details.
 ## 📞 Support
 
 - 📧 **Email**: randy.herritt@gmail.com
-- 🐛 **Issues**: [GitHub Issues](https://github.com/thepeacefulprogrammer/my_coding_agent/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/thepeacefulprogrammer/my_coding_agent/discussions)
+- 🐛 **Issues**: Please contact via email for now
+- 💬 **Questions**: Feel free to reach out via email
 
 ---
 
