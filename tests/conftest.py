@@ -12,7 +12,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any, Dict, Generator
 from unittest.mock import Mock
 
 import pytest
@@ -63,7 +63,7 @@ def temp_dir() -> Generator[Path, None, None]:
 
 
 @pytest.fixture
-def sample_code_files(temp_dir: Path) -> dict[str, Path]:
+def sample_code_files(temp_dir: Path) -> Dict[str, Path]:
     """Create sample code files for testing.
 
     Args:
@@ -173,7 +173,7 @@ def mock_ai_agent() -> Mock:
 
 
 @pytest.fixture
-def performance_config() -> dict[str, Any]:
+def performance_config() -> Dict[str, Any]:
     """Configuration for performance benchmarks.
 
     Returns:
@@ -228,7 +228,7 @@ def large_file_content() -> str:
 
 # Benchmark fixtures for performance testing
 @pytest.fixture
-def benchmark_small_file(sample_code_files: dict[str, Path]) -> Path:
+def benchmark_small_file(sample_code_files: Dict[str, Path]) -> Path:
     """Small file for benchmarking."""
     return sample_code_files["python"]
 
