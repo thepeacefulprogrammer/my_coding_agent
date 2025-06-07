@@ -15,7 +15,7 @@ Welcome to **My Coding Agent** - an epic code viewer with AI agent integration!
    :alt: Code style: Ruff
 
 **My Coding Agent** is a modern, feature-rich code viewing application that combines
-intuitive GUI design with powerful AI agent capabilities. Built with Python and 
+intuitive GUI design with powerful AI agent capabilities. Built with Python and
 following the latest development best practices.
 
 Key Features
@@ -44,10 +44,10 @@ Basic Usage
 .. code-block:: python
 
    from my_coding_agent import CodeViewer
-   
+
    # Create a code viewer instance
    viewer = CodeViewer()
-   
+
    # Load and display a file
    viewer.load_file("example.py")
    viewer.show()
@@ -126,4 +126,4 @@ Support
 
 * 📧 Email: randy.herritt@gmail.com
 * 🐛 Issues: `GitHub Issues <https://github.com/thepeacefulprogrammer/my_coding_agent/issues>`_
-* 💬 Discussions: `GitHub Discussions <https://github.com/thepeacefulprogrammer/my_coding_agent/discussions>`_ 
+* 💬 Discussions: `GitHub Discussions <https://github.com/thepeacefulprogrammer/my_coding_agent/discussions>`_

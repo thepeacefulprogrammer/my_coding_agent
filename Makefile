@@ -84,4 +84,4 @@ pre-commit-run: ## Run pre-commit on all files
 
 check-all: lint test security ## Run all checks (linting, tests, security)
 
-setup-dev: install-dev pre-commit-install ## Complete development setup 
+setup-dev: install-dev pre-commit-install ## Complete development setup

@@ -1,6 +1,6 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: true
 ---
 # Task List Management
@@ -9,9 +9,9 @@ Guidelines for managing task lists in markdown files to track progress on comple
 
 ## Task Implementation
 - **One sub-task at a time:** Do **NOT** start the next sub-task until you ask the user for permission and they say "yes" or "y"
-- **Completion protocol:**  
-  1. When you finish a **sub-task**, immediately mark it as completed by changing `[ ]` to `[x]`.  
-  2. If **all** subtasks underneath a parent task are now `[x]`, also mark the **parent task** as completed.  
+- **Completion protocol:**
+  1. When you finish a **sub-task**, immediately mark it as completed by changing `[ ]` to `[x]`.
+  2. If **all** subtasks underneath a parent task are now `[x]`, also mark the **parent task** as completed.
 - Stop after each sub-task and wait for the user's go-ahead.
 - **Test-Driven Development (TDD):** For each sub-task, start by writing unit test(s) that capture the expected behavior. Run the tests to confirm they fail. Then implement the code changes to make the tests pass. Only after the tests pass should you apply the completion protocol.
 - **Test suite enforcement:** After implementing a sub-task, run the project's test suite (e.g., `pytest`). Do **not** mark the sub-task as complete until all tests pass. If tests fail, iterate on the code changes for that sub-task until the suite passes, then apply the completion protocol.

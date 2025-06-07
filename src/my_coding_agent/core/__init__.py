@@ -34,9 +34,9 @@ __email__ = "randy.herritt@gmail.com"
 __all__ = [
     # Main components (to be uncommented as implemented)
     # "MainWindow",
-    # "FileTreeWidget", 
+    # "FileTreeWidget",
     # "FileTreeModel",
     # "CodeViewerWidget",
     # "SyntaxHighlighter",
     # "ThemeManager",
-] 
+]

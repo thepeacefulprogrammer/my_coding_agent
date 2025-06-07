@@ -178,4 +178,4 @@ The new viewer will be a **read-only code viewing application** that prioritizes
 - [ ] Application runs on Linux, Windows, and macOS
 - [ ] Memory usage stays under 100MB for typical usage
 - [ ] All components have unit tests with >80% coverage
-- [ ] Code follows clean architecture principles with clear separation of concerns 
+- [ ] Code follows clean architecture principles with clear separation of concerns

@@ -82,14 +82,14 @@ make lint
 ```python
 def process_file(file_path: Path, encoding: str = "utf-8") -> dict[str, Any]:
     """Process a file and return metadata.
-    
+
     Args:
         file_path: Path to the file to process.
         encoding: Text encoding to use.
-        
+
     Returns:
         Dictionary containing file metadata.
-        
+
     Raises:
         FileNotFoundError: If the file doesn't exist.
         UnicodeDecodeError: If encoding fails.
@@ -105,27 +105,27 @@ We use **Google-style docstrings** for all public APIs:
 ```python
 def calculate_complexity(code: str, language: str) -> ComplexityResult:
     """Calculate code complexity metrics.
-    
+
     This function analyzes the provided code and returns various
     complexity metrics including cyclomatic complexity, cognitive
     complexity, and maintainability index.
-    
+
     Args:
         code: The source code to analyze.
         language: Programming language of the code (e.g., "python", "javascript").
-        
+
     Returns:
         ComplexityResult object containing all calculated metrics.
-        
+
     Raises:
         UnsupportedLanguageError: If the language is not supported.
         ParseError: If the code cannot be parsed.
-        
+
     Example:
         >>> result = calculate_complexity("def hello(): print('hi')", "python")
         >>> print(result.cyclomatic_complexity)
         1
-        
+
     Note:
         Large code files may take significant time to process.
         Consider using async version for UI applications.
@@ -146,7 +146,7 @@ class CodeViewerError(Exception):
 
 class FileLoadError(CodeViewerError):
     """Raised when a file cannot be loaded."""
-    
+
     def __init__(self, file_path: Path, reason: str) -> None:
         super().__init__(f"Could not load {file_path}: {reason}")
         self.file_path = file_path
@@ -204,19 +204,19 @@ make security
 ```python
 def test_code_viewer_load_file(sample_code_files: dict[str, Path], qapp: QApplication) -> None:
     """Test loading a file in the code viewer.
-    
+
     Args:
         sample_code_files: Fixture providing sample files.
         qapp: QApplication fixture for GUI testing.
     """
     viewer = CodeViewer()
     python_file = sample_code_files["python"]
-    
+
     # Test successful loading
     result = viewer.load_file(python_file)
     assert result is True
     assert viewer.current_file == python_file
-    
+
     # Test file content is properly loaded
     content = viewer.get_content()
     assert "fibonacci" in content
@@ -228,7 +228,7 @@ def test_code_viewer_load_file(sample_code_files: dict[str, Path], qapp: QApplic
 ```python
 def test_large_file_performance(benchmark: Callable, benchmark_large_file: Path) -> None:
     """Benchmark loading large files.
-    
+
     Args:
         benchmark: Pytest benchmark fixture.
         benchmark_large_file: Large file fixture.
@@ -236,7 +236,7 @@ def test_large_file_performance(benchmark: Callable, benchmark_large_file: Path)
     def load_file() -> None:
         viewer = CodeViewer()
         viewer.load_file(benchmark_large_file)
-    
+
     # Should complete within 500ms for 1000-line file
     result = benchmark(load_file)
     assert result < 0.5  # seconds
@@ -392,4 +392,4 @@ Before submitting your PR, ensure:
 - [ ] Performance impact is considered
 - [ ] Commit messages follow conventions
 
-Thank you for contributing to **My Coding Agent**! 🚀 
+Thank you for contributing to **My Coding Agent**! 🚀

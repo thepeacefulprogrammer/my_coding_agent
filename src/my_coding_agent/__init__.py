@@ -51,13 +51,12 @@ __email__ = "randy.herritt@gmail.com"
 __license__ = "Proprietary"
 
 # Import submodules
-from . import core
-from . import gui
+from . import core, gui
 
 # Type checking imports to avoid circular dependencies
 if TYPE_CHECKING:
-    from .core.viewer import CodeViewer
     from .agents.base import AIAgent
+    from .core.viewer import CodeViewer
 
 __all__ = [
     "__version__",
@@ -67,17 +66,17 @@ __all__ = [
     "core",
     "gui",
     # Main components will be added as they're implemented
-    # "CodeViewer", 
+    # "CodeViewer",
     # "AIAgent",
 ]
 
 
 def get_version() -> str:
     """Get the current version of My Coding Agent.
-    
+
     Returns:
         The version string in semantic versioning format.
-        
+
     Example:
         >>> from my_coding_agent import get_version
         >>> print(f"Version: {get_version()}")
@@ -88,11 +87,11 @@ def get_version() -> str:
 
 def get_info() -> dict[str, str]:
     """Get comprehensive package information.
-    
+
     Returns:
         A dictionary containing package metadata including version,
         author, license, and other relevant information.
-        
+
     Example:
         >>> from my_coding_agent import get_info
         >>> info = get_info()
@@ -107,4 +106,4 @@ def get_info() -> dict[str, str]:
         "license": __license__,
         "description": "An epic code viewer with AI agent integration",
         "python_requires": ">=3.8",
-    } 
+    }

@@ -1,1 +1,1 @@
-"""Test package for Simple Code Viewer.""" 
+"""Test package for Simple Code Viewer."""

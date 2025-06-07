@@ -1,1 +1,1 @@
-"""Example code for My Coding Agent.""" 
+"""Example code for My Coding Agent."""

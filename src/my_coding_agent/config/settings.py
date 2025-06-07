@@ -1,26 +1,27 @@
 """Configuration settings for My Coding Agent.
 
 This module provides a centralized configuration system that supports:
-- Environment variables 
+- Environment variables
 - Default values
 - Type safety with dataclasses
 - Theme and UI settings
 - File handling preferences
 """
 
+import contextlib
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 
 @dataclass
 class Settings:
     """Application settings with type-safe configuration options.
-    
+
     This class provides centralized configuration management with
     support for environment variables and sensible defaults.
-    
+
     Attributes:
         window_width: Default main window width in pixels
         window_height: Default main window height in pixels
@@ -39,84 +40,77 @@ class Settings:
         config_dir: Directory for storing configuration files
         cache_dir: Directory for storing cache files
     """
-    
+
     # Window settings
     window_width: int = 1200
     window_height: int = 800
     splitter_position: float = 0.3
-    
+
     # Theme settings
     theme: str = "dark"
     font_family: str = "JetBrains Mono"
     font_size: int = 11
-    
+
     # Editor settings
     line_numbers: bool = True
     word_wrap: bool = False
     highlight_current_line: bool = True
     show_whitespace: bool = False
     tab_width: int = 4
-    
+
     # File handling
     max_file_size_mb: int = 10
     auto_detect_language: bool = True
-    
+
     # Application settings
     recent_files_count: int = 10
-    
+
     # Directories
     config_dir: Path = field(default_factory=lambda: _get_config_dir())
     cache_dir: Path = field(default_factory=lambda: _get_cache_dir())
-    
+
     def __post_init__(self) -> None:
         """Initialize settings after dataclass creation.
-        
+
         This method ensures that directories exist and
         applies any environment variable overrides.
         """
         # Ensure directories exist
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Apply environment variable overrides
         self._apply_env_overrides()
-    
+
     def _apply_env_overrides(self) -> None:
         """Apply environment variable overrides to settings.
-        
+
         This method checks for environment variables that can
         override default settings values.
         """
         # Window settings
         if width := os.getenv("MCA_WINDOW_WIDTH"):
-            try:
+            with contextlib.suppress(ValueError):
                 self.window_width = int(width)
-            except ValueError:
-                pass
-                
+
         if height := os.getenv("MCA_WINDOW_HEIGHT"):
-            try:
+            with contextlib.suppress(ValueError):
                 self.window_height = int(height)
-            except ValueError:
-                pass
-        
+
         # Theme settings
-        if theme := os.getenv("MCA_THEME"):
-            if theme.lower() in ("dark", "light"):
-                self.theme = theme.lower()
-        
+        if (theme := os.getenv("MCA_THEME")) and theme.lower() in ("dark", "light"):
+            self.theme = theme.lower()
+
         if font_family := os.getenv("MCA_FONT_FAMILY"):
             self.font_family = font_family
-            
+
         if font_size := os.getenv("MCA_FONT_SIZE"):
-            try:
+            with contextlib.suppress(ValueError):
                 self.font_size = int(font_size)
-            except ValueError:
-                pass
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert settings to dictionary format.
-        
+
         Returns:
             Dictionary representation of settings with serializable values
         """
@@ -127,10 +121,10 @@ class Settings:
             else:
                 result[key] = value
         return result
-    
+
     def update(self, **kwargs: Any) -> None:
         """Update settings with new values.
-        
+
         Args:
             **kwargs: Settings to update with their new values
         """
@@ -141,7 +135,7 @@ class Settings:
 
 def _get_config_dir() -> Path:
     """Get the configuration directory for the application.
-    
+
     Returns:
         Path to configuration directory, creating it if needed
     """
@@ -153,7 +147,7 @@ def _get_config_dir() -> Path:
 
 def _get_cache_dir() -> Path:
     """Get the cache directory for the application.
-    
+
     Returns:
         Path to cache directory, creating it if needed
     """
@@ -169,10 +163,10 @@ _settings_instance: Optional[Settings] = None
 
 def get_settings() -> Settings:
     """Get the global settings instance.
-    
+
     This function provides a singleton pattern for accessing
     application settings throughout the codebase.
-    
+
     Returns:
         Global Settings instance
     """
@@ -184,7 +178,7 @@ def get_settings() -> Settings:
 
 def reset_settings() -> None:
     """Reset the global settings instance.
-    
+
     This function is primarily useful for testing to ensure
     a clean settings state between tests.
     """
@@ -194,13 +188,13 @@ def reset_settings() -> None:
 
 def load_settings_from_file(config_path: Path) -> Settings:
     """Load settings from a configuration file.
-    
+
     Args:
         config_path: Path to configuration file (TOML format)
-        
+
     Returns:
         Settings instance with values from file
-        
+
     Note:
         This function is planned for future implementation
         to support configuration files.
@@ -212,14 +206,14 @@ def load_settings_from_file(config_path: Path) -> Settings:
 
 def save_settings_to_file(settings: Settings, config_path: Path) -> None:
     """Save settings to a configuration file.
-    
+
     Args:
         settings: Settings instance to save
         config_path: Path where to save configuration file
-        
+
     Note:
         This function is planned for future implementation
         to support configuration files.
     """
     # Future implementation for saving to TOML/JSON files
-    pass 
+    pass

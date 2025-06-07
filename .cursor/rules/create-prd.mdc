@@ -1,6 +1,6 @@
 ---
 description: ALWAYS fetch this rule when asked to create any PRD or product requirements document. Must ask clarifying questions before writing. Use when user mentions: "PRD", "requirements", "product requirements", "specification"
-globs: 
+globs:
 alwaysApply: false
 ---
 # Rule: Generating a Product Requirements Document (PRD)

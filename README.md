@@ -14,7 +14,7 @@
 ## ✨ Features
 
 - 🎨 **Modern GUI**: Beautiful, responsive interface with syntax highlighting
-- 🤖 **AI Integration**: Seamless coding agent integration for enhanced productivity  
+- 🤖 **AI Integration**: Seamless coding agent integration for enhanced productivity
 - 🔍 **Advanced Code Analysis**: Intelligent code insights and suggestions
 - 🎯 **Extensible Architecture**: Plugin system for custom functionality
 - 🛡️ **Type-Safe**: Full type hints and static analysis
@@ -75,7 +75,7 @@ This project maintains high code quality through:
 
 ```bash
 make lint          # Run all linting tools
-make test          # Run test suite  
+make test          # Run test suite
 make test-cov      # Run tests with coverage
 make security      # Run security scans
 make docs          # Build documentation
@@ -93,7 +93,7 @@ make performance   # Run benchmarks
 We welcome contributions! Please see our [Contributing Guide](docs/CONTRIBUTING.md) for detailed guidelines on:
 
 - Code style and standards
-- Testing requirements  
+- Testing requirements
 - Documentation expectations
 - Performance guidelines
 - Security considerations
@@ -114,7 +114,7 @@ This project follows semantic versioning and maintains:
 src/my_coding_agent/
 ├── core/          # Core functionality
 ├── gui/           # GUI components
-├── agents/        # AI agent integration  
+├── agents/        # AI agent integration
 ├── plugins/       # Plugin system
 ├── config/        # Configuration management
 └── assets/        # Static resources

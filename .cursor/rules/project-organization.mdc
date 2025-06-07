@@ -1,6 +1,6 @@
 ---
-description: 
-globs: 
+description:
+globs:
 alwaysApply: true
 ---
 # Project Organization Rules
@@ -22,7 +22,7 @@ alwaysApply: true
 - Core modules and packages
 - Production code only
 
-#### `/tests/` - Test Code  
+#### `/tests/` - Test Code
 - Unit tests
 - Integration tests
 - Test fixtures
@@ -74,7 +74,7 @@ alwaysApply: true
 
 3. **When creating new scripts**, explicitly specify the target directory:
    - `tools/debug_something.py` ✅
-   - `examples/demo_feature.py` ✅  
+   - `examples/demo_feature.py` ✅
    - `debug_something.py` ❌
 
 4. **File naming conventions**:
@@ -89,7 +89,7 @@ If files are found in wrong locations:
 # Move debug/utility scripts
 mv debug_*.py fix_*.py tools/
 
-# Move examples/demos  
+# Move examples/demos
 mv demo_*.py example_*.py test_live_*.py examples/
 
 # Move tests

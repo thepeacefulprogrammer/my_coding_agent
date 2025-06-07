@@ -32,4 +32,4 @@ __all__ = [
     # GUI components (to be uncommented as implemented)
     # "widgets",
     # "styles",
-] 
+]

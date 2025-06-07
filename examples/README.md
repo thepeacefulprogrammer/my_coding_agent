@@ -30,4 +30,4 @@ When adding new examples:
 1. Choose the appropriate subdirectory (basic_usage or advanced)
 2. Include docstrings explaining what the example demonstrates
 3. Add any necessary comments for clarity
-4. Update this README if you add new categories 
+4. Update this README if you add new categories

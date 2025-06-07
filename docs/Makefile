@@ -30,4 +30,4 @@ linkcheck:
 spelling:
 	@$(SPHINXBUILD) -b spelling "$(SOURCEDIR)" "$(BUILDDIR)" $(SPHINXOPTS) $(O)
 
-.PHONY: clean livehtml linkcheck spelling 
+.PHONY: clean livehtml linkcheck spelling

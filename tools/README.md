@@ -6,7 +6,7 @@ This directory contains utility scripts and tools for development workflow.
 
 Tools in this directory are meant for:
 - Development setup and configuration
-- Project maintenance scripts  
+- Project maintenance scripts
 - Build automation helpers
 - Development workflow utilities
 
@@ -40,4 +40,4 @@ When adding new tools:
 1. Add a descriptive docstring explaining the tool's purpose
 2. Include usage instructions in the docstring or as comments
 3. Follow the project's coding standards
-4. Update this README if adding new categories of tools 
+4. Update this README if adding new categories of tools

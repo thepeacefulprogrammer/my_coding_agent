@@ -8,19 +8,19 @@ and sample data.
 # Import commonly used fixtures for easy access
 try:
     from .gui_fixtures import (
+        process_qt_events,
         qapp_instance,
-        qwidget,
-        qtreeview,
-        qtextedit,
         qmainwindow,
         qsplitter,
-        process_qt_events,
+        qtextedit,
+        qtreeview,
+        qwidget,
         wait_for_signal,
     )
-    
+
     __all__ = [
         "qapp_instance",
-        "qwidget", 
+        "qwidget",
         "qtreeview",
         "qtextedit",
         "qmainwindow",
@@ -28,7 +28,7 @@ try:
         "process_qt_events",
         "wait_for_signal",
     ]
-    
+
 except ImportError:
     # GUI fixtures not available (e.g., PyQt6 not installed)
-    __all__ = [] 
+    __all__ = []

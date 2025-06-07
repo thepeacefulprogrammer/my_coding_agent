@@ -46,4 +46,4 @@ API documentation is automatically generated from docstrings in the source code.
 
 ## Documentation Dependencies
 
-Documentation dependencies are defined in `pyproject.toml` under `[project.optional-dependencies.docs]`. 
+Documentation dependencies are defined in `pyproject.toml` under `[project.optional-dependencies.docs]`.
