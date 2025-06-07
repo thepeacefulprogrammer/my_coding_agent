@@ -16,6 +16,13 @@ Based on technical investigation, we've identified that the Chlorophyll library 
 - `src/code_editor.py` - New module to handle CodeView widget lifecycle and syntax highlighting (✅ DONE)
 - `tests/test_code_editor.py` - Unit tests for the new code editor module (✅ DONE)
 - `tests/test_nord_python_syntax.py` - Unit tests for Nord color scheme applied to Python syntax (✅ DONE)
+- `tests/test_nord_multi_language_syntax.py` - Unit tests for Nord color scheme applied to multiple languages (✅ DONE)
+- `src/token_mapper.py` - Pygments token to Nord color mapping system (✅ DONE)
+- `tests/test_pygments_token_mapping.py` - Unit tests for Pygments token mapping (✅ DONE)
+- `tests/test_token_mapper_integration.py` - Integration tests for TokenMapper with CodeEditor (✅ DONE)
+- `src/color_scheme_config.py` - Color scheme configuration system with dynamic management (✅ DONE)
+- `tests/test_color_scheme_configuration.py` - Unit tests for ColorSchemeConfig class (✅ DONE)
+- `tests/test_color_scheme_integration.py` - Integration tests for ColorSchemeConfig with CodeEditor (✅ DONE)
 - `tests/test_syntax_highlighting_full.py` - Integration tests for complete syntax highlighting functionality
 - `test_live_app.py` - Manual testing application to verify syntax highlighting visually
 
@@ -134,11 +141,67 @@ Based on technical investigation, we've identified that the Chlorophyll library 
   - ✅ Fixed GUI to set initial CodeView state to 'disabled' (read-only)
   - ✅ All 238 tests passing including new Nord Python syntax tests
   - ✅ Nord scheme provides excellent contrast with dark background and proper Python syntax highlighting
-- [ ] 6.2 Add support for JavaScript, HTML, CSS, and other common languages
-- [ ] 6.3 Create color mapping system that works with Pygments token types
-- [ ] 6.4 Ensure colors are applied after widget creation with proper lexer
-- [ ] 6.5 Add color scheme configuration options for future extensibility
-- [ ] 6.6 Verify color visibility against dark background theme
+- [x] **6.2: Add support for JavaScript, HTML, CSS, and other common languages**
+  - ✅ Created comprehensive test suite in `tests/test_nord_multi_language_syntax.py` with 12 test methods
+  - ✅ Verified lexer detection for JavaScript (.js, .jsx, .ts), HTML (.html, .htm), CSS (.css, .scss)
+  - ✅ Tested support for other common languages: JSON, Markdown, XML, YAML
+  - ✅ Verified Nord color scheme compatibility with all supported languages
+  - ✅ Tested syntax color mappings for JavaScript (keywords, functions, strings, comments, operators)
+  - ✅ Tested syntax color mappings for HTML (tags, attributes, comments, DOCTYPE)
+  - ✅ Tested syntax color mappings for CSS (selectors, properties, values, measurements, comments)
+  - ✅ Verified universal syntax elements work across all languages (keywords, strings, comments, errors)
+  - ✅ Tests run without creating GUI windows (proper mocking implemented)
+  - ✅ All 41 syntax highlighting tests passing including 12 new multi-language tests
+  - ✅ Comprehensive language support: JavaScript, TypeScript, JSX, HTML, CSS, SCSS, JSON, Markdown, XML, YAML
+- [x] **6.3: Create color mapping system that works with Pygments token types**
+  - ✅ Created `src/token_mapper.py` with comprehensive TokenMapper class
+  - ✅ Implemented direct mapping from Pygments token types to Nord colors
+  - ✅ Created comprehensive test suite in `tests/test_pygments_token_mapping.py` with 10 test methods
+  - ✅ Supports all major Pygments token categories: Comment, Keyword, Name, String, Number, Operator, Punctuation, Error, Generic, Literal, Text
+  - ✅ Implemented token inheritance fallback system for unmapped token subtypes
+  - ✅ Extensive token coverage: 50+ specific token types mapped to appropriate Nord colors
+  - ✅ Language-specific token support: decorators (NORD12), exceptions (NORD11), HTML tags (NORD9), CSS properties (NORD8)
+  - ✅ Fallback system ensures all tokens have appropriate colors (defaults to NORD6)
+  - ✅ Performance optimized with direct token-to-color mapping dictionary
+  - ✅ All 13 token mapping and color scheme tests passing
+  - ✅ Ready for integration with Chlorophyll CodeView widgets
+- [x] **6.4: Ensure colors are applied after widget creation with proper lexer**
+  - ✅ Enhanced CodeEditor class with token mapping integration support
+  - ✅ Added `use_token_mapping` parameter to CodeEditor constructor (default: True)
+  - ✅ Integrated TokenMapper initialization with automatic fallback handling
+  - ✅ Enhanced `create_widget()` method to use Chlorophyll-compatible token colors
+  - ✅ Automatic token color application after widget creation with lexer
+  - ✅ Graceful fallback to regular color schemes when token mapping fails
+  - ✅ Created comprehensive integration test suite in `tests/test_token_mapper_integration.py` with 6 test methods
+  - ✅ Tests verify CodeEditor token mapping integration, fallback behavior, and multi-language consistency
+  - ✅ Backwards compatibility: CodeEditor works normally when token mapping is disabled
+  - ✅ Token mapping automatically applies when using Nord color scheme with lexers
+  - ✅ All 16 token mapping and integration tests passing (10 TokenMapper + 6 Integration)
+  - ✅ No regressions in existing CodeEditor functionality
+- [x] **6.5: Add color scheme configuration options for future extensibility**
+  - ✅ Created comprehensive `ColorSchemeConfig` class in `src/color_scheme_config.py`
+  - ✅ Implemented dynamic color scheme management with registration, validation, and persistence
+  - ✅ Added support for custom scheme creation, template-based schemes, and inheritance
+  - ✅ Enhanced `CodeEditor` class with color scheme configuration integration
+  - ✅ Added dynamic color scheme switching with state preservation and cache invalidation
+  - ✅ Implemented configuration persistence with JSON save/load functionality
+  - ✅ Created comprehensive test suite in `tests/test_color_scheme_configuration.py` with 10 test methods
+  - ✅ Created integration test suite in `tests/test_color_scheme_integration.py` with 7 test methods
+  - ✅ Built-in schemes: Nord and Monokai with comprehensive color mappings
+  - ✅ Extensible architecture: easy to add new schemes, modify existing ones, and create derived schemes
+  - ✅ All 17 color scheme configuration tests passing
+  - ✅ Backwards compatible: CodeEditor works with or without color scheme configuration
+- [x] **6.6: Verify color visibility against dark background theme**
+  - ✅ Fixed syntax error in existing `tests/test_color_visibility_verification.py`
+  - ✅ Comprehensive test suite with 10 test methods verifying color visibility and accessibility
+  - ✅ Tests verify Nord color scheme meets WCAG contrast standards for essential syntax elements
+  - ✅ Tests verify visibility against multiple dark backgrounds (VS Code, Sublime, GitHub Dark, etc.)
+  - ✅ Tests verify accessibility compliance with WCAG AA/AAA standards for code syntax
+  - ✅ Tests verify contrast calculation accuracy and syntax color extraction functionality
+  - ✅ Tests verify Nord scheme gets acceptable overall accessibility rating and dark theme suitability
+  - ✅ Existing comprehensive visibility report (`src/nord_visibility_report.json`) shows 87.5% WCAG AA compliance
+  - ✅ Nord scheme rated "Good" overall with 6.18 average contrast ratio and recommended for dark themes
+  - ✅ All 10 color visibility verification tests passing
 
 ### Task 7.0: Add Comprehensive Testing and Validation
 - [ ] 7.1 Write unit tests for CodeEditor class widget management
@@ -170,12 +233,15 @@ Based on technical investigation, we've identified that the Chlorophyll library 
 
 ## Progress Summary
 
-**Foundation Complete**: 2/9 tasks ✅
+**Foundation Complete**: 6/9 tasks ✅
 - Basic CodeView integration and SyntaxManager working
 - File type detection and language support implemented
-- 105+ tests passing with solid error handling
+- Widget lifecycle management with caching and performance optimization
+- Nord color scheme with comprehensive Pygments token mapping
+- Dynamic color scheme configuration system with extensibility
+- 300+ tests passing with comprehensive coverage
 
-**Next Priority**: Task 4.3 - Widget replacement logic that maintains container relationships
+**Next Priority**: Task 6.6 - Verify color visibility against dark background theme
 
 ## Technical Implementation Notes
 
