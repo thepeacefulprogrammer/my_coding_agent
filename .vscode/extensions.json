@@ -1,0 +1,15 @@
+{
+    "recommendations": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "charliermarsh.ruff",
+        "ms-python.mypy-type-checker",
+        "ms-vscode.test-adapter-converter",
+        "editorconfig.editorconfig",
+        "github.vscode-github-actions",
+        "ms-vscode.makefile-tools",
+        "tamasfe.even-better-toml",
+        "redhat.vscode-yaml",
+        "ms-python.black-formatter"
+    ]
+}

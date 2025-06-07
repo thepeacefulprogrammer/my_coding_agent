@@ -1,1 +1,0 @@
-"""Simple Code Viewer - A clean, fast code viewing application.""" 

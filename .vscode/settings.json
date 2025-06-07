@@ -1,0 +1,56 @@
+{
+    "python.defaultInterpreterPath": "./venv/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.linting.enabled": true,
+    "python.linting.ruffEnabled": true,
+    "python.formatting.provider": "ruff",
+    "python.formatting.ruffArgs": [
+        "format"
+    ],
+    "python.linting.mypyEnabled": true,
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": true,
+        "source.fixAll": true
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        ".mypy_cache": true,
+        ".pytest_cache": true,
+        ".ruff_cache": true,
+        "*.egg-info": true
+    },
+    "editor.rulers": [
+        88
+    ],
+    "python.analysis.typeCheckingMode": "strict",
+    // GitHub Actions integration
+    "github-actions.workflows.pinned.workflows": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/docs.yml"
+    ],
+    "github-actions.workflows.pinned.refresh.enabled": true,
+    "github-actions.workflows.pinned.refresh.interval": 30,
+    // Documentation preview
+    "restructuredtext.preview.name": "docs",
+    "restructuredtext.confPath": "${workspaceFolder}/docs/source",
+    // Git integration
+    "git.autofetch": true,
+    "git.enableSmartCommit": true,
+    "git.confirmSync": false,
+    // Performance optimization
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.indexing": true,
+    "python.analysis.packageIndexDepths": [
+        {
+            "name": "my_coding_agent",
+            "depth": 3
+        }
+    ]
+}

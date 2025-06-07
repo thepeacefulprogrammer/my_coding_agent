@@ -1,0 +1,221 @@
+[build-system]
+requires = ["setuptools>=68", "setuptools-scm[toml]>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "my-coding-agent"
+dynamic = ["version"]
+description = "A clean, fast code viewing application with syntax highlighting"
+readme = "README.md"
+license = {file = "LICENSE"}
+authors = [
+    {name = "Randy", email = "randy.herritt@gmail.com"}
+]
+maintainers = [
+    {name = "Randy", email = "randy.herritt@gmail.com"}
+]
+keywords = ["code", "viewer", "syntax", "highlighting", "gui"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Editors",
+    "License :: Other/Proprietary License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9", 
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "Natural Language :: English",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "PyQt6>=6.6.0",
+    "Pygments>=2.17.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.0",
+    "pytest-benchmark>=4.0.0",  # Performance benchmarking
+    "pytest-profiling>=1.7.0",  # Code profiling
+    "pytest-memray>=1.0.0",  # Memory profiling
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+    "pre-commit>=3.0",
+    "build>=1.0",
+    "twine>=4.0",
+    "pydocstyle>=6.3.0",  # Docstring style checking
+    "bandit>=1.7.0",  # Security linting
+    "safety>=3.0.0",  # Dependency vulnerability scanning
+    "pip-audit>=2.6.0",  # Alternative dependency scanner
+]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-mock>=3.0",
+    "pytest-benchmark>=4.0.0",  # Performance benchmarking
+    "pytest-profiling>=1.7.0",  # Code profiling
+    "pytest-memray>=1.0.0",  # Memory profiling
+]
+docs = [
+    "sphinx>=7.0",
+    "sphinx-autodoc-typehints>=1.24",
+    "sphinx-rtd-theme>=1.3",
+    "myst-parser>=2.0",
+    "sphinx-copybutton>=0.5",
+    "sphinx-autoapi>=3.0",
+    "furo>=2023.9.10",  # Modern Sphinx theme
+]
+
+[project.urls]
+Repository = "https://github.com/thepeacefulprogrammer/my_coding_agent"
+"Bug Tracker" = "https://github.com/thepeacefulprogrammer/my_coding_agent/issues"
+
+
+
+# Setuptools configuration
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+my_coding_agent = ["py.typed"]
+
+# Enable setuptools_scm for version management
+[tool.setuptools_scm]
+write_to = "src/my_coding_agent/_version.py"
+
+# Black configuration
+[tool.black]
+line-length = 88
+target-version = ['py38']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.mypy_cache
+  | \.pytest_cache
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+# Ruff configuration (replaces flake8, isort, and others)
+[tool.ruff]
+line-length = 88
+src = ["src"]
+target-version = "py38"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "UP", # pyupgrade
+    "B",  # flake8-bugbear
+    "SIM", # flake8-simplify
+    "I",  # isort
+]
+ignore = [
+    "E501",  # line too long, handled by black
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"tests/**/*" = ["S101"]
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+exclude = [
+    "venv/",
+    "build/",
+    "dist/",
+]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+# Pytest configuration
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["src"]
+branch = true
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/conftest.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+
+[tool.pydocstyle]
+convention = "google"
+add-ignore = ["D100", "D104"]  # Missing docstring in public module/package
+match-dir = "(?!tests).*"  # Don't check test files
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.bandit]
+exclude_dirs = ["tests", "venv", ".venv"]
+skips = ["B101", "B601"]  # Skip assert_used and shell_injection_subprocess (can be noisy)
+
+[tool.bandit.any_other_function_with_shell_equals_true]
+no_shell = [
+    "os.execl",
+    "os.execle",
+    "os.execlp",
+    "os.execlpe",
+    "os.execv",
+    "os.execve",
+    "os.execvp",
+    "os.execvpe",
+    "os.spawnl",
+    "os.spawnle",
+] 
