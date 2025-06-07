@@ -125,5 +125,4 @@ Support
 =======
 
 * 📧 Email: randy.herritt@gmail.com
-* 🐛 Issues: `GitHub Issues <https://github.com/thepeacefulprogrammer/my_coding_agent/issues>`_
-* 💬 Discussions: `GitHub Discussions <https://github.com/thepeacefulprogrammer/my_coding_agent/discussions>`_
+* 🐛 Issues: Please contact via email for now
