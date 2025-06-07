@@ -243,7 +243,7 @@ def benchmark_large_file(temp_dir: Path, large_file_content: str) -> Path:
 
 # Integration test fixtures
 @pytest.fixture
-def integration_test_config() -> dict[str, Any]:
+def integration_test_config() -> Dict[str, Any]:
     """Configuration for integration tests.
 
     Returns:
