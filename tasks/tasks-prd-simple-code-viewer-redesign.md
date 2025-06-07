@@ -14,6 +14,9 @@
 - `src/my_coding_agent/config/settings.py` - Application settings and configuration
 - `src/my_coding_agent/__main__.py` - Main application entry point for python -m execution
 - `tests/test_application_entry.py` - Unit tests for application entry point and configuration
+- `tests/fixtures/gui_fixtures.py` - PyQt6 GUI testing fixtures with QApplication management
+- `tests/fixtures/__init__.py` - Fixtures package initialization
+- `tests/test_gui_fixtures.py` - Unit tests for GUI testing fixtures
 - `src/my_coding_agent/assets/icons/` - File type icons for the file tree
 - `src/my_coding_agent/assets/themes/dark.qss` - Dark mode stylesheet
 - `tests/test_main_window.py` - Unit tests for main window functionality
@@ -41,7 +44,7 @@
   - [x] 1.1 Add PyQt6 and Pygments dependencies to pyproject.toml
   - [x] 1.2 Create core module structure (core/, gui/ directories)
   - [x] 1.3 Set up basic application entry point and configuration
-  - [ ] 1.4 Create base test fixtures for GUI testing with QApplication
+  - [x] 1.4 Create base test fixtures for GUI testing with QApplication
   - [ ] 1.5 Configure assets directory structure for icons and themes
 
 - [ ] 2.0 Main Application Window and Layout System

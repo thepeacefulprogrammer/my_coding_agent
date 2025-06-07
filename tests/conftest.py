@@ -18,6 +18,15 @@ from unittest.mock import Mock
 import pytest
 from PyQt6.QtWidgets import QApplication
 
+# Configure pytest for GUI testing
+pytest_plugins = ["tests.fixtures.gui_fixtures"]
+
+# Import GUI testing fixtures
+from tests.fixtures.gui_fixtures import (
+    qapp_instance, qwidget, qtreeview, qtextedit, 
+    qmainwindow, qsplitter, process_qt_events
+)
+
 
 @pytest.fixture(scope="session")
 def qapp() -> Generator[QApplication, None, None]:
