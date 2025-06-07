@@ -152,11 +152,14 @@ def get_color_scheme(scheme_name):
     Get a specific color scheme by name.
     
     Args:
-        scheme_name (str): Name of the color scheme
+        scheme_name (str or None): Name of the color scheme
         
     Returns:
         dict or None: Color scheme configuration or None if not found
     """
+    if scheme_name is None:
+        return None
+        
     schemes = get_available_color_schemes()
     return schemes.get(scheme_name.lower())
 

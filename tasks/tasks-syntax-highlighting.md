@@ -274,7 +274,18 @@ Based on technical investigation, we've identified that the Chlorophyll library 
   - ✅ **Implementation Fixes:** Fixed import errors in test module and aligned test expectations with actual `load_file()` behavior
   - ✅ **Graceful Degradation:** All error scenarios result in graceful degradation rather than application crashes
   - ✅ All 20 error handling and fallback tests passing, bringing total test count to 366 tests
-- [ ] 7.7 Add regression tests to prevent future syntax highlighting breakage
+- [x] **7.7 Add regression tests to prevent future syntax highlighting breakage**
+  - ✅ Created comprehensive regression test suite in `tests/test_regression_protection.py` with 20 test methods
+  - ✅ **Critical Functionality Protection:** Verified basic widget creation, Python syntax highlighting, lexer detection, Nord color scheme, and token mapping integration
+  - ✅ **Backwards Compatibility Protection:** Ensured CodeEditor constructor, widget creation API, and SyntaxManager API remain compatible
+  - ✅ **Performance Regression Protection:** Validated widget creation speed, lexer detection performance, and cache efficiency thresholds
+  - ✅ **Edge Case Protection:** Tested None scrollbar handling, empty filename handling, widget replacement state preservation, and rapid operations
+  - ✅ **Integration Stability Protection:** Verified color scheme integration, caching integration, and TokenMapper integration stability
+  - ✅ **Memory Stability Protection:** Tested widget destruction cleanup, cache memory management, and memory leak prevention
+  - ✅ **Implementation Fixes:** Fixed TokenMapper constructor requirements, widget replacement testing, color scheme validation, and Pygments token handling
+  - ✅ **Performance Thresholds:** Widget creation <100ms average, lexer detection <1s for 100 files, cache performance maintained
+  - ✅ **Error Resilience:** All tests designed to catch regressions and prevent breaking changes in critical functionality
+  - ✅ All 20 regression protection tests passing, bringing total test count to 386 tests
 
 ## Remaining Work from Original Tasks
 
