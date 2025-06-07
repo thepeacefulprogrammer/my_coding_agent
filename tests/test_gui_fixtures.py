@@ -49,7 +49,7 @@ def test_qapp_instance_fixture_exists() -> None:
         # Check that it's callable (fixtures are functions)
         assert callable(qapp_instance), "qapp_instance fixture is not callable"
         # Check for pytest fixture markers (pytest wraps fixtures)
-        assert "pytest_fixture" in str(type(qapp_instance)) or hasattr(
+        assert "FixtureFunctionDefinition" in str(type(qapp_instance)) or hasattr(
             qapp_instance, "_pytest_fixture"
         ), "qapp_instance is not properly configured as a pytest fixture"
 
@@ -69,7 +69,7 @@ def test_qwidget_fixture_exists() -> None:
         # Check that it's callable (fixtures are functions)
         assert callable(qwidget), "qwidget fixture is not callable"
         # Check for pytest fixture markers (pytest wraps fixtures)
-        assert "pytest_fixture" in str(type(qwidget)) or hasattr(
+        assert "FixtureFunctionDefinition" in str(type(qwidget)) or hasattr(
             qwidget, "_pytest_fixture"
         ), "qwidget is not properly configured as a pytest fixture"
 
@@ -89,7 +89,7 @@ def test_qtreeview_fixture_exists() -> None:
         # Check that it's callable (fixtures are functions)
         assert callable(qtreeview), "qtreeview fixture is not callable"
         # Check for pytest fixture markers (pytest wraps fixtures)
-        assert "pytest_fixture" in str(type(qtreeview)) or hasattr(
+        assert "FixtureFunctionDefinition" in str(type(qtreeview)) or hasattr(
             qtreeview, "_pytest_fixture"
         ), "qtreeview is not properly configured as a pytest fixture"
 
