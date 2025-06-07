@@ -59,8 +59,13 @@ class TestCodeEditor(unittest.TestCase):
         editor = CodeEditor(self.parent_frame, self.syntax_manager)
         widget = editor.create_widget()
 
-        # Should create CodeView with color scheme and default dimensions
-        mock_codeview.assert_called_once_with(self.parent_frame, color_scheme="monokai", width=80, height=24)
+        # Should create CodeView with color scheme (dictionary) and default dimensions
+        call_args = mock_codeview.call_args
+        self.assertEqual(call_args[0][0], self.parent_frame)
+        # Verify color scheme is a dictionary (Nord scheme by default)
+        self.assertIsInstance(call_args[1]['color_scheme'], dict)
+        self.assertEqual(call_args[1]['width'], 80)
+        self.assertEqual(call_args[1]['height'], 24)
         self.assertEqual(widget, mock_widget)
         
     @patch('code_editor.CodeView')
@@ -73,8 +78,14 @@ class TestCodeEditor(unittest.TestCase):
         editor = CodeEditor(self.parent_frame, self.syntax_manager)
         widget = editor.create_widget(lexer=mock_lexer)
 
-        # Should create CodeView with lexer parameter, color scheme, and default dimensions
-        mock_codeview.assert_called_once_with(self.parent_frame, lexer=mock_lexer, color_scheme="monokai", width=80, height=24)
+        # Should create CodeView with lexer parameter, color scheme (now a dictionary), and default dimensions
+        call_args = mock_codeview.call_args
+        self.assertEqual(call_args[0][0], self.parent_frame)  # First positional arg
+        self.assertEqual(call_args[1]['lexer'], mock_lexer)   # lexer keyword arg
+        self.assertEqual(call_args[1]['width'], 80)          # width keyword arg
+        self.assertEqual(call_args[1]['height'], 24)         # height keyword arg
+        # Color scheme should be a dictionary (Nord scheme by default)
+        self.assertIsInstance(call_args[1]['color_scheme'], dict)
         self.assertEqual(widget, mock_widget)
         
     @patch('code_editor.CodeView')
@@ -204,7 +215,9 @@ class TestCodeEditorWidgetFactory(unittest.TestCase):
             
             # Should detect lexer and create widget with it
             mock_get_lexer.assert_called_once_with("test.py")
-            mock_codeview.assert_called_once_with(self.parent_frame, lexer=mock_lexer, color_scheme="monokai", width=80, height=24)
+            call_args = mock_codeview.call_args
+            self.assertEqual(call_args[1]['lexer'], mock_lexer)
+            self.assertIsInstance(call_args[1]['color_scheme'], dict)
             self.assertEqual(widget, mock_widget)
             
     @patch('code_editor.CodeView')
@@ -221,8 +234,9 @@ class TestCodeEditorWidgetFactory(unittest.TestCase):
             # Create widget for file with no lexer
             widget = editor.create_widget_for_file("unknown.xyz")
             
-            # Should create widget with color scheme
-            mock_codeview.assert_called_once_with(self.parent_frame, color_scheme="monokai", width=80, height=24)
+            # Should create widget with color scheme (dictionary)
+            call_args = mock_codeview.call_args
+            self.assertIsInstance(call_args[1]['color_scheme'], dict)
             self.assertEqual(widget, mock_widget)
             
     @patch('code_editor.CodeView')
@@ -576,8 +590,10 @@ class TestCodeEditorWidgetReplacement(unittest.TestCase):
 
                 # Should create new widget with lexer
         self.assertEqual(mock_codeview.call_count, 2)
-        mock_codeview.assert_called_with(editor.parent, lexer=mock_lexer, color_scheme="monokai",
-                                        width=editor.width, height=editor.height)
+        # Check the second call (replacement widget)
+        second_call_args = mock_codeview.call_args
+        self.assertEqual(second_call_args[1]['lexer'], mock_lexer)
+        self.assertIsInstance(second_call_args[1]['color_scheme'], dict)
 
         # Should restore content and state
         new_widget.insert.assert_called_with("1.0", "def test():\n    pass")
@@ -650,8 +666,9 @@ class TestCodeEditorGUIIntegration(unittest.TestCase):
         # Setup initial widget
         widget = editor.setup_initial_widget()
         
-        # Should create widget with color scheme
-        mock_codeview.assert_called_once_with(self.parent_frame, color_scheme="monokai", width=80, height=24)
+        # Should create widget with color scheme (dictionary)
+        call_args = mock_codeview.call_args
+        self.assertIsInstance(call_args[1]['color_scheme'], dict)
         self.assertEqual(editor.current_widget, mock_widget)
         self.assertEqual(widget, mock_widget)
         

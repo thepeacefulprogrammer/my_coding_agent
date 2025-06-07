@@ -1,0 +1,105 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Project Organization Rules
+
+## File Placement Guidelines
+
+### Root Directory Policy
+**NEVER** place the following file types directly in the project root:
+- Python scripts (`.py` files) except for essential entry points
+- Debug/testing scripts
+- Temporary utility scripts
+- Example/demo files
+- Tool scripts
+
+### Required Directory Structure
+
+#### `/src/` - Source Code
+- All main application source code
+- Core modules and packages
+- Production code only
+
+#### `/tests/` - Test Code  
+- Unit tests
+- Integration tests
+- Test fixtures
+- All files with `test_` prefix or `_test` suffix
+
+#### `/examples/` - Example Files
+- Demo scripts
+- Sample applications
+- Tutorial code
+- Manual test applications
+- Files like `demo_*.py`, `example_*.py`, `*_demo.py`
+
+#### `/tools/` - Utility Scripts
+- Debug scripts
+- Build tools
+- Development utilities
+- CI/CD scripts
+- Files like `debug_*.py`, `fix_*.py`, `tool_*.py`
+
+#### `/tasks/` - Project Management
+- Task lists
+- Project documentation
+- Implementation tracking
+
+#### `/docs/` - Documentation (if needed)
+- API documentation
+- User guides
+- Technical specifications
+
+### Root Directory - Allowed Files Only
+- `README.md` - Project overview
+- `requirements.txt` - Dependencies
+- `pytest.ini` - Test configuration
+- `.env*` - Environment files
+- `.gitignore` - Git configuration
+- `setup.py` / `pyproject.toml` - Package configuration (if needed)
+
+### Enforcement Rules
+
+1. **Before creating any `.py` file**, ask yourself:
+   - Is this a core source file? → `/src/`
+   - Is this a test? → `/tests/`
+   - Is this an example/demo? → `/examples/`
+   - Is this a debug/utility tool? → `/tools/`
+
+2. **Never place temporary files at root**
+   - Use appropriate subdirectories
+   - Clean up temporary files when done
+
+3. **When creating new scripts**, explicitly specify the target directory:
+   - `tools/debug_something.py` ✅
+   - `examples/demo_feature.py` ✅  
+   - `debug_something.py` ❌
+
+4. **File naming conventions**:
+   - Debug scripts: `tools/debug_*.py`
+   - Example files: `examples/example_*.py` or `examples/*_demo.py`
+   - Test files: `tests/test_*.py`
+   - Utility tools: `tools/tool_*.py` or `tools/*_tool.py`
+
+### Migration Guideline
+If files are found in wrong locations:
+```bash
+# Move debug/utility scripts
+mv debug_*.py fix_*.py tools/
+
+# Move examples/demos  
+mv demo_*.py example_*.py test_live_*.py examples/
+
+# Move tests
+mv test_*.py tests/
+```
+
+## Reasoning
+This organization:
+- Keeps the root clean and professional
+- Makes it easy to find files by purpose
+- Follows Python project conventions
+- Improves maintainability
+- Prevents accidental commits of temporary files

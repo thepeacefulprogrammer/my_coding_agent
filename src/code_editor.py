@@ -350,6 +350,9 @@ class CodeEditor:
             except (tk.TclError, AttributeError) as e:
                 # Log error but don't fail widget creation
                 print(f"Warning: Scrollbar configuration failed: {e}")
+            except Exception as e:
+                # Handle any other scrollbar configuration errors gracefully
+                print(f"Warning: Unexpected scrollbar error: {e}")
                 
     def grid_widget(self, widget, **grid_options):
         """Configure widget grid layout with default or custom options."""
@@ -764,7 +767,7 @@ class CodeEditor:
                     if old_scrollbar_state:
                         self.apply_scrollbar_state(new_widget, old_scrollbar_state)
                     else:
-                        self.enhanced_scrollbar_reconnection(old_widget, new_widget)
+                        self.enhanced_scrollbar_reconnection(old_widget, new_widget, lexer)
                 except Exception:
                     # Scrollbar reconnection failed, try basic configuration
                     try:
