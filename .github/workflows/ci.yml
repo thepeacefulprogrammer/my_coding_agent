@@ -21,6 +21,22 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    - name: Install system dependencies for PyQt6
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          libegl1-mesa \
+          libxkbcommon-x11-0 \
+          libxcb-icccm4 \
+          libxcb-image0 \
+          libxcb-keysyms1 \
+          libxcb-randr0 \
+          libxcb-render-util0 \
+          libxcb-xinerama0 \
+          libfontconfig1 \
+          libxcb-xfixes0 \
+          xvfb
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -37,7 +53,9 @@ jobs:
     #   run: mypy .
 
     - name: Run tests
-      run: pytest --cov=my_coding_agent --cov-report=xml
+      run: xvfb-run -a pytest --cov=my_coding_agent --cov-report=xml
+      env:
+        QT_QPA_PLATFORM: offscreen
 
     - name: Upload coverage to Codecov
       if: matrix.python-version == '3.11'

@@ -34,6 +34,9 @@ def qapp() -> Generator[QApplication, None, None]:
     Yields:
         QApplication instance for use in GUI tests.
     """
+    # Set up headless environment
+    os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
     # Check if QApplication already exists
     app = QApplication.instance()
     if app is None:
