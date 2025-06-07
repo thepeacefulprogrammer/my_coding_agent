@@ -219,7 +219,21 @@ Based on technical investigation, we've identified that the Chlorophyll library 
   - ✅ Tests cover performance with large content and Nord color scheme token mapping
   - ✅ Fixed import issues in `src/code_editor.py` and `src/token_mapper.py` for proper module resolution
   - ✅ All 7 syntax highlighting integration tests passing
-- [ ] 7.3 Add visual verification tests using manual test application
+- [x] **7.3 Add visual verification tests using manual test application**
+  - ✅ Created comprehensive visual test application in `examples/test_live_syntax_highlighting.py`
+  - ✅ Built GUI application with language selection, sample code loading, and file loading capabilities
+  - ✅ Included sample code for 6 programming languages: Python, JavaScript, HTML, CSS, JSON, Markdown
+  - ✅ Each sample demonstrates language-specific syntax features for comprehensive highlighting verification
+  - ✅ Added color scheme switching functionality (Nord, Monokai) for visual comparison
+  - ✅ Implemented automated testing mode that cycles through all languages
+  - ✅ Added file loading capability to test syntax highlighting with user files
+  - ✅ Fixed geometry manager conflicts by using proper grid/pack layout separation
+  - ✅ Created comprehensive test suite in `tests/test_visual_verification.py` with 14 test methods
+  - ✅ Tests verify sample code content, language features, file extension mapping, and application functionality
+  - ✅ All sample code includes realistic syntax examples: classes, functions, imports, decorators, async/await, etc.
+  - ✅ Visual application provides clear instructions and expected results for manual verification
+  - ✅ Application starts without errors and displays syntax highlighting correctly
+  - ✅ All 14 visual verification tests passing, bringing total test count to 319 tests
 - [ ] 7.4 Test widget replacement performance and memory usage
 - [ ] 7.5 Verify scrollbar functionality and state preservation
 - [ ] 7.6 Test error handling and fallback scenarios
