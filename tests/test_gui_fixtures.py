@@ -46,10 +46,12 @@ def test_qapp_instance_fixture_exists() -> None:
     try:
         from tests.fixtures.gui_fixtures import qapp_instance
 
-        # Check that it's a pytest fixture
-        assert hasattr(qapp_instance, "_fixture_function") or "_pytest.fixtures" in str(
-            type(qapp_instance)
-        ), "qapp_instance is not properly configured as a pytest fixture"
+        # Check that it's callable (fixtures are functions)
+        assert callable(qapp_instance), "qapp_instance fixture is not callable"
+        # Check for pytest fixture markers
+        assert hasattr(qapp_instance, "_pytestfixturefunction"), (
+            "qapp_instance is not properly configured as a pytest fixture"
+        )
 
     except ImportError as e:
         pytest.fail(f"qapp_instance fixture not found: {e}")
@@ -64,10 +66,12 @@ def test_qwidget_fixture_exists() -> None:
     try:
         from tests.fixtures.gui_fixtures import qwidget
 
-        # Check that it's a pytest fixture
-        assert hasattr(qwidget, "_fixture_function") or "_pytest.fixtures" in str(
-            type(qwidget)
-        ), "qwidget is not properly configured as a pytest fixture"
+        # Check that it's callable (fixtures are functions)
+        assert callable(qwidget), "qwidget fixture is not callable"
+        # Check for pytest fixture markers
+        assert hasattr(qwidget, "_pytestfixturefunction"), (
+            "qwidget is not properly configured as a pytest fixture"
+        )
 
     except ImportError as e:
         pytest.fail(f"qwidget fixture not found: {e}")
@@ -82,10 +86,12 @@ def test_qtreeview_fixture_exists() -> None:
     try:
         from tests.fixtures.gui_fixtures import qtreeview
 
-        # Check that it's a pytest fixture
-        assert hasattr(qtreeview, "_fixture_function") or "_pytest.fixtures" in str(
-            type(qtreeview)
-        ), "qtreeview is not properly configured as a pytest fixture"
+        # Check that it's callable (fixtures are functions)
+        assert callable(qtreeview), "qtreeview fixture is not callable"
+        # Check for pytest fixture markers
+        assert hasattr(qtreeview, "_pytestfixturefunction"), (
+            "qtreeview is not properly configured as a pytest fixture"
+        )
 
     except ImportError as e:
         pytest.fail(f"qtreeview fixture not found: {e}")
