@@ -50,6 +50,10 @@ __author__ = "Randy Herritt"
 __email__ = "randy.herritt@gmail.com"
 __license__ = "Proprietary"
 
+# Import submodules
+from . import core
+from . import gui
+
 # Type checking imports to avoid circular dependencies
 if TYPE_CHECKING:
     from .core.viewer import CodeViewer
@@ -60,6 +64,8 @@ __all__ = [
     "__author__",
     "__email__",
     "__license__",
+    "core",
+    "gui",
     # Main components will be added as they're implemented
     # "CodeViewer", 
     # "AIAgent",
