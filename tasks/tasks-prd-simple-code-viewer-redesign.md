@@ -49,13 +49,13 @@
   - [x] 1.4 Create base test fixtures for GUI testing with QApplication
   - [x] 1.5 Configure assets directory structure for icons and themes
 
-- [ ] 2.0 Main Application Window and Layout System
-  - [ ] 2.1 Create MainWindow class inheriting from QMainWindow
-  - [ ] 2.2 Implement split layout with QSplitter (30% left, 70% right panels)
-  - [ ] 2.3 Add status bar for displaying current file path and information
-  - [ ] 2.4 Implement window state persistence (size, splitter position)
-  - [ ] 2.5 Add basic menu bar with File menu and keyboard shortcuts
-  - [ ] 2.6 Write comprehensive unit tests for main window functionality
+- [x] 2.0 Main Application Window and Layout System
+  - [x] 2.1 Create MainWindow class inheriting from QMainWindow
+  - [x] 2.2 Implement split layout with QSplitter (30% left, 70% right panels)
+  - [x] 2.3 Add status bar for displaying current file path and information
+  - [x] 2.4 Implement window state persistence (size, splitter position)
+  - [x] 2.5 Add basic menu bar with File menu and keyboard shortcuts
+  - [x] 2.6 Write comprehensive unit tests for main window functionality
 
 - [ ] 3.0 File Tree Navigation Component
   - [ ] 3.1 Create FileTreeModel class using QFileSystemModel
