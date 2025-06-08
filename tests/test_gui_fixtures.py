@@ -112,10 +112,14 @@ def test_qtextedit_fixture_exists() -> None:
     try:
         from tests.fixtures.gui_fixtures import qtextedit
 
-        # Check that it's a pytest fixture
-        assert hasattr(qtextedit, "_fixture_function") or "_pytest.fixtures" in str(
+        # Check that it's callable (fixtures are functions)
+        assert callable(qtextedit), "qtextedit fixture is not callable"
+        # Check for pytest fixture markers (check for modern pytest fixture attributes)
+        assert hasattr(qtextedit, "_pytestfixturefunction") or str(
             type(qtextedit)
-        ), "qtextedit is not properly configured as a pytest fixture"
+        ).startswith("<class '_pytest."), (
+            "qtextedit is not properly configured as a pytest fixture"
+        )
 
     except ImportError as e:
         pytest.fail(f"qtextedit fixture not found: {e}")
@@ -214,14 +218,18 @@ def test_additional_fixtures_exist() -> None:
         assert callable(qmainwindow), "qmainwindow fixture is not callable"
         assert callable(qsplitter), "qsplitter fixture is not callable"
 
-        # Check that they're pytest fixtures
-        assert hasattr(qmainwindow, "_fixture_function") or "_pytest.fixtures" in str(
+        # Check that they're pytest fixtures (check for modern pytest fixture attributes)
+        assert hasattr(qmainwindow, "_pytestfixturefunction") or str(
             type(qmainwindow)
-        ), "qmainwindow is not properly configured as a pytest fixture"
+        ).startswith("<class '_pytest."), (
+            "qmainwindow is not properly configured as a pytest fixture"
+        )
 
-        assert hasattr(qsplitter, "_fixture_function") or "_pytest.fixtures" in str(
+        assert hasattr(qsplitter, "_pytestfixturefunction") or str(
             type(qsplitter)
-        ), "qsplitter is not properly configured as a pytest fixture"
+        ).startswith("<class '_pytest."), (
+            "qsplitter is not properly configured as a pytest fixture"
+        )
 
     except ImportError as e:
         pytest.fail(f"Additional GUI fixtures not found: {e}")
