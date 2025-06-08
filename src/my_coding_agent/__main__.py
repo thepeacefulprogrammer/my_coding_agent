@@ -244,16 +244,34 @@ def main(argv: Optional[List[str]] = None) -> None:
     # Configure settings from arguments
     settings = configure_settings_from_args(args)
 
-    # For now, just print configuration - GUI will be implemented in later tasks
+    # Import GUI components
+    from PyQt6.QtWidgets import QApplication
+
+    from .core.main_window import MainWindow
+
+    # Create QApplication
+    app = QApplication(sys.argv)
+
+    # Print configuration info
     print("My Coding Agent - Simple Code Viewer")
     print(f"Opening directory: {directory}")
     print(f"Theme: {settings.theme}")
     print(f"Font: {settings.font_family} {settings.font_size}pt")
     print(f"Window size: {settings.window_width}x{settings.window_height}")
     print(f"Configuration: {settings.config_dir}")
-    print()
-    print("GUI interface will be implemented in upcoming tasks.")
-    print("This entry point and configuration system are now ready!")
+    print("Starting GUI...")
+
+    # Create and show the main window
+    main_window = MainWindow()
+
+    # Apply settings to window
+    if hasattr(settings, "window_width") and hasattr(settings, "window_height"):
+        main_window.resize(settings.window_width, settings.window_height)
+
+    main_window.show()
+
+    # Start the application event loop
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":

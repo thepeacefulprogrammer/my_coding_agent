@@ -45,8 +45,8 @@ class MainWindow(QMainWindow):
         # Set minimum size
         self.setMinimumSize(QSize(800, 600))
 
-        # Set default size
-        self.resize(QSize(1000, 700))
+        # Set default size - ensure we meet minimum expectations
+        self.resize(QSize(1200, 800))
 
     def _setup_ui(self) -> None:
         """Set up the user interface components."""
@@ -60,10 +60,26 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Orientation.Horizontal)
         self.setCentralWidget(splitter)
 
-        # Create left panel (will hold file tree)
+        # Create left panel with file tree
         left_panel = QFrame()
         left_panel.setFrameStyle(QFrame.Shape.StyledPanel)
         left_panel.setLineWidth(1)
+
+        # Add file tree widget to left panel
+        from PyQt6.QtWidgets import QVBoxLayout
+
+        from .file_tree import FileTreeWidget
+
+        left_layout = QVBoxLayout(left_panel)
+        left_layout.setContentsMargins(5, 5, 5, 5)  # Small margins
+
+        self._file_tree = FileTreeWidget()
+        # Set the file tree to show the current working directory
+        import os
+
+        self._file_tree.set_root_directory(os.getcwd())
+
+        left_layout.addWidget(self._file_tree)
 
         # Create right panel (will hold code viewer)
         right_panel = QFrame()
@@ -76,7 +92,7 @@ class MainWindow(QMainWindow):
 
         # Set initial sizes for 30%/70% split
         # Calculate based on default window width (1000px)
-        left_width = int(1000 * 0.3)   # 300px
+        left_width = int(1000 * 0.3)  # 300px
         right_width = int(1000 * 0.7)  # 700px
         splitter.setSizes([left_width, right_width])
 
@@ -122,7 +138,8 @@ class MainWindow(QMainWindow):
         # Create Exit action
         exit_action = QAction("E&xit", self)
         exit_action.setObjectName("exit_action")
-        exit_action.setShortcut(QKeySequence.StandardKey.Quit)  # Ctrl+Q
+        # Set shortcut explicitly to ensure it works in all environments
+        exit_action.setShortcut(QKeySequence("Ctrl+Q"))
         exit_action.setStatusTip("Exit the application")
         exit_action.setToolTip("Exit the application (Ctrl+Q)")
         exit_action.triggered.connect(self.close)
@@ -136,7 +153,7 @@ class MainWindow(QMainWindow):
         """Handle Open File action. This is a placeholder for now."""
         # TODO: Implement file opening functionality in a future task
         # For now, just show a status message
-        if hasattr(self, '_file_path_label'):
+        if hasattr(self, "_file_path_label"):
             self._file_path_label.setText("Open file functionality not yet implemented")
 
         # This method will be expanded when implementing file tree and code viewer
@@ -162,7 +179,7 @@ class MainWindow(QMainWindow):
         Args:
             file_path: Path to the currently selected file
         """
-        if hasattr(self, '_file_path_label'):
+        if hasattr(self, "_file_path_label"):
             self._file_path_label.setText(f"File: {file_path}")
 
     def update_file_info_display(self, file_info: str) -> None:
@@ -171,14 +188,14 @@ class MainWindow(QMainWindow):
         Args:
             file_info: Information about the file (type, size, lines, etc.)
         """
-        if hasattr(self, '_file_info_label'):
+        if hasattr(self, "_file_info_label"):
             self._file_info_label.setText(file_info)
 
     def clear_file_display(self) -> None:
         """Clear the file displays and return to initial state."""
-        if hasattr(self, '_file_path_label'):
+        if hasattr(self, "_file_path_label"):
             self._file_path_label.setText("No file selected")
-        if hasattr(self, '_file_info_label'):
+        if hasattr(self, "_file_info_label"):
             self._file_info_label.setText("Ready")
 
     def _setup_settings(self) -> None:
@@ -190,7 +207,7 @@ class MainWindow(QMainWindow):
 
     def save_window_state(self) -> None:
         """Save the current window state (geometry, splitter positions) to settings."""
-        if not hasattr(self, '_settings'):
+        if not hasattr(self, "_settings"):
             return
 
         # Save window geometry (size and position)
@@ -198,13 +215,13 @@ class MainWindow(QMainWindow):
         self._settings.setValue("window_state", self.saveState())
 
         # Save splitter sizes
-        if hasattr(self, '_splitter'):
+        if hasattr(self, "_splitter"):
             splitter_sizes = self._splitter.sizes()
             self._settings.setValue("splitter_sizes", splitter_sizes)
 
     def restore_window_state(self) -> None:
         """Restore window state from settings, using defaults if none exist."""
-        if not hasattr(self, '_settings'):
+        if not hasattr(self, "_settings"):
             return
 
         try:
@@ -219,18 +236,22 @@ class MainWindow(QMainWindow):
                 self.restoreState(window_state)
 
             # Restore splitter sizes
-            if hasattr(self, '_splitter'):
+            if hasattr(self, "_splitter"):
                 splitter_sizes = self._settings.value("splitter_sizes")
-                if splitter_sizes is not None and isinstance(splitter_sizes, list) and len(splitter_sizes) == 2:
-                        try:
-                            # Convert to integers if they're strings
-                            splitter_list = cast(List[Any], splitter_sizes)
-                            sizes: List[int] = [int(size) for size in splitter_list]
-                            if all(size > 0 for size in sizes):
-                                self._splitter.setSizes(sizes)
-                        except (ValueError, TypeError):
-                            # If conversion fails, keep default sizes
-                            pass
+                if (
+                    splitter_sizes is not None
+                    and isinstance(splitter_sizes, list)
+                    and len(splitter_sizes) == 2
+                ):
+                    try:
+                        # Convert to integers if they're strings
+                        splitter_list = cast(List[Any], splitter_sizes)
+                        sizes: List[int] = [int(size) for size in splitter_list]
+                        if all(size > 0 for size in sizes):
+                            self._splitter.setSizes(sizes)
+                    except (ValueError, TypeError):
+                        # If conversion fails, keep default sizes
+                        pass
 
         except Exception:
             # If any restoration fails, use defaults (no action needed)

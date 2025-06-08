@@ -58,9 +58,9 @@
   - [x] 2.6 Write comprehensive unit tests for main window functionality
 
 - [ ] 3.0 File Tree Navigation Component
-  - [ ] 3.1 Create FileTreeModel class using QFileSystemModel
-  - [ ] 3.2 Implement FileTreeWidget with QTreeView for directory navigation
-  - [ ] 3.3 Add file type icons and folder expand/collapse functionality
+  - [x] 3.1 Create FileTreeModel class using QFileSystemModel
+  - [x] 3.2 Implement FileTreeWidget with QTreeView for directory navigation
+  - [x] 3.3 Add file type icons and folder expand/collapse functionality
   - [ ] 3.4 Implement file selection handling and click-to-open behavior
   - [ ] 3.5 Add context menu for file tree (refresh, expand all, collapse all)
   - [ ] 3.6 Handle edge cases (permission errors, network drives, symlinks)

@@ -197,6 +197,18 @@ def setup_test_environment() -> Generator[None, None, None]:
     # Store original environment
     original_env = os.environ.copy()
 
+    # Clear any existing QSettings to avoid test interference
+    try:
+        from PyQt6.QtCore import QSettings
+
+        # Clear settings for the main application
+        settings = QSettings("MyCodeViewerApp", "SimpleCodeViewer")
+        settings.clear()
+        settings.sync()
+    except ImportError:
+        # PyQt6 not available, skip settings cleanup
+        pass
+
     # Set test-specific environment variables
     os.environ["MY_CODING_AGENT_ENV"] = "testing"
     os.environ["MY_CODING_AGENT_DEBUG"] = "false"
