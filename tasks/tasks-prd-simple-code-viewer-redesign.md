@@ -5,7 +5,7 @@
 - `src/my_coding_agent/core/__init__.py` - Core module initialization
 - `src/my_coding_agent/core/main_window.py` - Main application window class using PyQt6
 - `src/my_coding_agent/core/file_tree.py` - File tree navigation widget and model
-- `src/my_coding_agent/core/code_viewer.py` - Code viewing widget with syntax highlighting
+- `src/my_coding_agent/core/code_viewer.py` - Code viewing widget with syntax highlighting, comprehensive file loading error handling, and smooth scrolling
 - `src/my_coding_agent/core/syntax_highlighter.py` - Pygments integration for syntax highlighting
 - `src/my_coding_agent/core/theme_manager.py` - Dark mode theme management
 - `src/my_coding_agent/gui/__init__.py` - GUI module initialization
@@ -21,8 +21,9 @@
 - `src/my_coding_agent/assets/themes/dark.qss` - Dark mode stylesheet
 - `tests/test_main_window.py` - Unit tests for main window functionality
 - `tests/test_file_tree.py` - Unit tests for file tree navigation
-- `tests/test_code_viewer.py` - Unit tests for code viewer widget
-- `tests/test_syntax_highlighter.py` - Unit tests for syntax highlighting
+- `tests/test_code_viewer.py` - Comprehensive unit tests for code viewer widget, syntax highlighting, and edge cases
+- `tests/test_syntax_highlighter.py` - Unit tests for PygmentsSyntaxHighlighter class
+- `tests/test_file_loading_error_handling.py` - Unit tests for comprehensive file loading error handling
 - `tests/test_theme_manager.py` - Unit tests for theme management
 - `tests/fixtures/sample_code/` - Sample code files for testing (Python, JavaScript)
 - `tests/test_dependencies.py` - Unit tests for verifying PyQt6 and Pygments availability
@@ -68,24 +69,19 @@
   - [x] 3.6 Handle edge cases (permission errors, network drives, symlinks)
   - [x] 3.7 Write unit tests for file tree model and widget interactions
 
-- [ ] 4.0 Code Viewer with Syntax Highlighting
+- [x] 4.0 Code Viewer with Syntax Highlighting
   - [x] 4.1 Create CodeViewerWidget class using QTextEdit in read-only mode
   - [x] 4.2 Integrate Pygments syntax highlighter for Python and JavaScript
   - [x] 4.3 Implement line numbers widget that syncs with text scrolling
-  - [ ] 4.4 Add support for large file handling (up to 10MB) with lazy loading
-  - [ ] 4.5 Create SyntaxHighlighter class to bridge Pygments with Qt
-  - [ ] 4.6 Implement file loading with error handling (encoding, file not found)
-  - [ ] 4.7 Add horizontal and vertical scrollbars with smooth scrolling
-  - [ ] 4.8 Write unit tests for code viewer widget and syntax highlighting
+  - [x] 4.4 Add support for large file handling (up to 10MB) with lazy loading
+  - [x] 4.5 Create SyntaxHighlighter class to bridge Pygments with Qt
+  - [x] 4.6 Implement file loading with error handling (encoding, file not found)
+  - [x] 4.7 Add horizontal and vertical scrollbars with smooth scrolling
+  - [x] 4.8 Write unit tests for code viewer widget and syntax highlighting
 
 - [ ] 5.0 UI Polish, Dark Mode Theme, and Performance Optimization
   - [x] 5.1 Create ThemeManager class for dark mode styling
   - [x] 5.2 Design and implement dark theme QSS stylesheet
   - [ ] 5.3 Add file type specific icons for Python, JavaScript, and generic files
   - [ ] 5.4 Implement performance optimizations for file tree scanning
-  - [ ] 5.5 Add memory usage monitoring and optimization for large files
-  - [ ] 5.6 Implement startup time optimization (target <2 seconds)
-  - [ ] 5.7 Add comprehensive error handling and user feedback messages
-  - [ ] 5.8 Write integration tests for complete application workflow
-  - [ ] 5.9 Perform cross-platform testing (Linux, Windows, macOS compatibility)
-  - [ ] 5.10 Create user documentation and developer setup guide
+  - [ ] 5.5 Write integration tests for complete application workflow

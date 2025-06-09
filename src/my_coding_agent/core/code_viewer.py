@@ -301,9 +301,24 @@ class CodeViewerWidget(QWidget):
             4 * self._text_edit.fontMetrics().horizontalAdvance(" ")
         )
 
+        # Configure smooth scrolling
+        self._configure_smooth_scrolling()
+
         # Track current file and language
         self._current_file: Optional[Path] = None
         self._current_language = "text"
+
+        # Error tracking
+        self._last_load_error: Optional[dict] = None
+
+        # Large file handling
+        self._large_file_threshold = 10 * 1024 * 1024  # 10MB
+        self._is_large_file = False
+        self._is_lazy_loading = False
+        self._file_size = 0
+        self._loaded_chunks = 0
+        self._chunk_size = 1024 * 1024  # 1MB chunks
+        self._full_content = ""
 
         # Initialize syntax highlighter
         document = self._text_edit.document()
@@ -321,6 +336,9 @@ class CodeViewerWidget(QWidget):
 
         # Ensure line numbers widget has the correct font
         self._line_numbers.setFont(font)
+
+        # Ensure line numbers are visible by default
+        self._line_numbers.setVisible(True)
 
         # Add widgets to layout
         layout.addWidget(self._line_numbers)
@@ -347,6 +365,26 @@ class CodeViewerWidget(QWidget):
         """Get vertical scroll bar."""
         return self._text_edit.verticalScrollBar()
 
+    def horizontalScrollBar(self):
+        """Get horizontal scroll bar."""
+        return self._text_edit.horizontalScrollBar()
+
+    def setVerticalScrollBarPolicy(self, policy):
+        """Set vertical scrollbar policy."""
+        return self._text_edit.setVerticalScrollBarPolicy(policy)
+
+    def setHorizontalScrollBarPolicy(self, policy):
+        """Set horizontal scrollbar policy."""
+        return self._text_edit.setHorizontalScrollBarPolicy(policy)
+
+    def verticalScrollBarPolicy(self):
+        """Get vertical scrollbar policy."""
+        return self._text_edit.verticalScrollBarPolicy()
+
+    def horizontalScrollBarPolicy(self):
+        """Get horizontal scrollbar policy."""
+        return self._text_edit.horizontalScrollBarPolicy()
+
     def selectAll(self) -> None:
         """Select all text."""
         self._text_edit.selectAll()
@@ -361,7 +399,7 @@ class CodeViewerWidget(QWidget):
 
     def load_file(self, file_path) -> bool:
         """
-        Load a file into the code viewer.
+        Load a file into the code viewer with comprehensive error handling.
 
         Args:
             file_path: Path to the file to load (str or Path object)
@@ -372,25 +410,93 @@ class CodeViewerWidget(QWidget):
         if isinstance(file_path, str):
             file_path = Path(file_path)
 
+        # Reset previous error state
+        self._last_load_error = None
+
+        # Validate file existence
         if not file_path.exists():
+            self._last_load_error = {
+                "error_type": "file_not_found",
+                "message": f"File not found: {file_path}",
+                "file_path": str(file_path),
+            }
             return False
 
+        # Validate it's a file (not directory)
         if not file_path.is_file():
+            self._last_load_error = {
+                "error_type": "not_a_file",
+                "message": f"Path is not a file: {file_path}",
+                "file_path": str(file_path),
+            }
             return False
 
         try:
-            # Try multiple encodings
+            # Check file size for large file handling
+            self._file_size = file_path.stat().st_size
+            self._is_large_file = self._file_size > self._large_file_threshold
+
+            # Reset lazy loading state
+            self._is_lazy_loading = False
+            self._loaded_chunks = 0
+            self._full_content = ""
+
+            # Try multiple encodings with detailed error tracking
             encodings = ["utf-8", "latin-1", "cp1252", "iso-8859-1"]
             content = None
+            encoding_errors = []
 
-            for encoding in encodings:
-                try:
-                    content = file_path.read_text(encoding=encoding)
-                    break
-                except UnicodeDecodeError:
-                    continue
+            if self._is_large_file:
+                # For large files, implement lazy loading
+                self._is_lazy_loading = True
+                content = self._load_file_chunk(file_path, 0, encodings)
+                if content is None:
+                    self._last_load_error = {
+                        "error_type": "encoding_error",
+                        "message": f"Could not decode large file with any supported encoding: {', '.join(encodings)}",
+                        "file_path": str(file_path),
+                        "file_size": self._file_size,
+                        "attempted_encodings": encodings,
+                    }
+                    return False
+            else:
+                # For normal files, load completely
+                for encoding in encodings:
+                    try:
+                        content = file_path.read_text(encoding=encoding)
+                        break
+                    except UnicodeDecodeError as e:
+                        encoding_errors.append({"encoding": encoding, "error": str(e)})
+                        continue
+                    except (OSError, PermissionError) as e:
+                        # Don't continue with other encodings if it's a permission issue
+                        self._last_load_error = {
+                            "error_type": "permission_denied"
+                            if isinstance(e, PermissionError)
+                            else "io_error",
+                            "message": f"Cannot read file: {e}",
+                            "file_path": str(file_path),
+                            "system_error": str(e),
+                        }
+                        return False
 
-            if content is None:
+                if content is None:
+                    self._last_load_error = {
+                        "error_type": "encoding_error",
+                        "message": "Could not decode file with any supported encoding",
+                        "file_path": str(file_path),
+                        "attempted_encodings": encodings,
+                        "encoding_errors": encoding_errors,
+                    }
+                    return False
+
+            # Validate content isn't binary
+            if self._contains_binary_data(content):
+                self._last_load_error = {
+                    "error_type": "binary_file",
+                    "message": f"File appears to contain binary data: {file_path}",
+                    "file_path": str(file_path),
+                }
                 return False
 
             # Set the content
@@ -400,13 +506,50 @@ class CodeViewerWidget(QWidget):
             self._current_file = file_path
             self._detect_and_set_language(file_path)
 
+            # Optimize syntax highlighting for large files
+            if (
+                self._is_large_file and self._file_size > self._large_file_threshold * 2
+            ):  # 20MB+
+                # Disable syntax highlighting for very large files to improve performance
+                self.set_syntax_highlighting(False)
+
             # Emit signal
             self.file_loaded.emit(str(file_path))
 
             return True
 
-        except (OSError, PermissionError):
+        except (OSError, PermissionError) as e:
+            self._last_load_error = {
+                "error_type": "permission_denied"
+                if isinstance(e, PermissionError)
+                else "io_error",
+                "message": f"Cannot access file: {e}",
+                "file_path": str(file_path),
+                "system_error": str(e),
+            }
             return False
+        except Exception as e:
+            # Catch any unexpected errors
+            self._last_load_error = {
+                "error_type": "unexpected_error",
+                "message": f"Unexpected error loading file: {e}",
+                "file_path": str(file_path),
+                "exception_type": type(e).__name__,
+                "exception_message": str(e),
+            }
+            return False
+
+    def _contains_binary_data(self, content: str) -> bool:
+        """
+        Check if content contains binary data by looking for null bytes and
+        excessive control characters.
+        """
+        if "\x00" in content:
+            return True
+
+        # Check for excessive control characters (excluding common ones like \n, \r, \t)
+        control_chars = sum(1 for c in content if ord(c) < 32 and c not in "\n\r\t")
+        return len(content) > 0 and control_chars / len(content) > 0.3
 
     def _detect_and_set_language(self, file_path: Path) -> None:
         """Detect programming language from file extension and set appropriate lexer."""
@@ -481,3 +624,134 @@ class CodeViewerWidget(QWidget):
         self._current_file = None
         self._current_language = "text"
         self._syntax_highlighter.set_lexer(TextLexer())
+
+        # Reset error state
+        self._last_load_error = None
+
+        # Reset large file state
+        self._is_large_file = False
+        self._is_lazy_loading = False
+        self._file_size = 0
+        self._loaded_chunks = 0
+        self._full_content = ""
+
+    def _load_file_chunk(
+        self, file_path: Path, chunk_index: int, encodings: List[str]
+    ) -> Optional[str]:
+        """Load a specific chunk of a large file."""
+        try:
+            for encoding in encodings:
+                try:
+                    with open(file_path, encoding=encoding) as f:
+                        # Skip to the start of the chunk
+                        start_pos = chunk_index * self._chunk_size
+                        f.seek(start_pos)
+
+                        # Read the chunk
+                        chunk_content = f.read(self._chunk_size)
+
+                        if chunk_index == 0:
+                            # For first chunk, store full content for potential later use
+                            self._full_content = chunk_content
+
+                            # Add a message about lazy loading if this is a large file
+                            if self._is_large_file:
+                                chunk_content += f"\n\n[... File is {self._file_size // (1024 * 1024)}MB. Showing first {self._chunk_size // 1024}KB. Use 'Load More' to see additional content ...]"
+
+                        self._loaded_chunks = chunk_index + 1
+                        return chunk_content
+
+                except UnicodeDecodeError:
+                    continue
+            return None
+        except (OSError, PermissionError):
+            return None
+
+    def is_large_file(self) -> bool:
+        """Check if the currently loaded file is considered a large file."""
+        return self._is_large_file
+
+    def is_lazy_loading_active(self) -> bool:
+        """Check if lazy loading is currently active."""
+        return self._is_lazy_loading
+
+    def can_load_more_content(self) -> bool:
+        """Check if there is more content available to load."""
+        if not self._is_lazy_loading or not self._current_file:
+            return False
+
+        # Check if we've loaded all chunks
+        max_chunks = (self._file_size + self._chunk_size - 1) // self._chunk_size
+        return self._loaded_chunks < max_chunks
+
+    def load_next_chunk(self) -> bool:
+        """Load the next chunk of content for large files."""
+        if not self.can_load_more_content() or not self._current_file:
+            return False
+
+        try:
+            encodings = ["utf-8", "latin-1", "cp1252", "iso-8859-1"]
+            next_chunk = self._load_file_chunk(
+                self._current_file, self._loaded_chunks, encodings
+            )
+
+            if next_chunk:
+                # Append to existing content
+                current_content = self.toPlainText()
+                # Remove the lazy loading message if present
+                if "[... File is" in current_content:
+                    current_content = current_content.split("[... File is")[0].rstrip()
+
+                updated_content = current_content + next_chunk
+
+                # Add updated lazy loading message if there's still more content
+                if self.can_load_more_content():
+                    updated_content += f"\n\n[... Loaded {self._loaded_chunks * self._chunk_size // 1024}KB of {self._file_size // 1024}KB. Use 'Load More' to see additional content ...]"
+
+                self.setPlainText(updated_content)
+                return True
+        except Exception:
+            pass
+
+        return False
+
+    def get_large_file_status(self) -> Optional[dict]:
+        """Get status information about large file handling."""
+        if not self._is_large_file:
+            return None
+
+        return {
+            "file_size": self._file_size,
+            "file_size_mb": round(self._file_size / (1024 * 1024), 2),
+            "is_lazy_loading": self._is_lazy_loading,
+            "loaded_chunks": self._loaded_chunks,
+            "chunk_size": self._chunk_size,
+            "chunk_size_kb": self._chunk_size // 1024,
+            "can_load_more": self.can_load_more_content(),
+            "total_chunks": (self._file_size + self._chunk_size - 1)
+            // self._chunk_size,
+        }
+
+    def get_last_load_error(self) -> Optional[dict]:
+        """
+        Get detailed information about the last file loading error.
+
+        Returns:
+            dict: Error information with keys like 'error_type', 'message', 'file_path', etc.
+                  None if no error occurred or no load attempt was made.
+        """
+        return getattr(self, "_last_load_error", None)
+
+    def _configure_smooth_scrolling(self) -> None:
+        """Configure smooth scrolling for the text editor."""
+        # Configure vertical scrollbar for smooth scrolling
+        v_scrollbar = self._text_edit.verticalScrollBar()
+        if v_scrollbar:
+            v_scrollbar.setSingleStep(3)  # Smooth vertical scrolling
+            v_scrollbar.setPageStep(30)  # Reasonable page scrolling
+
+        # Configure horizontal scrollbar for smooth scrolling
+        h_scrollbar = self._text_edit.horizontalScrollBar()
+        if h_scrollbar:
+            h_scrollbar.setSingleStep(5)  # Smooth horizontal scrolling
+            h_scrollbar.setPageStep(50)  # Reasonable page scrolling
