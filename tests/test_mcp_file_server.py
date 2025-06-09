@@ -111,9 +111,7 @@ class TestMCPFileServer:
             mock_client.return_value.__aenter__ = AsyncMock(return_value=mock_session)
             mock_client.return_value.__aexit__ = AsyncMock(return_value=None)
 
-            with patch(
-                "my_coding_agent.core.mcp_file_server.stdio_client"
-            ) as mock_stdio:
+            with patch("mcp.client.stdio.stdio_client") as mock_stdio:
                 mock_stdio.return_value.__aenter__ = AsyncMock(
                     return_value=(AsyncMock(), AsyncMock())
                 )
@@ -128,7 +126,7 @@ class TestMCPFileServer:
     @pytest.mark.asyncio
     async def test_connect_to_mcp_server_failure(self, mcp_server):
         """Test failed connection to MCP server."""
-        with patch("my_coding_agent.core.mcp_file_server.stdio_client") as mock_stdio:
+        with patch("mcp.client.stdio.stdio_client") as mock_stdio:
             mock_stdio.side_effect = Exception("Connection failed")
 
             result = await mcp_server.connect()
