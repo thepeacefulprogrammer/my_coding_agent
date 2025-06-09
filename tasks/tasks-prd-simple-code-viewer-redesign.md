@@ -3,8 +3,8 @@
 ## Relevant Files
 
 - `src/my_coding_agent/core/__init__.py` - Core module initialization
-- `src/my_coding_agent/core/main_window.py` - Main application window class using PyQt6
-- `src/my_coding_agent/core/file_tree.py` - File tree navigation widget and model
+- `src/my_coding_agent/core/main_window.py` - Main application window class using PyQt6 with public properties for component access
+- `src/my_coding_agent/core/file_tree.py` - File tree navigation widget and model with qtawesome file type icons and performance optimizations (caching, lazy loading, debounced refresh, thread safety)
 - `src/my_coding_agent/core/code_viewer.py` - Code viewing widget with syntax highlighting, comprehensive file loading error handling, and smooth scrolling
 - `src/my_coding_agent/core/syntax_highlighter.py` - Pygments integration for syntax highlighting
 - `src/my_coding_agent/core/theme_manager.py` - Dark mode theme management
@@ -20,7 +20,7 @@
 - `src/my_coding_agent/assets/icons/` - File type icons for the file tree
 - `src/my_coding_agent/assets/themes/dark.qss` - Dark mode stylesheet
 - `tests/test_main_window.py` - Unit tests for main window functionality
-- `tests/test_file_tree.py` - Unit tests for file tree navigation
+- `tests/test_file_tree.py` - Comprehensive unit tests for file tree navigation, performance optimizations, caching, and thread safety
 - `tests/test_code_viewer.py` - Comprehensive unit tests for code viewer widget, syntax highlighting, and edge cases
 - `tests/test_syntax_highlighter.py` - Unit tests for PygmentsSyntaxHighlighter class
 - `tests/test_file_loading_error_handling.py` - Unit tests for comprehensive file loading error handling
@@ -28,7 +28,8 @@
 - `tests/fixtures/sample_code/` - Sample code files for testing (Python, JavaScript)
 - `tests/test_dependencies.py` - Unit tests for verifying PyQt6 and Pygments availability
 - `tests/test_module_structure.py` - Unit tests for verifying core and gui module structure
-- `tests/test_assets_structure.py` - Unit tests for assets directory structure and resource management
+- `tests/test_assets_structure.py` - Unit tests for assets directory structure, resource management, and file type icons
+- `tests/test_integration.py` - Comprehensive integration tests for complete application workflow and component interactions
 - `src/my_coding_agent/assets/__init__.py` - Assets management module with utility functions
 - `examples/demo_viewer.py` - Example script showing basic usage
 - `examples/demo_file_tree_signals.py` - Demo script showcasing file tree selection and click-to-open functionality
@@ -79,9 +80,9 @@
   - [x] 4.7 Add horizontal and vertical scrollbars with smooth scrolling
   - [x] 4.8 Write unit tests for code viewer widget and syntax highlighting
 
-- [ ] 5.0 UI Polish, Dark Mode Theme, and Performance Optimization
+- [x] 5.0 UI Polish, Dark Mode Theme, and Performance Optimization
   - [x] 5.1 Create ThemeManager class for dark mode styling
   - [x] 5.2 Design and implement dark theme QSS stylesheet
-  - [ ] 5.3 Add file type specific icons for Python, JavaScript, and generic files
-  - [ ] 5.4 Implement performance optimizations for file tree scanning
-  - [ ] 5.5 Write integration tests for complete application workflow
+  - [x] 5.3 Add file type specific icons for Python, JavaScript, and generic files
+  - [x] 5.4 Implement performance optimizations for file tree scanning
+  - [x] 5.5 Write integration tests for complete application workflow

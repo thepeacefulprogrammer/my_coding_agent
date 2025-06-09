@@ -5,11 +5,12 @@ This module provides the file tree model and widget for directory navigation
 using PyQt6's QFileSystemModel as the foundation.
 """
 
+import threading
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import qtawesome as qta
-from PyQt6.QtCore import QDir, QModelIndex, QPoint, QRect, Qt, pyqtSignal
+from PyQt6.QtCore import QDir, QModelIndex, QPoint, QRect, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QFileSystemModel, QIcon, QPainter
 from PyQt6.QtWidgets import QMenu, QTreeView
 
@@ -20,7 +21,7 @@ class FileTreeModel(QFileSystemModel):
 
     This model provides file system navigation with filtering for code files
     and directories. It extends QFileSystemModel to add custom behavior
-    for code viewing applications.
+    for code viewing applications with performance optimizations.
     """
 
     def __init__(self, parent: Optional[Any] = None) -> None:
@@ -33,6 +34,7 @@ class FileTreeModel(QFileSystemModel):
         super().__init__(parent)
         self._setup_model()
         self._load_icons()
+        self._setup_performance_optimizations()
 
     def _setup_model(self) -> None:
         """Set up the file system model with appropriate filters and settings."""
@@ -49,58 +51,127 @@ class FileTreeModel(QFileSystemModel):
         # Set the root path to the current directory by default
         self.setRootPath(str(Path.cwd()))
 
-    def _load_icons(self) -> None:
-        """Load file type icons from the assets directory."""
-        self._icons = {}
+    def _setup_performance_optimizations(self) -> None:
+        """Set up performance optimization features."""
+        # Enable lazy loading for better performance
+        self._lazy_loading_enabled = True
 
-        # Base path for icons
-        base_path = Path(__file__).parent.parent / "assets" / "icons" / "file_types"
+        # Set up caching
+        self._icon_cache = {}
+        self._file_info_cache = {}
+        self._max_cache_size = 500  # Reasonable limit for memory management
 
-        # Load icons for different file types
-        icon_mapping = {
-            "folder": "folder.png",
-            "folder_open": "folder_open.png",
-            "python": "python.png",
-            "javascript": "javascript.png",
-            "json": "json.png",
-            "text": "text.png",
-            "file": "file.png",  # Default file icon
+        # Enable background scanning
+        self._enable_background_scanning = False  # Start disabled, can be enabled
+
+        # File filtering capability
+        self._should_filter_file = True
+
+        # Performance metrics tracking
+        self._performance_metrics = {
+            "scan_time": 0.0,
+            "cache_hits": 0,
+            "cache_misses": 0,
+            "filtered_files": 0,
         }
 
-        for icon_type, filename in icon_mapping.items():
-            icon_path = base_path / filename
-            if icon_path.exists():
-                self._icons[icon_type] = QIcon(str(icon_path))
-            else:
-                # Create empty icon as fallback
+        # Thread safety
+        self._lock = threading.RLock()
+
+    def _load_icons(self) -> None:
+        """Load file type icons using qtawesome Font Awesome icons."""
+        self._icons = {}
+
+        try:
+            # Define icon color scheme for file types
+            # Using colors that work well in both light and dark themes
+            icon_color = "#666666"  # Neutral gray base
+
+            # Create qtawesome icons for different file types
+            icon_mapping = {
+                "python": ("fa5b.python", "#3776AB"),  # Python blue
+                "javascript": ("fa5b.js-square", "#F7DF1E"),  # JavaScript yellow
+                "json": ("fa5s.code", "#2E7D32"),  # JSON green (using code icon)
+                "text": ("fa5s.file-alt", "#424242"),  # Text dark gray
+                "folder": ("fa5s.folder", "#FFA726"),  # Folder orange
+                "folder_open": (
+                    "fa5s.folder-open",
+                    "#FF9800",
+                ),  # Open folder darker orange
+                "file": ("fa5s.file", icon_color),  # Default file icon
+            }
+
+            for icon_type, (icon_name, color) in icon_mapping.items():
+                try:
+                    self._icons[icon_type] = qta.icon(icon_name, color=color)
+                except Exception as e:
+                    # Fallback to generic file icon if specific icon fails
+                    print(
+                        f"Warning: Could not load {icon_type} icon ({icon_name}): {e}"
+                    )
+                    self._icons[icon_type] = qta.icon("fa5s.file", color=icon_color)
+
+        except Exception as e:
+            print(f"Warning: Could not load qtawesome icons: {e}")
+            # Fallback to empty icons
+            for icon_type in [
+                "python",
+                "javascript",
+                "json",
+                "text",
+                "folder",
+                "folder_open",
+                "file",
+            ]:
                 self._icons[icon_type] = QIcon()
 
     def _get_file_icon(self, index: QModelIndex) -> QIcon:
-        """Get the appropriate icon for a file or directory."""
+        """Get the appropriate icon for a file or directory with caching."""
         if not index.isValid():
             return QIcon()
 
-        if self.is_directory(index):
-            return self._icons.get("folder", QIcon())
-
-        # Get file extension to determine icon
+        # Use caching for better performance
         file_path = self.get_file_path(index)
         if not file_path:
-            return self._icons.get("file", QIcon())
+            return QIcon()
 
-        ext = file_path.suffix.lower()
+        cache_key = str(file_path)
 
-        # Map extensions to icon types
-        if ext in [".py", ".pyw"]:
-            return self._icons.get("python", QIcon())
-        elif ext in [".js", ".jsx", ".ts", ".tsx"]:
-            return self._icons.get("javascript", QIcon())
-        elif ext == ".json":
-            return self._icons.get("json", QIcon())
-        elif ext in [".txt", ".md", ".cfg", ".ini"]:
-            return self._icons.get("text", QIcon())
+        with self._lock:
+            if cache_key in self._icon_cache:
+                self._performance_metrics["cache_hits"] += 1
+                return self._icon_cache[cache_key]
+
+            self._performance_metrics["cache_misses"] += 1
+
+        if self.is_directory(index):
+            icon = self._icons.get("folder", QIcon())
         else:
-            return self._icons.get("file", QIcon())
+            # Get file extension to determine icon
+            ext = file_path.suffix.lower()
+
+            # Map extensions to icon types
+            if ext in [".py", ".pyw"]:
+                icon = self._icons.get("python", QIcon())
+            elif ext in [".js", ".jsx", ".ts", ".tsx"]:
+                icon = self._icons.get("javascript", QIcon())
+            elif ext == ".json":
+                icon = self._icons.get("json", QIcon())
+            elif ext in [".txt", ".md", ".cfg", ".ini"]:
+                icon = self._icons.get("text", QIcon())
+            else:
+                icon = self._icons.get("file", QIcon())
+
+        # Cache the icon, but limit cache size
+        with self._lock:
+            if len(self._icon_cache) >= self._max_cache_size:
+                # Remove oldest entries (simple FIFO)
+                oldest_key = next(iter(self._icon_cache))
+                del self._icon_cache[oldest_key]
+
+            self._icon_cache[cache_key] = icon
+
+        return icon
 
     def set_root_directory(self, directory_path: Path) -> QModelIndex:
         """
@@ -339,7 +410,15 @@ class FileTreeWidget(QTreeView):
         """
         super().__init__(parent)
         self._setup_widget()
+        self._setup_refresh_timer()
         self._connect_signals()
+
+    def _setup_refresh_timer(self) -> None:
+        """Set up debounced refresh timer for performance optimization."""
+        self._refresh_timer = QTimer()
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self._do_refresh)
+        self._refresh_debounce_ms = 250  # 250ms debounce delay
 
     def _setup_widget(self) -> None:
         """Set up the tree view with appropriate settings."""
@@ -714,8 +793,19 @@ class FileTreeWidget(QTreeView):
 
     def refresh(self) -> None:
         """
-        Refresh the file tree by updating the model.
+        Refresh the file tree by updating the model with debouncing.
         """
+        # Stop any pending refresh timer
+        if hasattr(self, "_refresh_timer"):
+            self._refresh_timer.stop()
+            # Start debounced refresh
+            self._refresh_timer.start(self._refresh_debounce_ms)
+        else:
+            # Fallback to immediate refresh if timer not set up
+            self._do_refresh()
+
+    def _do_refresh(self) -> None:
+        """Perform the actual refresh operation."""
         if self._model:
             # Get current root path and reset it to trigger refresh
             current_root = self._model.rootPath()

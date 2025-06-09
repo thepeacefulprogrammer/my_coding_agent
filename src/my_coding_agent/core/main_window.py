@@ -7,7 +7,11 @@ and will later host the file tree and code viewer components.
 """
 
 from pathlib import Path
-from typing import Any, List, Optional, cast
+from typing import TYPE_CHECKING, Any, List, Optional, cast
+
+if TYPE_CHECKING:
+    from .code_viewer import CodeViewerWidget
+    from .file_tree import FileTreeWidget
 
 from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QAction, QCloseEvent, QKeySequence
@@ -54,6 +58,31 @@ class MainWindow(QMainWindow):
             ThemeManager instance if available, None otherwise
         """
         return getattr(self, "_theme_manager", None)
+
+    @property
+    def file_tree(self) -> "FileTreeWidget":
+        """Get the file tree widget."""
+        return self._file_tree
+
+    @property
+    def code_viewer(self) -> "CodeViewerWidget":
+        """Get the code viewer widget."""
+        return self._code_viewer
+
+    @property
+    def theme_manager(self) -> Optional[ThemeManager]:
+        """Get the theme manager instance."""
+        return getattr(self, "_theme_manager", None)
+
+    @property
+    def status_bar(self):
+        """Get the status bar."""
+        return super().statusBar()
+
+    @property
+    def splitter(self):
+        """Get the main splitter widget."""
+        return getattr(self, "_splitter", None)
 
     def _setup_window(self) -> None:
         """Set up basic window properties."""

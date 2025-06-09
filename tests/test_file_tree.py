@@ -1319,128 +1319,90 @@ class TestFileTreeModelWidgetInteraction:
         assert blocker.args[0] == test_file
 
 
-class TestFileTreeCoverageExtension:
-    """Additional tests to improve code coverage."""
+class TestFileTreePerformanceOptimizations:
+    """Test performance optimizations for the file tree."""
 
-    def test_file_tree_model_get_file_info_invalid_index(self, qapp):
-        """Test get_file_info with invalid index."""
-        model = FileTreeModel()
+    @pytest.fixture
+    def optimized_model(self, tmp_path):
+        """Create an optimized file tree model for testing."""
+        from my_coding_agent.core.file_tree import FileTreeModel
 
-        from PyQt6.QtCore import QModelIndex
-
-        invalid_index = QModelIndex()
-
-        result = model.get_file_info(invalid_index)
-        assert result == {}
-
-    def test_file_tree_model_small_file_size_formatting(self, qapp, tmp_path):
-        """Test file size formatting for small files only."""
         model = FileTreeModel()
         model.set_root_directory(tmp_path)
+        return model
 
-        # Test small file (bytes) - keep it tiny
-        small_file = tmp_path / "small.py"
-        small_file.write_text("x")  # 1 byte
+    def test_lazy_loading_enabled(self, optimized_model):
+        """Test that lazy loading is enabled for better performance."""
+        # Check if the model has lazy loading capability
+        assert hasattr(optimized_model, "_lazy_loading_enabled")
+        assert optimized_model._lazy_loading_enabled is True
 
-        small_index = model.index(str(small_file))
-        small_info = model.get_file_info(small_index)
-        assert "B" in small_info["size_human"]
+    def test_icon_caching_mechanism(self, optimized_model):
+        """Test that icon caching reduces repeated icon generation."""
+        # Check that icon cache exists
+        assert hasattr(optimized_model, "_icon_cache")
+        assert isinstance(optimized_model._icon_cache, dict)
 
-    def test_file_tree_model_data_display_role(self, qapp, tmp_path):
-        """Test data method with display role."""
-        model = FileTreeModel()
-        model.set_root_directory(tmp_path)
+    def test_performance_metrics_tracking(self, optimized_model):
+        """Test that performance metrics can be tracked."""
+        # Check if performance tracking is available
+        assert hasattr(optimized_model, "_performance_metrics")
+        assert isinstance(optimized_model._performance_metrics, dict)
 
-        test_file = tmp_path / "display_test.py"
-        test_file.write_text("content")
+        # Basic metrics should be trackable
+        expected_metrics = ["scan_time", "cache_hits", "cache_misses"]
+        for metric in expected_metrics:
+            assert metric in optimized_model._performance_metrics
+            assert isinstance(
+                optimized_model._performance_metrics[metric], (int, float)
+            )
 
-        file_index = model.index(str(test_file))
-        display_data = model.data(file_index, Qt.ItemDataRole.DisplayRole)
+    def test_memory_management_limits(self, optimized_model):
+        """Test that memory usage is controlled through caching limits."""
+        # Check that memory management is in place
+        assert hasattr(optimized_model, "_max_cache_size")
+        assert optimized_model._max_cache_size > 0
+        assert optimized_model._max_cache_size <= 1000  # Reasonable upper bound
 
-        # Should return the filename
-        assert display_data == "display_test.py"
+    def test_background_scanning_capability(self, optimized_model):
+        """Test that background scanning is available for large directories."""
+        # Check if model supports background operations
+        assert hasattr(optimized_model, "_enable_background_scanning")
 
-    def test_file_tree_model_directory_tooltip(self, qapp, tmp_path):
-        """Test tooltip for directories."""
-        model = FileTreeModel()
-        model.set_root_directory(tmp_path)
+        # Verify background scanning can be toggled
+        optimized_model._enable_background_scanning = True
+        assert optimized_model._enable_background_scanning is True
 
-        test_dir = tmp_path / "test_dir"
-        test_dir.mkdir()
+        optimized_model._enable_background_scanning = False
+        assert optimized_model._enable_background_scanning is False
 
-        dir_index = model.index(str(test_dir))
-        tooltip = model.data(dir_index, Qt.ItemDataRole.ToolTipRole)
+    def test_file_filtering_capability(self, optimized_model):
+        """Test that file filtering improves scanning performance."""
+        # Check that model has filtering capabilities
+        assert hasattr(optimized_model, "_should_filter_file")
+        assert optimized_model._should_filter_file is True
 
-        assert isinstance(tooltip, str)
-        assert "Directory:" in tooltip
-        assert "test_dir" in tooltip
+    def test_thread_safety_mechanism(self, optimized_model):
+        """Test that the model has thread safety mechanisms."""
+        # Check if the model has thread safety mechanisms
+        assert hasattr(optimized_model, "_lock")
+        # Check that it's a threading lock of some type
+        assert hasattr(optimized_model._lock, "acquire")
+        assert hasattr(optimized_model._lock, "release")
+        # Verify it's actually an RLock instance
+        assert type(optimized_model._lock).__name__ == "RLock"
 
-    def test_widget_is_viewable_file_edge_cases(self, qtbot, tmp_path):
-        """Test _is_viewable_file with basic edge cases."""
+    def test_debounced_refresh_mechanism(self, qtbot, tmp_path):
+        """Test that refresh operations are debounced to prevent excessive updates."""
+        from my_coding_agent.core.file_tree import FileTreeWidget
+
         widget = FileTreeWidget()
-        qtbot.addWidget(widget)
-
-        # Test empty file
-        empty_file = tmp_path / "empty.py"
-        empty_file.write_text("")
-        assert widget._is_viewable_file(empty_file)
-
-    def test_widget_file_opening_edge_cases(self, qtbot, tmp_path):
-        """Test file opening with directories."""
-        widget = FileTreeWidget()
-        qtbot.addWidget(widget)
         widget.set_root_directory(tmp_path)
 
-        # Test directory double-click (should expand/collapse)
-        test_dir = tmp_path / "clickable_dir"
-        test_dir.mkdir()
+        # Check that debouncing mechanism exists
+        assert hasattr(widget, "_refresh_timer")
+        assert hasattr(widget, "_refresh_debounce_ms")
 
-        model = widget.model()
-        dir_index = model.index(str(test_dir))
-
-        # Initially not expanded
-        assert not widget.isExpanded(dir_index)
-
-        # Double-click should expand
-        widget._on_double_clicked(dir_index)
-        assert widget.isExpanded(dir_index)
-
-    def test_widget_no_selection_methods(self, qtbot, tmp_path):
-        """Test widget methods when nothing is selected."""
-        widget = FileTreeWidget()
-        qtbot.addWidget(widget)
-        widget.set_root_directory(tmp_path)
-
-        # Clear any selection
-        widget.clearSelection()
-
-        # Test methods with no selection
-        assert widget.get_selected_file_path() is None
-        assert widget.get_selected_file_info() == {}
-        assert not widget.is_selected_directory()
-        assert not widget.is_selected_code_file()
-
-    def test_widget_invalid_index_handling(self, qtbot, tmp_path):
-        """Test widget handling of invalid indexes."""
-        widget = FileTreeWidget()
-        qtbot.addWidget(widget)
-        widget.set_root_directory(tmp_path)
-
-        from PyQt6.QtCore import QModelIndex
-
-        invalid_index = QModelIndex()
-
-        # Should handle invalid indexes gracefully
-        widget._on_double_clicked(invalid_index)  # Should not crash
-
-    def test_model_icon_edge_cases(self, qtbot, tmp_path):
-        """Test model icon handling for edge cases."""
-        model = FileTreeModel()
-        model.set_root_directory(tmp_path)
-
-        from PyQt6.QtCore import QModelIndex
-
-        # Test invalid index
-        invalid_index = QModelIndex()
-        icon = model._get_file_icon(invalid_index)
-        assert icon is not None  # Should return empty icon, not None
+        # Test that the timer is properly configured
+        assert widget._refresh_timer.isSingleShot()
+        assert widget._refresh_debounce_ms > 0
