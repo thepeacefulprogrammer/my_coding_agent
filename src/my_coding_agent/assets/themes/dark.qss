@@ -22,7 +22,7 @@ QTreeView {
     background-color: #383838;
     color: #ffffff;
     border: 1px solid #555555;
-    selection-background-color: #4a90e2;
+    selection-background-color: transparent;
     alternate-background-color: #404040;
     outline: none;
     font-family: "Segoe UI", sans-serif;
@@ -35,7 +35,7 @@ QTreeView::item {
 }
 
 QTreeView::item:selected {
-    background-color: #4a90e2;
+    background-color: transparent;
     color: #ffffff;
 }
 

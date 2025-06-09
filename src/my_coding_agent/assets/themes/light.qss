@@ -17,13 +17,13 @@ QTreeView {
     background-color: #ffffff;
     color: #000000;
     border: 1px solid #d0d0d0;
-    selection-background-color: #3399ff;
-    selection-color: #ffffff;
+    selection-background-color: transparent;
+    selection-color: #000000;
 }
 
 QTreeView::item:selected {
-    background-color: #3399ff;
-    color: #ffffff;
+    background-color: transparent;
+    color: #000000;
 }
 
 QTreeView::item:hover {
