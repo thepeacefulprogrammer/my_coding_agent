@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtGui import QStandardItem, QStandardItemModel
@@ -46,12 +46,12 @@ class ChatMessage:
     status: MessageStatus
     message_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = field(default_factory=datetime.now)
-    error_message: Optional[str] = None
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    error_message: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def create_user_message(
-        cls, content: str, metadata: Optional[Dict[str, Any]] = None
+        cls, content: str, metadata: dict[str, Any] | None = None
     ) -> "ChatMessage":
         """Create a user message."""
         return cls(
@@ -63,7 +63,7 @@ class ChatMessage:
 
     @classmethod
     def create_assistant_message(
-        cls, content: str, metadata: Optional[Dict[str, Any]] = None
+        cls, content: str, metadata: dict[str, Any] | None = None
     ) -> "ChatMessage":
         """Create an assistant message."""
         return cls(
@@ -75,7 +75,7 @@ class ChatMessage:
 
     @classmethod
     def create_system_message(
-        cls, content: str, metadata: Optional[Dict[str, Any]] = None
+        cls, content: str, metadata: dict[str, Any] | None = None
     ) -> "ChatMessage":
         """Create a system message."""
         return cls(
@@ -138,10 +138,10 @@ class ChatMessageModel(QStandardItemModel):
     message_updated = pyqtSignal(ChatMessage)
     message_removed = pyqtSignal(str)  # message_id
 
-    def __init__(self, parent: Optional[QObject] = None):
+    def __init__(self, parent: QObject | None = None):
         """Initialize the chat message model."""
         super().__init__(parent)
-        self._messages: List[ChatMessage] = []
+        self._messages: list[ChatMessage] = []
 
     def add_message(self, message: ChatMessage) -> None:
         """Add a message to the model."""
@@ -158,13 +158,13 @@ class ChatMessageModel(QStandardItemModel):
         self.endInsertRows()
         self.message_added.emit(message)
 
-    def get_message(self, index: int) -> Optional[ChatMessage]:
+    def get_message(self, index: int) -> ChatMessage | None:
         """Get a message by index."""
         if 0 <= index < len(self._messages):
             return self._messages[index]
         return None
 
-    def get_message_by_id(self, message_id: str) -> Optional[ChatMessage]:
+    def get_message_by_id(self, message_id: str) -> ChatMessage | None:
         """Get a message by its ID."""
         for message in self._messages:
             if message.message_id == message_id:
@@ -220,23 +220,23 @@ class ChatMessageModel(QStandardItemModel):
         self.clear()
         self.endResetModel()
 
-    def get_all_messages(self) -> List[ChatMessage]:
+    def get_all_messages(self) -> list[ChatMessage]:
         """Get all messages."""
         return self._messages.copy()
 
-    def get_messages_by_role(self, role: MessageRole) -> List[ChatMessage]:
+    def get_messages_by_role(self, role: MessageRole) -> list[ChatMessage]:
         """Get messages filtered by role."""
         return [msg for msg in self._messages if msg.role == role]
 
-    def get_recent_messages(self, limit: int) -> List[ChatMessage]:
+    def get_recent_messages(self, limit: int) -> list[ChatMessage]:
         """Get the most recent messages."""
         if limit >= len(self._messages):
             return self._messages.copy()
         return self._messages[-limit:]
 
     def export_conversation_history(
-        self, role_filter: Optional[MessageRole] = None
-    ) -> List[Dict[str, Any]]:
+        self, role_filter: MessageRole | None = None
+    ) -> list[dict[str, Any]]:
         """Export conversation history as a list of dictionaries."""
         messages = self._messages
         if role_filter:

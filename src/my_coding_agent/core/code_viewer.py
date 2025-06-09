@@ -3,7 +3,6 @@ Code viewer widget for displaying source code with syntax highlighting.
 """
 
 from pathlib import Path
-from typing import List, Optional
 
 # Import pygments with type ignores for stub warnings
 from pygments.lexers import (  # type: ignore
@@ -62,7 +61,7 @@ class PygmentsSyntaxHighlighter(QSyntaxHighlighter):
         if self._enabled:
             self.rehighlight()
 
-    def highlightBlock(self, text: Optional[str]) -> None:
+    def highlightBlock(self, text: str | None) -> None:
         """Highlight a block of text using Pygments."""
         if not self._enabled or not text or not text.strip():
             return
@@ -89,7 +88,7 @@ class PygmentsSyntaxHighlighter(QSyntaxHighlighter):
             # If highlighting fails, just skip it
             pass
 
-    def _get_color_for_token(self, token_type) -> Optional[QColor]:
+    def _get_color_for_token(self, token_type) -> QColor | None:
         """Get color for a specific token type, checking parent types."""
         # Check exact match first
         if token_type in self.token_styles:
@@ -185,7 +184,7 @@ class LineNumbersWidget(QWidget):
         scroll_bar = self.text_editor.verticalScrollBar()
         return scroll_bar.value() if scroll_bar else 0
 
-    def get_displayed_numbers(self) -> List[str]:
+    def get_displayed_numbers(self) -> list[str]:
         """Get list of currently displayed line numbers as strings."""
         return [str(i) for i in range(1, self._line_count + 1)]
 
@@ -305,11 +304,11 @@ class CodeViewerWidget(QWidget):
         self._configure_smooth_scrolling()
 
         # Track current file and language
-        self._current_file: Optional[Path] = None
+        self._current_file: Path | None = None
         self._current_language = "text"
 
         # Error tracking
-        self._last_load_error: Optional[dict] = None
+        self._last_load_error: dict | None = None
 
         # Large file handling
         self._large_file_threshold = 10 * 1024 * 1024  # 10MB
@@ -585,7 +584,7 @@ class CodeViewerWidget(QWidget):
         # Set the lexer in the syntax highlighter
         self._syntax_highlighter.set_lexer(lexer)
 
-    def get_current_file(self) -> Optional[Path]:
+    def get_current_file(self) -> Path | None:
         """Get the currently loaded file path."""
         return self._current_file
 
@@ -636,8 +635,8 @@ class CodeViewerWidget(QWidget):
         self._full_content = ""
 
     def _load_file_chunk(
-        self, file_path: Path, chunk_index: int, encodings: List[str]
-    ) -> Optional[str]:
+        self, file_path: Path, chunk_index: int, encodings: list[str]
+    ) -> str | None:
         """Load a specific chunk of a large file."""
         try:
             for encoding in encodings:
@@ -715,7 +714,7 @@ class CodeViewerWidget(QWidget):
 
         return False
 
-    def get_large_file_status(self) -> Optional[dict]:
+    def get_large_file_status(self) -> dict | None:
         """Get status information about large file handling."""
         if not self._is_large_file:
             return None
@@ -732,7 +731,7 @@ class CodeViewerWidget(QWidget):
             // self._chunk_size,
         }
 
-    def get_last_load_error(self) -> Optional[dict]:
+    def get_last_load_error(self) -> dict | None:
         """
         Get detailed information about the last file loading error.
 

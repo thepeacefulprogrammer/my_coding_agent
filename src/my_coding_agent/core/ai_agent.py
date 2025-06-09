@@ -6,7 +6,7 @@ import os
 import re
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -78,10 +78,10 @@ class AIResponse(BaseModel):
 
     content: str = Field(description="The AI response content")
     success: bool = Field(description="Whether the request was successful")
-    error: Optional[str] = Field(
+    error: str | None = Field(
         default=None, description="Error message if request failed"
     )
-    error_type: Optional[str] = Field(
+    error_type: str | None = Field(
         default=None, description="Type of error that occurred"
     )
     tokens_used: int = Field(
@@ -96,8 +96,8 @@ class AIAgent:
     def __init__(
         self,
         config: AIAgentConfig,
-        mcp_config: Optional[MCPFileConfig] = None,
-        enable_filesystem_tools: Optional[bool] = None,
+        mcp_config: MCPFileConfig | None = None,
+        enable_filesystem_tools: bool | None = None,
     ):
         """Initialize the AI Agent.
 
@@ -107,8 +107,8 @@ class AIAgent:
             enable_filesystem_tools: Whether to enable filesystem tools (auto-detected if None).
         """
         self.config = config
-        self.mcp_file_server: Optional[MCPFileServer] = None
-        self.workspace_root: Optional[Path] = None
+        self.mcp_file_server: MCPFileServer | None = None
+        self.workspace_root: Path | None = None
 
         # Auto-detect filesystem tools enablement
         if enable_filesystem_tools is None:
@@ -281,7 +281,7 @@ class AIAgent:
             logger.error(f"Failed to register filesystem tools: {e}")
             self.filesystem_tools_enabled = False
 
-    def get_available_tools(self) -> List[str]:
+    def get_available_tools(self) -> list[str]:
         """Get list of available tool names.
 
         Returns:
@@ -301,7 +301,7 @@ class AIAgent:
             )
         return tools
 
-    def get_tool_descriptions(self) -> Dict[str, str]:
+    def get_tool_descriptions(self) -> dict[str, str]:
         """Get descriptions of available tools.
 
         Returns:
@@ -462,10 +462,10 @@ class AIAgent:
                 enable_filesystem
                 and self.filesystem_tools_enabled
                 and self.mcp_file_server
+                and not self.mcp_file_server.is_connected
             ):
                 # Ensure MCP connection
-                if not self.mcp_file_server.is_connected:
-                    await self.connect_mcp()
+                await self.connect_mcp()
 
             response = await self._agent.run(message)
 
@@ -552,7 +552,7 @@ class AIAgent:
                 success=False, content=f"Error: {e}", error_type=type(e).__name__
             )
 
-    def _categorize_error(self, exception: Exception) -> Tuple[str, str]:
+    def _categorize_error(self, exception: Exception) -> tuple[str, str]:
         """Categorize the error and return error type and user-friendly message.
 
         Args:
@@ -881,7 +881,7 @@ class AIAgent:
         self._ensure_mcp_connected()
         return await self.mcp_file_server.write_file(file_path, content)
 
-    async def list_directory(self, directory_path: str = ".") -> List[str]:
+    async def list_directory(self, directory_path: str = ".") -> list[str]:
         """List directory contents through MCP server.
 
         Args:
@@ -926,7 +926,7 @@ class AIAgent:
         self._ensure_mcp_connected()
         return await self.mcp_file_server.create_directory(directory_path)
 
-    async def get_file_info(self, file_path: str) -> Dict[str, Any]:
+    async def get_file_info(self, file_path: str) -> dict[str, Any]:
         """Get file information through MCP server.
 
         Args:
@@ -941,7 +941,7 @@ class AIAgent:
         self._ensure_mcp_connected()
         return await self.mcp_file_server.get_file_info(file_path)
 
-    async def search_files(self, pattern: str, directory: str = ".") -> List[str]:
+    async def search_files(self, pattern: str, directory: str = ".") -> list[str]:
         """Search for files matching pattern through MCP server.
 
         Args:
@@ -957,7 +957,7 @@ class AIAgent:
         self._ensure_mcp_connected()
         return await self.mcp_file_server.search_files(pattern, directory)
 
-    async def read_multiple_files(self, file_paths: List[str]) -> Dict[str, str]:
+    async def read_multiple_files(self, file_paths: list[str]) -> dict[str, str]:
         """Read multiple files through MCP server.
 
         Args:
@@ -1052,7 +1052,7 @@ User message: {message}
 
         return await self.send_message(message)
 
-    def get_mcp_health_status(self) -> Dict[str, Any]:
+    def get_mcp_health_status(self) -> dict[str, Any]:
         """Get the health status of the MCP integration.
 
         Returns:
@@ -1132,13 +1132,13 @@ User message: {message}
         try:
             resolved_path = path.resolve()
         except (OSError, RuntimeError) as e:
-            raise ValueError(f"Invalid path: {e}")
+            raise ValueError(f"Invalid path: {e}") from e
 
         # Check if the resolved path is within workspace
         try:
             resolved_path.relative_to(self.workspace_root)
-        except ValueError:
-            raise ValueError(f"Path is outside workspace: {resolved_path}")
+        except ValueError as e:
+            raise ValueError(f"Path is outside workspace: {resolved_path}") from e
 
         return resolved_path
 
@@ -1182,7 +1182,7 @@ User message: {message}
 
         resolved_path.write_text(content, encoding="utf-8")
 
-    def list_workspace_directory(self, dir_path: str = ".") -> List[str]:
+    def list_workspace_directory(self, dir_path: str = ".") -> list[str]:
         """List files and directories in workspace directory.
 
         Args:
@@ -1409,8 +1409,8 @@ User message: {message}
         # Check encoding
         try:
             content.encode("utf-8")
-        except UnicodeEncodeError:
-            raise ValueError("Invalid file content encoding (must be UTF-8)")
+        except UnicodeEncodeError as e:
+            raise ValueError("Invalid file content encoding (must be UTF-8)") from e
 
         # Check for potentially dangerous patterns
         dangerous_patterns = [
@@ -1462,8 +1462,8 @@ User message: {message}
 
     # Batch operations
     def read_multiple_workspace_files(
-        self, file_paths: List[str], fail_fast: bool = False
-    ) -> Dict[str, str]:
+        self, file_paths: list[str], fail_fast: bool = False
+    ) -> dict[str, str]:
         """Read multiple files with error handling.
 
         Args:
@@ -1559,9 +1559,7 @@ User message: {message}
         raise last_error
 
     # Enhanced error handling for workspace operations
-    def safe_read_workspace_file(
-        self, file_path: str
-    ) -> Tuple[Optional[str], Optional[str]]:
+    def safe_read_workspace_file(self, file_path: str) -> tuple[str | None, str | None]:
         """Safely read workspace file with error capture.
 
         Args:
@@ -1576,7 +1574,7 @@ User message: {message}
         except Exception as e:
             return None, str(e)
 
-    def safe_write_workspace_file(self, file_path: str, content: str) -> Optional[str]:
+    def safe_write_workspace_file(self, file_path: str, content: str) -> str | None:
         """Safely write workspace file with error capture.
 
         Args:
@@ -1593,7 +1591,7 @@ User message: {message}
             return str(e)
 
     # Health checks and diagnostics
-    def check_workspace_health(self) -> Dict[str, Any]:
+    def check_workspace_health(self) -> dict[str, Any]:
         """Check workspace health and accessibility.
 
         Returns:

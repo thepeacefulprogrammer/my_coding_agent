@@ -6,7 +6,6 @@ and validate asset files.
 """
 
 from pathlib import Path
-from typing import List
 
 
 def get_assets_dir() -> Path:
@@ -100,7 +99,7 @@ def get_theme_file(filename: str) -> str:
     return str(theme_path)
 
 
-def list_available_themes() -> List[str]:
+def list_available_themes() -> list[str]:
     """List all available theme names.
 
     Returns:

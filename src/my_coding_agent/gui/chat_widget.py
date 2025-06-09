@@ -247,9 +247,7 @@ class MessageBubble(QWidget):
 class MessageDisplayArea(QWidget):
     """Widget for displaying chat messages with scrolling."""
 
-    def __init__(
-        self, message_model: ChatMessageModel, parent: QWidget | None = None
-    ):
+    def __init__(self, message_model: ChatMessageModel, parent: QWidget | None = None):
         """Initialize the message display area."""
         super().__init__(parent)
         self.message_model = message_model
@@ -715,20 +713,18 @@ class ChatWidget(QWidget):
             and a1.type() == QEvent.Type.KeyPress
         ):
             key_event = a1
-            if isinstance(key_event, QKeyEvent):
-                # Handle Enter key
-                if (
-                    key_event.key() == Qt.Key.Key_Return
-                    or key_event.key() == Qt.Key.Key_Enter
-                ):
-                    # Check if Shift is pressed
-                    if key_event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
-                        # Shift+Enter: let default behavior happen (add newline)
-                        return False
-                    else:
-                        # Enter without Shift: send message
-                        self._handle_send_message()
-                        return True
+            if isinstance(key_event, QKeyEvent) and (
+                key_event.key() == Qt.Key.Key_Return
+                or key_event.key() == Qt.Key.Key_Enter
+            ):
+                # Check if Shift is pressed
+                if key_event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                    # Shift+Enter: let default behavior happen (add newline)
+                    return False
+                else:
+                    # Enter without Shift: send message
+                    self._handle_send_message()
+                    return True
 
         return super().eventFilter(a0, a1)
 

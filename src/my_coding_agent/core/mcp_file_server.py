@@ -4,10 +4,9 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from mcp.client.session import ClientSession
-from mcp.client.stdio import StdioServerParameters, stdio_client
 from pydantic import BaseModel, Field, field_validator
 
 logger = logging.getLogger(__name__)
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 class FileOperationError(Exception):
     """Exception raised for file operation errors."""
 
-    def __init__(self, message: str, cause: Optional[Exception] = None):
+    def __init__(self, message: str, cause: Exception | None = None):
         super().__init__(message)
         if cause:
             self.__cause__ = cause
@@ -29,7 +28,7 @@ class MCPFileConfig(BaseModel):
         default_factory=lambda: str(Path.cwd()),
         description="Base directory for file operations",
     )
-    allowed_extensions: List[str] = Field(
+    allowed_extensions: list[str] = Field(
         default=[".py", ".md", ".txt", ".json", ".yaml", ".yml", ".toml", ".cfg"],
         description="List of allowed file extensions",
     )
@@ -50,7 +49,7 @@ class MCPFileConfig(BaseModel):
     allow_directory_creation: bool = Field(
         default=True, description="Whether to allow directory creation"
     )
-    blocked_paths: List[str] = Field(
+    blocked_paths: list[str] = Field(
         default_factory=lambda: ["secrets/*", ".env", "*.key", "private/*"],
         description="List of blocked paths and patterns",
     )
@@ -65,7 +64,7 @@ class MCPFileConfig(BaseModel):
 
     @field_validator("allowed_extensions")
     @classmethod
-    def validate_allowed_extensions(cls, v: List[str]) -> List[str]:
+    def validate_allowed_extensions(cls, v: list[str]) -> list[str]:
         """Validate at least one extension is allowed."""
         if not v:
             raise ValueError("At least one file extension must be allowed")
@@ -124,9 +123,9 @@ class MCPFileServer:
         """
         self.config = config
         self.is_connected = False
-        self.client_session: Optional[ClientSession] = None
-        self._read_stream: Optional[Any] = None
-        self._write_stream: Optional[Any] = None
+        self.client_session: ClientSession | None = None
+        self._read_stream: Any | None = None
+        self._write_stream: Any | None = None
 
         # Normalize base directory path
         self.config.base_directory = os.path.abspath(self.config.base_directory)
@@ -139,9 +138,14 @@ class MCPFileServer:
         """Connect to the MCP file server.
 
         Returns:
-            True if connection successful, False otherwise
+            bool: True if connection successful, False otherwise.
+
+        Raises:
+            FileOperationError: If connection configuration is invalid.
         """
         try:
+            from mcp.client.stdio import StdioServerParameters, stdio_client
+
             # For now, we'll use a built-in filesystem MCP server
             # In the future, this could connect to an external MCP server
             server_params = StdioServerParameters(
@@ -165,7 +169,7 @@ class MCPFileServer:
             await self.client_session.initialize()
 
             # Verify connection by listing available tools
-            tools = await self.client_session.list_tools()
+            await self.client_session.list_tools()
             logger.info("Connected to MCP server with tools available")
 
             self.is_connected = True
@@ -241,15 +245,16 @@ class MCPFileServer:
                 )
                 raise FileOperationError(f"Reserved name not allowed: '{file_path}'")
 
-        # Check for absolute paths and Windows drive letters
-        if file_path.startswith("/") or (os.name == "nt" and ":" in file_path):
-            if self.config.enforce_workspace_boundaries:
-                logger.warning(
-                    f"Security violation: absolute path access attempt '{file_path}'"
-                )
-                raise FileOperationError(
-                    f"Access denied: absolute path not allowed '{file_path}'"
-                )
+        # Check for absolute paths and Windows drive letters with combined condition
+        if (
+            file_path.startswith("/") or (os.name == "nt" and ":" in file_path)
+        ) and self.config.enforce_workspace_boundaries:
+            logger.warning(
+                f"Security violation: absolute path access attempt '{file_path}'"
+            )
+            raise FileOperationError(
+                f"Access denied: absolute path not allowed '{file_path}'"
+            )
 
         # Check for path traversal attempts
         if ".." in file_path:
@@ -269,13 +274,13 @@ class MCPFileServer:
                 Path(abs_path).resolve().relative_to(
                     Path(self.config.base_directory).resolve()
                 )
-            except ValueError:
+            except ValueError as e:
                 logger.warning(
                     f"Security violation: path outside workspace '{file_path}'"
                 )
                 raise FileOperationError(
                     f"Access denied: path '{file_path}' outside workspace boundaries"
-                )
+                ) from e
 
         # Check file extension for files (not directories)
         ext = Path(file_path).suffix.lower()
@@ -391,7 +396,7 @@ class MCPFileServer:
 
         except Exception as e:
             logger.error(f"Failed to read file {file_path}: {e}")
-            raise FileOperationError(f"Failed to read file: {e}")
+            raise FileOperationError(f"Failed to read file: {e}") from e
 
     async def write_file(self, file_path: str, content: str) -> bool:
         """Write content to file.
@@ -417,7 +422,7 @@ class MCPFileServer:
         abs_path = self._get_absolute_path(file_path)
 
         try:
-            result = await self.client_session.call_tool(
+            await self.client_session.call_tool(
                 "write_file", {"path": abs_path, "content": content}
             )
 
@@ -426,9 +431,9 @@ class MCPFileServer:
 
         except Exception as e:
             logger.error(f"Failed to write file {file_path}: {e}")
-            raise FileOperationError(f"Failed to write file: {e}")
+            raise FileOperationError(f"Failed to write file: {e}") from e
 
-    async def list_directory(self, dir_path: str = ".") -> List[str]:
+    async def list_directory(self, dir_path: str = ".") -> list[str]:
         """List directory contents.
 
         Args:
@@ -464,7 +469,7 @@ class MCPFileServer:
 
         except Exception as e:
             logger.error(f"Failed to list directory {dir_path}: {e}")
-            raise FileOperationError(f"Failed to list directory: {e}")
+            raise FileOperationError(f"Failed to list directory: {e}") from e
 
     async def delete_file(self, file_path: str) -> bool:
         """Delete a file.
@@ -488,15 +493,13 @@ class MCPFileServer:
         abs_path = self._get_absolute_path(file_path)
 
         try:
-            result = await self.client_session.call_tool(
-                "delete_file", {"path": abs_path}
-            )
+            await self.client_session.call_tool("delete_file", {"path": abs_path})
 
             return True
 
         except Exception as e:
             logger.error(f"Failed to delete file {file_path}: {e}")
-            raise FileOperationError(f"Failed to delete file: {e}")
+            raise FileOperationError(f"Failed to delete file: {e}") from e
 
     async def create_directory(self, dir_path: str) -> bool:
         """Create a directory.
@@ -525,17 +528,15 @@ class MCPFileServer:
         abs_path = self._get_absolute_path(dir_path)
 
         try:
-            result = await self.client_session.call_tool(
-                "create_directory", {"path": abs_path}
-            )
+            await self.client_session.call_tool("create_directory", {"path": abs_path})
 
             return True
 
         except Exception as e:
             logger.error(f"Failed to create directory {dir_path}: {e}")
-            raise FileOperationError(f"Failed to create directory: {e}")
+            raise FileOperationError(f"Failed to create directory: {e}") from e
 
-    async def get_file_info(self, file_path: str) -> Dict[str, Any]:
+    async def get_file_info(self, file_path: str) -> dict[str, Any]:
         """Get file information.
 
         Args:
@@ -567,9 +568,9 @@ class MCPFileServer:
 
         except Exception as e:
             logger.error(f"Failed to get file info for {file_path}: {e}")
-            raise FileOperationError(f"Failed to get file info: {e}")
+            raise FileOperationError(f"Failed to get file info: {e}") from e
 
-    async def search_files(self, pattern: str, dir_path: str = ".") -> List[str]:
+    async def search_files(self, pattern: str, dir_path: str = ".") -> list[str]:
         """Search for files matching a pattern.
 
         Args:
@@ -605,9 +606,9 @@ class MCPFileServer:
 
         except Exception as e:
             logger.error(f"Failed to search files with pattern {pattern}: {e}")
-            raise FileOperationError(f"Failed to search files: {e}")
+            raise FileOperationError(f"Failed to search files: {e}") from e
 
-    def get_health_status(self) -> Dict[str, Any]:
+    def get_health_status(self) -> dict[str, Any]:
         """Get health status of the MCP file server.
 
         Returns:

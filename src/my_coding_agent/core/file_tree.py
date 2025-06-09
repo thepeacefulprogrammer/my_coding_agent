@@ -7,7 +7,7 @@ using PyQt6's QFileSystemModel as the foundation.
 
 import threading
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 import qtawesome as qta
 from PyQt6.QtCore import QDir, QModelIndex, QPoint, QRect, Qt, QTimer, pyqtSignal
@@ -24,7 +24,7 @@ class FileTreeModel(QFileSystemModel):
     for code viewing applications with performance optimizations.
     """
 
-    def __init__(self, parent: Optional[Any] = None) -> None:
+    def __init__(self, parent: Any | None = None) -> None:
         """
         Initialize the FileTreeModel.
 
@@ -216,7 +216,7 @@ class FileTreeModel(QFileSystemModel):
             # Handle other OS-level errors (network issues, etc.)
             raise ValueError(f"Cannot access directory {directory_path}: {e}") from e
 
-    def get_file_path(self, index: QModelIndex) -> Optional[Path]:
+    def get_file_path(self, index: QModelIndex) -> Path | None:
         """
         Get the file path for a given model index.
 
@@ -316,7 +316,7 @@ class FileTreeModel(QFileSystemModel):
         ext = file_path.suffix.lower()
         return ext in code_extensions
 
-    def get_file_info(self, index: QModelIndex) -> "Dict[str, Any]":
+    def get_file_info(self, index: QModelIndex) -> "dict[str, Any]":
         """
         Get detailed information about a file or directory.
 
@@ -401,7 +401,7 @@ class FileTreeWidget(QTreeView):
     file_selected = pyqtSignal(Path)  # Emitted when a file is selected
     file_opened = pyqtSignal(Path)  # Emitted when a file should be opened
 
-    def __init__(self, parent: Optional[Any] = None) -> None:
+    def __init__(self, parent: Any | None = None) -> None:
         """
         Initialize the FileTreeWidget.
 
@@ -714,7 +714,7 @@ class FileTreeWidget(QTreeView):
         # Call parent implementation for other keys
         super().keyPressEvent(event)
 
-    def set_root_directory(self, directory_path: Union[str, Path]) -> None:
+    def set_root_directory(self, directory_path: str | Path) -> None:
         """
         Set the root directory for the file tree view.
 
@@ -739,7 +739,7 @@ class FileTreeWidget(QTreeView):
                 # The UI layer should catch and display appropriate error messages
                 raise
 
-    def get_selected_file_path(self) -> Optional[Path]:
+    def get_selected_file_path(self) -> Path | None:
         """
         Get the file path of the currently selected item.
 
@@ -752,7 +752,7 @@ class FileTreeWidget(QTreeView):
 
         return self._model.get_file_path(current_index)
 
-    def get_selected_file_info(self) -> "Dict[str, Any]":
+    def get_selected_file_info(self) -> "dict[str, Any]":
         """
         Get file information for the currently selected item.
 
@@ -881,7 +881,7 @@ class FileTreeWidget(QTreeView):
         menu.exec(global_pos)
 
     def drawBranches(
-        self, painter: Optional[QPainter], rect: QRect, index: QModelIndex
+        self, painter: QPainter | None, rect: QRect, index: QModelIndex
     ) -> None:
         """
         Override drawBranches method to paint Font Awesome icons at correct tree positions

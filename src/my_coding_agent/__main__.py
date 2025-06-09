@@ -18,7 +18,6 @@ Example:
 import argparse
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 from .config.settings import Settings, get_settings
 
@@ -102,7 +101,7 @@ def _get_version() -> str:
         return "0.1.0-dev"
 
 
-def _parse_window_size(size_str: str) -> Tuple[int, int]:
+def _parse_window_size(size_str: str) -> tuple[int, int]:
     """Parse window size string into width and height.
 
     Args:
@@ -219,7 +218,7 @@ def setup_debug_logging(debug: bool) -> None:
         logging.getLogger("my_coding_agent").debug("Debug mode enabled")
 
 
-def main(argv: Optional[List[str]] = None) -> None:
+def main(argv: list[str] | None = None) -> None:
     """Main entry point for the application.
 
     Args:

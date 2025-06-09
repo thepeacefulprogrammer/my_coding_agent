@@ -4,8 +4,6 @@ This module provides the ThemeManager class for handling application themes,
 including dark mode styling and theme persistence.
 """
 
-from typing import List, Optional
-
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication, QWidget
 
@@ -45,7 +43,7 @@ class ThemeManager:
         """
         return self._current_theme
 
-    def get_available_themes(self) -> List[str]:
+    def get_available_themes(self) -> list[str]:
         """Get list of available themes.
 
         Returns:
@@ -92,7 +90,7 @@ class ThemeManager:
         return self._current_theme
 
     def apply_theme_to_widget(
-        self, widget: QWidget, theme_name: Optional[str] = None
+        self, widget: QWidget, theme_name: str | None = None
     ) -> bool:
         """Apply theme to a specific widget.
 

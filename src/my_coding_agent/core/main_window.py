@@ -7,7 +7,7 @@ and will later host the file tree and code viewer components.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, List, Optional, cast
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from .code_viewer import CodeViewerWidget
@@ -28,7 +28,7 @@ class MainWindow(QMainWindow):
     structure including status bar, central widget, and proper sizing.
     """
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         """
         Initialize the MainWindow.
 
@@ -51,7 +51,7 @@ class MainWindow(QMainWindow):
         # Restore window state from previous session
         self.restore_window_state()
 
-    def get_theme_manager(self) -> Optional[ThemeManager]:
+    def get_theme_manager(self) -> ThemeManager | None:
         """Get the theme manager instance.
 
         Returns:
@@ -70,7 +70,7 @@ class MainWindow(QMainWindow):
         return self._code_viewer
 
     @property
-    def theme_manager(self) -> Optional[ThemeManager]:
+    def theme_manager(self) -> ThemeManager | None:
         """Get the theme manager instance."""
         return getattr(self, "_theme_manager", None)
 
@@ -415,8 +415,8 @@ class MainWindow(QMainWindow):
                 ):
                     try:
                         # Convert to integers if they're strings
-                        splitter_list = cast(List[Any], splitter_sizes)
-                        sizes: List[int] = [int(size) for size in splitter_list]
+                        splitter_list = cast(list[Any], splitter_sizes)
+                        sizes: list[int] = [int(size) for size in splitter_list]
                         if all(size > 0 for size in sizes):
                             self._splitter.setSizes(sizes)
                     except (ValueError, TypeError):
@@ -427,7 +427,7 @@ class MainWindow(QMainWindow):
             # If any restoration fails, use defaults (no action needed)
             pass
 
-    def closeEvent(self, a0: Optional[QCloseEvent]) -> None:
+    def closeEvent(self, a0: QCloseEvent | None) -> None:
         """Handle window close event by saving state."""
         # Save current window state before closing
         self.save_window_state()

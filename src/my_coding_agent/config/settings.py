@@ -12,7 +12,7 @@ import contextlib
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 
 @dataclass
@@ -108,7 +108,7 @@ class Settings:
             with contextlib.suppress(ValueError):
                 self.font_size = int(font_size)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert settings to dictionary format.
 
         Returns:
@@ -158,7 +158,7 @@ def _get_cache_dir() -> Path:
 
 
 # Global settings instance
-_settings_instance: Optional[Settings] = None
+_settings_instance: Settings | None = None
 
 
 def get_settings() -> Settings:
