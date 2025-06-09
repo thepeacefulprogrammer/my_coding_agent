@@ -169,9 +169,10 @@ class MainWindow(QMainWindow):
         self._chat_widget = ChatWidget()
         right_layout.addWidget(self._chat_widget)
 
-        # Apply current theme to chat widget if theme manager is available
+        # Apply current theme to chat widget
         if hasattr(self, "_theme_manager"):
-            self._theme_manager.apply_theme_to_widget(self._chat_widget)
+            current_theme = self._theme_manager.get_current_theme()
+            self._chat_widget.apply_theme(current_theme)
 
         # Add panels to splitter
         splitter.addWidget(left_panel)
@@ -273,6 +274,10 @@ class MainWindow(QMainWindow):
             # Apply theme to code viewer if it exists
             if hasattr(self, "_code_viewer"):
                 self._theme_manager.apply_theme_to_widget(self._code_viewer)
+
+            # Apply theme to chat widget if it exists
+            if hasattr(self, "_chat_widget"):
+                self._chat_widget.apply_theme(new_theme)
 
             # Update status bar to show theme change
             if hasattr(self, "_file_info_label"):

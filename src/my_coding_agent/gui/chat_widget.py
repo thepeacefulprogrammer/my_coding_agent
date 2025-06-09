@@ -841,7 +841,8 @@ class ChatWidget(QWidget):
         self.send_button = QPushButton("Send")
         self.send_button.setFixedSize(80, 40)
 
-        # Apply initial light theme styling after widgets are created
+        # Apply initial theme styling after widgets are created
+        # Note: Default to light theme, will be overridden by main window theme application
         self._apply_input_theme("light")
 
         input_layout.addWidget(self.input_field)
