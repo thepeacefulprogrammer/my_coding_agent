@@ -153,29 +153,31 @@ class TestMainWindow:
         # Clean up
         window.close()
 
-    def test_splitter_has_two_panels(self, qapp_instance):
-        """Test QSplitter has exactly two panels (left and right)."""
+    def test_splitter_has_three_panels(self, qapp_instance):
+        """Test QSplitter has exactly three panels (left, center, right)."""
         window = MainWindow()
 
         splitter = window.findChild(QSplitter)
         assert splitter is not None
 
-        # Should have exactly 2 widgets
-        assert splitter.count() == 2
+        # Should have exactly 3 widgets
+        assert splitter.count() == 3
 
-        # Both widgets should be present
+        # All three widgets should be present
         left_panel = splitter.widget(0)
-        right_panel = splitter.widget(1)
+        center_panel = splitter.widget(1)
+        right_panel = splitter.widget(2)
 
         assert left_panel is not None
+        assert center_panel is not None
         assert right_panel is not None
-        assert left_panel != right_panel
+        assert left_panel != center_panel != right_panel
 
         # Clean up
         window.close()
 
     def test_splitter_initial_sizes(self, qapp_instance):
-        """Test QSplitter has correct initial size proportions (30%/70%)."""
+        """Test QSplitter has correct initial size proportions (25%/45%/30%)."""
         window = MainWindow()
         window.resize(1000, 700)  # Set known size for testing
 
@@ -184,17 +186,19 @@ class TestMainWindow:
 
         # Get splitter sizes
         sizes = splitter.sizes()
-        assert len(sizes) == 2
+        assert len(sizes) == 3
 
         total_width = sum(sizes)
         left_ratio = sizes[0] / total_width
-        right_ratio = sizes[1] / total_width
+        center_ratio = sizes[1] / total_width
+        right_ratio = sizes[2] / total_width
 
-        # Test 30%/70% split with some tolerance for integer division and state restoration
+        # Test 25%/45%/30% split with some tolerance for integer division and state restoration
         assert (
-            abs(left_ratio - 0.3) < 0.15
+            abs(left_ratio - 0.25) < 0.15
         )  # Within 15% tolerance (accounts for state restoration)
-        assert abs(right_ratio - 0.7) < 0.15  # Within 15% tolerance
+        assert abs(center_ratio - 0.45) < 0.15  # Within 15% tolerance
+        assert abs(right_ratio - 0.30) < 0.15  # Within 15% tolerance
 
         # Clean up
         window.close()
@@ -234,8 +238,8 @@ class TestMainWindow:
         splitter = window.findChild(QSplitter)
         assert splitter is not None
 
-        # Set custom sizes
-        custom_sizes = [400, 600]  # 40%/60% split
+        # Set custom sizes for three panels
+        custom_sizes = [200, 500, 300]  # 20%/50%/30% split
         splitter.setSizes(custom_sizes)
 
         # Verify sizes were set
@@ -245,8 +249,8 @@ class TestMainWindow:
         total_actual = sum(actual_sizes)
         left_ratio = actual_sizes[0] / total_actual
 
-        # Should be closer to 40% than to 30%
-        assert abs(left_ratio - 0.4) < abs(left_ratio - 0.3)
+        # Should be closer to 20% than to 25% (original default)
+        assert abs(left_ratio - 0.2) < abs(left_ratio - 0.25)
 
         # Clean up
         window.close()
@@ -259,14 +263,16 @@ class TestMainWindow:
         assert splitter is not None
 
         # Try to collapse left panel completely
-        splitter.setSizes([0, 1000])
+        splitter.setSizes([0, 1000, 0])
 
         sizes = splitter.sizes()
 
         # Left panel should have some minimum width (not 0)
         assert sizes[0] > 0
-        # Right panel should still have substantial width
+        # Center panel should still have substantial width
         assert sizes[1] > 200
+        # Right panel should have some minimum width (not 0)
+        assert sizes[2] > 0
 
         # Clean up
         window.close()
@@ -456,16 +462,16 @@ class TestMainWindow:
         window = MainWindow()
         window.resize(1000, 700)
 
-        # Set and save custom splitter sizes
+        # Set and save custom splitter sizes for three panels
         splitter = window.findChild(QSplitter)
-        custom_sizes = [400, 600]
+        custom_sizes = [200, 500, 300]  # 20%/50%/30%
         splitter.setSizes(custom_sizes)
 
         # Mock settings with saved splitter state
         window._settings.setValue("splitter_sizes", custom_sizes)
 
         # Reset to default and then restore
-        splitter.setSizes([300, 700])  # Reset to default
+        splitter.setSizes([250, 450, 300])  # Reset to default
         window.restore_window_state()
 
         # Should restore custom sizes
@@ -473,8 +479,8 @@ class TestMainWindow:
         total_restored = sum(restored_sizes)
         left_ratio = restored_sizes[0] / total_restored
 
-        # Should be closer to 40% than 30%
-        assert abs(left_ratio - 0.4) < abs(left_ratio - 0.3)
+        # Should be closer to 20% than 25%
+        assert abs(left_ratio - 0.2) < abs(left_ratio - 0.25)
 
         # Clean up
         window.close()
@@ -563,7 +569,7 @@ class TestMainWindow:
 
         splitter = window.findChild(QSplitter)
         sizes = splitter.sizes()
-        assert len(sizes) == 2
+        assert len(sizes) == 3
         assert all(size > 0 for size in sizes)
 
         # Clean up
@@ -833,7 +839,7 @@ class TestMainWindowIntegration:
         # Splitter should be functional after showing
         splitter = window.findChild(QSplitter)
         assert splitter is not None
-        assert splitter.count() == 2
+        assert splitter.count() == 3
 
         # Status bar should be functional after showing
         file_path_label = window.findChild(QLabel, "file_path_label")
