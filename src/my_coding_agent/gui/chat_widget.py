@@ -1,6 +1,6 @@
 """Chat widget with message display area for PyQt6."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont
@@ -9,6 +9,8 @@ from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QPlainTextEdit,
+    QPushButton,
     QScrollArea,
     QSizePolicy,
     QSpacerItem,
@@ -27,7 +29,7 @@ from .chat_message_model import (
 class MessageBubble(QWidget):
     """Widget representing a single chat message bubble."""
 
-    def __init__(self, message: ChatMessage, parent: Optional[QWidget] = None):
+    def __init__(self, message: ChatMessage, parent: QWidget | None = None):
         """Initialize the message bubble."""
         super().__init__(parent)
         self.message = message
@@ -246,19 +248,19 @@ class MessageDisplayArea(QWidget):
     """Widget for displaying chat messages with scrolling."""
 
     def __init__(
-        self, message_model: ChatMessageModel, parent: Optional[QWidget] = None
+        self, message_model: ChatMessageModel, parent: QWidget | None = None
     ):
         """Initialize the message display area."""
         super().__init__(parent)
         self.message_model = message_model
-        self._message_bubbles: Dict[str, MessageBubble] = {}
-        self._typing_indicator: Optional[QLabel] = None
+        self._message_bubbles: dict[str, MessageBubble] = {}
+        self._typing_indicator: QLabel | None = None
         self._scroll_state = (
             "bottom"  # Track intended scroll position: "top", "bottom", "middle"
         )
         self._test_mode = False  # Flag for test environment behavior
         self._typing_indicator_shown = False  # Initialize state tracking
-        self._auto_scroll_timer: Optional[QTimer] = None  # Track auto-scroll timer
+        self._auto_scroll_timer: QTimer | None = None  # Track auto-scroll timer
 
         self._setup_ui()
         self._connect_signals()
@@ -371,11 +373,11 @@ class MessageDisplayArea(QWidget):
         """Check if message is displayed."""
         return message_id in self._message_bubbles
 
-    def get_message_bubble(self, message_id: str) -> Optional[MessageBubble]:
+    def get_message_bubble(self, message_id: str) -> MessageBubble | None:
         """Get message bubble by ID."""
         return self._message_bubbles.get(message_id)
 
-    def get_displayed_messages(self) -> List[ChatMessage]:
+    def get_displayed_messages(self) -> list[ChatMessage]:
         """Get all displayed messages in order."""
         return self.message_model.get_all_messages()
 
@@ -540,7 +542,7 @@ class MessageDisplayArea(QWidget):
 
         return visible
 
-    def search_messages(self, query: str) -> List[ChatMessage]:
+    def search_messages(self, query: str) -> list[ChatMessage]:
         """Search messages by content."""
         results = []
         for message in self.message_model.get_all_messages():
@@ -577,7 +579,7 @@ class ChatWidget(QWidget):
 
     message_sent = pyqtSignal(str)  # Emitted when user sends message
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(self, parent: QWidget | None = None):
         """Initialize the chat widget."""
         super().__init__(parent)
         self.message_model = ChatMessageModel()
@@ -596,13 +598,147 @@ class ChatWidget(QWidget):
         self.display_area = MessageDisplayArea(self.message_model)
         main_layout.addWidget(self.display_area)
 
+        # Input area
+        self._setup_input_area(main_layout)
+
+    def _setup_input_area(self, main_layout: QVBoxLayout) -> None:
+        """Set up the input area with text field and send button."""
+        # Input container
+        input_container = QWidget()
+        input_container.setFixedHeight(80)
+        input_container.setStyleSheet("""
+            QWidget {
+                background-color: #f8f9fa;
+                border-top: 1px solid #dee2e6;
+            }
+        """)
+
+        # Input layout
+        input_layout = QHBoxLayout(input_container)
+        input_layout.setContentsMargins(12, 8, 12, 8)
+        input_layout.setSpacing(8)
+
+        # Text input field
+        self.input_field = QPlainTextEdit()
+        self.input_field.setPlaceholderText("Type your message here...")
+        self.input_field.setMaximumHeight(60)
+        self.input_field.setStyleSheet("""
+            QPlainTextEdit {
+                border: 1px solid #ced4da;
+                border-radius: 8px;
+                padding: 8px;
+                font-size: 14px;
+                background-color: white;
+            }
+            QPlainTextEdit:focus {
+                border: 2px solid #2196F3;
+            }
+        """)
+
+        # Send button
+        self.send_button = QPushButton("Send")
+        self.send_button.setFixedSize(80, 40)
+        self.send_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+            QPushButton:pressed {
+                background-color: #0D47A1;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
+
+        input_layout.addWidget(self.input_field)
+        input_layout.addWidget(self.send_button)
+
+        main_layout.addWidget(input_container)
+
+        # Connect signals
+        self._connect_input_signals()
+
+    def _connect_input_signals(self) -> None:
+        """Connect input-related signals."""
+        # Send button click
+        self.send_button.clicked.connect(self._handle_send_message)
+
+        # Text change to enable/disable send button
+        self.input_field.textChanged.connect(self._update_send_button_state)
+
+        # Enter key handling
+        self.input_field.installEventFilter(self)
+
+        # Initial button state
+        self._update_send_button_state()
+
+    def _handle_send_message(self) -> None:
+        """Handle sending a message."""
+        # Get text from input field
+        text = self.input_field.toPlainText().strip()
+
+        # Don't send empty messages
+        if not text:
+            return
+
+        # Emit signal with message content
+        self.message_sent.emit(text)
+
+        # Clear input field
+        self.input_field.clear()
+
+        # Reset button state
+        self._update_send_button_state()
+
+    def _update_send_button_state(self) -> None:
+        """Update send button enabled state based on input content."""
+        text = self.input_field.toPlainText().strip()
+        self.send_button.setEnabled(bool(text))
+
+    def eventFilter(self, a0, a1) -> bool:
+        """Handle key events for input field."""
+        from PyQt6.QtCore import QEvent
+        from PyQt6.QtGui import QKeyEvent
+
+        if (
+            a0 == self.input_field
+            and a1 is not None
+            and a1.type() == QEvent.Type.KeyPress
+        ):
+            key_event = a1
+            if isinstance(key_event, QKeyEvent):
+                # Handle Enter key
+                if (
+                    key_event.key() == Qt.Key.Key_Return
+                    or key_event.key() == Qt.Key.Key_Enter
+                ):
+                    # Check if Shift is pressed
+                    if key_event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                        # Shift+Enter: let default behavior happen (add newline)
+                        return False
+                    else:
+                        # Enter without Shift: send message
+                        self._handle_send_message()
+                        return True
+
+        return super().eventFilter(a0, a1)
+
     def _setup_accessibility(self) -> None:
         """Set up accessibility features."""
         self.setAccessibleName("Chat Widget")
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def add_user_message(
-        self, content: str, metadata: Optional[Dict[str, Any]] = None
+        self, content: str, metadata: dict[str, Any] | None = None
     ) -> str:
         """Add a user message to the chat."""
         message = ChatMessage.create_user_message(content, metadata)
@@ -610,7 +746,7 @@ class ChatWidget(QWidget):
         return message.message_id
 
     def add_assistant_message(
-        self, content: str, metadata: Optional[Dict[str, Any]] = None
+        self, content: str, metadata: dict[str, Any] | None = None
     ) -> str:
         """Add an assistant message to the chat."""
         message = ChatMessage.create_assistant_message(content, metadata)
@@ -618,7 +754,7 @@ class ChatWidget(QWidget):
         return message.message_id
 
     def add_system_message(
-        self, content: str, metadata: Optional[Dict[str, Any]] = None
+        self, content: str, metadata: dict[str, Any] | None = None
     ) -> str:
         """Add a system message to the chat."""
         message = ChatMessage.create_system_message(content, metadata)
@@ -629,7 +765,7 @@ class ChatWidget(QWidget):
         """Clear all messages from the conversation."""
         self.message_model.clear_all_messages()
 
-    def export_conversation(self) -> List[Dict[str, Any]]:
+    def export_conversation(self) -> list[dict[str, Any]]:
         """Export the conversation history."""
         return self.message_model.export_conversation_history()
 
@@ -669,6 +805,6 @@ class ChatWidget(QWidget):
         """Apply theme to the chat widget."""
         self.display_area.apply_theme(theme)
 
-    def search_messages(self, query: str) -> List[ChatMessage]:
+    def search_messages(self, query: str) -> list[ChatMessage]:
         """Search messages in the chat."""
         return self.display_area.search_messages(query)
