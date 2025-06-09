@@ -30,6 +30,7 @@
 - Follow Test-Driven Development: write tests first, verify they fail, then implement code to make them pass.
 - The MCP file server should follow the FastMCP pattern seen in the reference implementations.
 - **Current Test Status**: 525/526 tests passing (99.8% pass rate). All critical tests are now passing! Fixed 7 failing tests related to health status, retry mechanisms, context managers, input sanitization, and security configuration expectations.
+- **Current Linting Status**: All linting issues resolved! Fixed 135+ linting errors including modern Python type annotations (UP006, UP007, UP035), exception chaining (B904), nested if statements (SIM102), unused variables (F841), and code formatting. CI should now pass completely.
 
 ## Tasks
 
