@@ -30,26 +30,24 @@ QTreeView::item:hover {
     background-color: #e6f3ff;
 }
 
-/* Tree branch indicators for collapsed folders (right-pointing triangle) */
+/* Tree branch indicators for collapsed folders (plus-like pattern) */
 QTreeView::branch:has-children:!has-siblings:closed,
 QTreeView::branch:closed:has-children:has-siblings {
-    width: 0px;
-    height: 0px;
-    border-top: 5px solid transparent;
-    border-bottom: 5px solid transparent;
-    border-left: 8px solid #666666;
-    margin: 4px 6px;
+    width: 10px;
+    height: 10px;
+    background-color: #cccccc;
+    border: 1px solid #aaaaaa;
+    margin: 3px;
 }
 
-/* Tree branch indicators for expanded folders (down-pointing triangle) */
+/* Tree branch indicators for expanded folders (minus-like pattern) */
 QTreeView::branch:open:has-children:!has-siblings,
 QTreeView::branch:open:has-children:has-siblings {
-    width: 0px;
-    height: 0px;
-    border-left: 5px solid transparent;
-    border-right: 5px solid transparent;
-    border-top: 8px solid #666666;
-    margin: 6px 4px;
+    width: 10px;
+    height: 3px;
+    background-color: #999999;
+    border: 1px solid #777777;
+    margin: 6px 3px;
 }
 
 /* Text Edit (Code Viewer) */
