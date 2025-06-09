@@ -69,9 +69,9 @@
   - [x] 3.7 Write unit tests for file tree model and widget interactions
 
 - [ ] 4.0 Code Viewer with Syntax Highlighting
-  - [ ] 4.1 Create CodeViewerWidget class using QTextEdit in read-only mode
-  - [ ] 4.2 Integrate Pygments syntax highlighter for Python and JavaScript
-  - [ ] 4.3 Implement line numbers widget that syncs with text scrolling
+  - [x] 4.1 Create CodeViewerWidget class using QTextEdit in read-only mode
+  - [x] 4.2 Integrate Pygments syntax highlighter for Python and JavaScript
+  - [x] 4.3 Implement line numbers widget that syncs with text scrolling
   - [ ] 4.4 Add support for large file handling (up to 10MB) with lazy loading
   - [ ] 4.5 Create SyntaxHighlighter class to bridge Pygments with Qt
   - [ ] 4.6 Implement file loading with error handling (encoding, file not found)

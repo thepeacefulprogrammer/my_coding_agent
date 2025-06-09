@@ -90,6 +90,15 @@ class MainWindow(QMainWindow):
         right_panel.setFrameStyle(QFrame.Shape.StyledPanel)
         right_panel.setLineWidth(1)
 
+        # Add code viewer widget to right panel
+        from .code_viewer import CodeViewerWidget
+
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(5, 5, 5, 5)  # Small margins
+
+        self._code_viewer = CodeViewerWidget()
+        right_layout.addWidget(self._code_viewer)
+
         # Add panels to splitter
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
@@ -235,11 +244,40 @@ class MainWindow(QMainWindow):
         Args:
             file_path: Path to the file to open
         """
-        # For now, just update the status bar to indicate the file would be opened
-        # This will be expanded when the code viewer is implemented in task 4.0
-        self.update_file_info_display(f"Opening: {file_path.name}")
+        # Load the file into the code viewer
+        if hasattr(self, "_code_viewer"):
+            success = self._code_viewer.load_file(file_path)
+            if success:
+                self.update_file_info_display(f"Loaded: {file_path.name}")
 
-        # TODO: In task 4.0, this will load the file content into the code viewer
+                # Get and display additional file info
+                try:
+                    content = self._code_viewer.toPlainText()
+                    line_count = content.count("\n") + 1 if content else 0
+
+                    file_size = file_path.stat().st_size
+                    if file_size < 1024:
+                        size_str = f"{file_size} B"
+                    elif file_size < 1024 * 1024:
+                        size_str = f"{file_size / 1024:.1f} KB"
+                    else:
+                        size_str = f"{file_size / (1024 * 1024):.1f} MB"
+
+                    file_type = (
+                        file_path.suffix.upper()[1:] if file_path.suffix else "File"
+                    )
+                    language = self._code_viewer.get_current_language().title()
+                    info_text = (
+                        f"{file_type} | {language} | {line_count} lines | {size_str}"
+                    )
+                    self.update_file_info_display(info_text)
+                except Exception:
+                    self.update_file_info_display(f"Loaded: {file_path.name}")
+            else:
+                self.update_file_info_display(f"Failed to load: {file_path.name}")
+        else:
+            # Fallback if code viewer not available
+            self.update_file_info_display(f"Opening: {file_path.name}")
 
     def _setup_settings(self) -> None:
         """Set up QSettings for persistent application state."""
