@@ -13,7 +13,8 @@
 - `src/my_coding_agent/gui/chat_message_model.py` - Chat message data model with enums, data classes, and PyQt6 model for message management
 - `tests/test_chat_message_model.py` - Comprehensive unit tests for chat message model functionality
 - `src/my_coding_agent/gui/chat_widget.py` - PyQt6 chat interface widget with message display area, message bubbles, scrolling, input field, and send button functionality
-- `tests/test_chat_widget.py` - Comprehensive unit tests for chat widget functionality (53/53 tests passing - 100% success rate)
+- `tests/test_chat_widget.py` - Comprehensive unit tests for chat widget functionality (55/55 tests passing - 100% success rate)
+- `examples/demo_chat_dark_theme.py` - Demo script showcasing dark theme chat widget functionality
 - `src/my_coding_agent/gui/main_window.py` - Modified main window with three-panel layout
 - `tests/test_main_window.py` - Unit tests for main window modifications
 - `src/my_coding_agent/core/workflow_manager.py` - Workflow automation system integration
@@ -58,7 +59,7 @@
   - [x] 3.3 Implement message input field with send button functionality
   - [x] 3.4 Add message bubbles with user/AI distinction styling
   - [x] 3.5 Implement scrollable message history with auto-scroll
-  - [ ] 3.6 Apply dark theme styling consistent with existing UI
+  - [x] 3.6 Apply dark theme styling consistent with existing UI
   - [ ] 3.7 Add AI processing indicators (typing, loading states)
   - [ ] 3.8 Write unit tests for chat widget functionality
 
