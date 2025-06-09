@@ -30,6 +30,8 @@
 - `tests/test_assets_structure.py` - Unit tests for assets directory structure and resource management
 - `src/my_coding_agent/assets/__init__.py` - Assets management module with utility functions
 - `examples/demo_viewer.py` - Example script showing basic usage
+- `examples/demo_file_tree_signals.py` - Demo script showcasing file tree selection and click-to-open functionality
+- `tools/debug_file_tree_signals.py` - Debug script for testing file tree signals manually
 
 ### Notes
 
@@ -57,14 +59,14 @@
   - [x] 2.5 Add basic menu bar with File menu and keyboard shortcuts
   - [x] 2.6 Write comprehensive unit tests for main window functionality
 
-- [ ] 3.0 File Tree Navigation Component
+- [x] 3.0 File Tree Navigation Component
   - [x] 3.1 Create FileTreeModel class using QFileSystemModel
   - [x] 3.2 Implement FileTreeWidget with QTreeView for directory navigation
   - [x] 3.3 Add file type icons and folder expand/collapse functionality
-  - [ ] 3.4 Implement file selection handling and click-to-open behavior
-  - [ ] 3.5 Add context menu for file tree (refresh, expand all, collapse all)
-  - [ ] 3.6 Handle edge cases (permission errors, network drives, symlinks)
-  - [ ] 3.7 Write unit tests for file tree model and widget interactions
+  - [x] 3.4 Implement file selection handling and click-to-open behavior
+  - [x] 3.5 Add context menu for file tree (refresh, expand all, collapse all)
+  - [x] 3.6 Handle edge cases (permission errors, network drives, symlinks)
+  - [x] 3.7 Write unit tests for file tree model and widget interactions
 
 - [ ] 4.0 Code Viewer with Syntax Highlighting
   - [ ] 4.1 Create CodeViewerWidget class using QTextEdit in read-only mode

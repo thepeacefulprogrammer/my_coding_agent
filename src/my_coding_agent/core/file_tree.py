@@ -8,9 +8,9 @@ using PyQt6's QFileSystemModel as the foundation.
 from pathlib import Path
 from typing import Any, Optional, Union
 
-from PyQt6.QtCore import QDir, QModelIndex, Qt
-from PyQt6.QtGui import QFileSystemModel, QIcon
-from PyQt6.QtWidgets import QTreeView
+from PyQt6.QtCore import QDir, QModelIndex, QPoint, Qt, pyqtSignal
+from PyQt6.QtGui import QAction, QFileSystemModel, QIcon
+from PyQt6.QtWidgets import QMenu, QTreeView
 
 
 class FileTreeModel(QFileSystemModel):
@@ -113,16 +113,36 @@ class FileTreeModel(QFileSystemModel):
 
         Raises:
             ValueError: If the path doesn't exist or isn't a directory
+            PermissionError: If the directory is not accessible
         """
-        if not directory_path.exists():
-            raise ValueError(f"Directory does not exist: {directory_path}")
+        try:
+            # Resolve the path to handle symlinks and relative paths
+            resolved_path = directory_path.resolve()
 
-        if not directory_path.is_dir():
-            raise ValueError(f"Path is not a directory: {directory_path}")
+            # Check if path exists (this will fail for broken symlinks)
+            if not resolved_path.exists():
+                raise ValueError(f"Directory does not exist: {directory_path}")
 
-        # Set the root path and return the index
-        root_index = self.setRootPath(str(directory_path))
-        return root_index
+            # Check if it's a directory
+            if not resolved_path.is_dir():
+                raise ValueError(f"Path is not a directory: {directory_path}")
+
+            # Test if directory is readable
+            try:
+                # Try to list directory contents to check read permissions
+                list(resolved_path.iterdir())
+            except PermissionError as e:
+                raise PermissionError(
+                    f"Permission denied accessing directory: {directory_path}"
+                ) from e
+
+            # Set the root path and return the index
+            root_index = self.setRootPath(str(resolved_path))
+            return root_index
+
+        except OSError as e:
+            # Handle other OS-level errors (network issues, etc.)
+            raise ValueError(f"Cannot access directory {directory_path}: {e}") from e
 
     def get_file_path(self, index: QModelIndex) -> Optional[Path]:
         """
@@ -137,8 +157,22 @@ class FileTreeModel(QFileSystemModel):
         if not index.isValid():
             return None
 
-        file_path = self.filePath(index)
-        return Path(file_path) if file_path else None
+        try:
+            file_path = self.filePath(index)
+            if not file_path:
+                return None
+
+            # Create Path object and handle potential encoding issues
+            path_obj = Path(file_path)
+
+            # Validate the path exists (this may fail for broken symlinks or permission issues)
+            # We don't raise exceptions here to allow the UI to show broken symlinks
+            return path_obj
+
+        except (OSError, UnicodeDecodeError, ValueError):
+            # Handle file path encoding issues or OS errors
+            # Return None to indicate the path is invalid
+            return None
 
     def is_directory(self, index: QModelIndex) -> bool:
         """
@@ -198,21 +232,24 @@ class FileTreeModel(QFileSystemModel):
             ".json",
             ".xml",
             ".yaml",
-            ".yml",  # Data formats
+            ".yml",
+            ".toml",
+            ".ini",
+            ".cfg",  # Config files
             ".md",
             ".txt",
-            ".cfg",
-            ".ini",  # Text files
+            ".log",  # Text files
         }
 
-        return file_path.suffix.lower() in code_extensions
+        ext = file_path.suffix.lower()
+        return ext in code_extensions
 
     def get_file_info(self, index: QModelIndex) -> "dict[str, Any]":
         """
         Get detailed information about a file or directory.
 
         Args:
-            index: QModelIndex to get info for
+            index: QModelIndex for the item
 
         Returns:
             Dictionary containing file information
@@ -220,15 +257,10 @@ class FileTreeModel(QFileSystemModel):
         if not index.isValid():
             return {}
 
-        file_path = self.get_file_path(index)
-        if not file_path:
-            return {}
-
         info = {
             "name": self.fileName(index),
-            "path": file_path,
+            "path": self.get_file_path(index),
             "is_directory": self.is_directory(index),
-            "is_code_file": self.is_code_file(index),
             "size": self.size(index),
             "last_modified": self.lastModified(index),
             "type": self.type(index),
@@ -237,12 +269,13 @@ class FileTreeModel(QFileSystemModel):
         # Add file size in human-readable format for files
         if not info["is_directory"]:
             size_bytes = info["size"]
-            if size_bytes < 1024:
-                info["size_human"] = f"{size_bytes} B"
-            elif size_bytes < 1024 * 1024:
-                info["size_human"] = f"{size_bytes / 1024:.1f} KB"
+            if isinstance(size_bytes, int):
+                if size_bytes < 1024:
+                    info["size_human"] = f"{size_bytes} B"
+                else:
+                    info["size_human"] = f"{size_bytes / 1024:.1f} KB"
             else:
-                info["size_human"] = f"{size_bytes / (1024 * 1024):.1f} MB"
+                info["size_human"] = "Unknown"
         else:
             info["size_human"] = ""
 
@@ -292,6 +325,10 @@ class FileTreeWidget(QTreeView):
     allowing users to navigate directories and select files.
     """
 
+    # Define signals for file operations
+    file_selected = pyqtSignal(Path)  # Emitted when a file is selected
+    file_opened = pyqtSignal(Path)  # Emitted when a file should be opened
+
     def __init__(self, parent: Optional[Any] = None) -> None:
         """
         Initialize the FileTreeWidget.
@@ -301,6 +338,7 @@ class FileTreeWidget(QTreeView):
         """
         super().__init__(parent)
         self._setup_widget()
+        self._connect_signals()
 
     def _setup_widget(self) -> None:
         """Set up the tree view with appropriate settings."""
@@ -328,12 +366,264 @@ class FileTreeWidget(QTreeView):
         self.hideColumn(2)  # Type column
         self.hideColumn(3)  # Date modified column
 
+        # Enable custom context menu
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+
+    def _connect_signals(self) -> None:
+        """Connect internal signals to handle file selection and opening."""
+        # Connect selection changed signal
+        selection_model = self.selectionModel()
+        if selection_model:
+            selection_model.selectionChanged.connect(self._on_selection_changed)
+
+        # Connect double-click signal
+        self.doubleClicked.connect(self._on_double_clicked)
+
+        # Connect context menu signal
+        self.customContextMenuRequested.connect(self._show_context_menu)
+
+    def _on_selection_changed(self, selected, deselected) -> None:
+        """
+        Handle selection changes in the tree view.
+
+        Args:
+            selected: Newly selected items
+            deselected: Previously selected items
+        """
+        current_index = self.currentIndex()
+        if not current_index.isValid():
+            return
+
+        # Only emit signal for files, not directories
+        if not self._model.is_directory(current_index):
+            file_path = self._model.get_file_path(current_index)
+            if file_path:
+                self.file_selected.emit(file_path)
+
+    def _on_double_clicked(self, index: QModelIndex) -> None:
+        """
+        Handle double-click events on tree items.
+
+        Args:
+            index: The model index that was double-clicked
+        """
+        if not index.isValid():
+            return
+
+        # For directories, toggle expansion
+        if self._model.is_directory(index):
+            if self.isExpanded(index):
+                self.collapse(index)
+            else:
+                self.expand(index)
+        else:
+            # For files, emit file_opened signal if it's a viewable file
+            file_path = self._model.get_file_path(index)
+            if file_path and self._is_viewable_file(file_path):
+                self.file_opened.emit(file_path)
+
+    def _is_viewable_file(self, file_path: Path) -> bool:
+        """
+        Check if a file is viewable (text-based, not binary).
+
+        Args:
+            file_path: Path to the file to check
+
+        Returns:
+            True if the file can be viewed in a text editor
+        """
+        try:
+            # First, check if the file exists (handles broken symlinks)
+            if not file_path.exists():
+                return False
+
+            # Check if it's actually a file (not a directory)
+            if not file_path.is_file():
+                return False
+
+            # Check file size - don't try to open very large files
+            try:
+                file_size = file_path.stat().st_size
+                # Skip files larger than 10MB for performance
+                if file_size > 10 * 1024 * 1024:
+                    return False
+            except (OSError, PermissionError):
+                # If we can't get file stats, assume it's not viewable
+                return False
+
+            # Define viewable file extensions
+            viewable_extensions = {
+                # Code files
+                ".py",
+                ".pyw",
+                ".js",
+                ".jsx",
+                ".ts",
+                ".tsx",
+                ".html",
+                ".htm",
+                ".css",
+                ".scss",
+                ".sass",
+                ".less",
+                ".java",
+                ".c",
+                ".cpp",
+                ".cxx",
+                ".cc",
+                ".h",
+                ".hpp",
+                ".hxx",
+                ".cs",
+                ".php",
+                ".rb",
+                ".go",
+                ".rs",
+                ".swift",
+                ".kt",
+                ".scala",
+                ".clj",
+                ".hs",
+                ".ml",
+                ".elm",
+                ".dart",
+                # Configuration and data files
+                ".json",
+                ".xml",
+                ".yaml",
+                ".yml",
+                ".toml",
+                ".ini",
+                ".cfg",
+                ".conf",
+                ".properties",
+                ".env",
+                # Documentation and text files
+                ".txt",
+                ".md",
+                ".rst",
+                ".tex",
+                ".rtf",
+                # Shell and script files
+                ".sh",
+                ".bash",
+                ".zsh",
+                ".fish",
+                ".ps1",
+                ".bat",
+                ".cmd",
+                # Logs and other text files
+                ".log",
+                ".out",
+                ".err",
+            }
+
+            # Check by file extension first
+            ext = file_path.suffix.lower()
+            if ext in viewable_extensions:
+                return True
+
+            # Files without extensions that are commonly viewable
+            viewable_names = {
+                "makefile",
+                "dockerfile",
+                "readme",
+                "changelog",
+                "license",
+                "authors",
+                "contributors",
+                "copying",
+                "install",
+                "news",
+            }
+
+            if file_path.name.lower() in viewable_names:
+                return True
+
+            # Simple binary file detection by checking for null bytes and common binary signatures
+            try:
+                with file_path.open("rb") as f:
+                    # Read first 1024 bytes to check for binary content
+                    chunk = f.read(1024)
+                    if not chunk:
+                        return True  # Empty file is viewable
+
+                    # Check for common binary file signatures
+                    binary_signatures = [
+                        b"\x89PNG",  # PNG
+                        b"\xff\xd8\xff",  # JPEG
+                        b"GIF8",  # GIF
+                        b"PK\x03\x04",  # ZIP
+                        b"PK\x05\x06",  # ZIP empty
+                        b"\x7fELF",  # ELF executable
+                        b"MZ",  # Windows executable
+                        b"\xca\xfe\xba\xbe",  # Java class file
+                        b"\xfe\xed\xfa\xce",  # Mach-O binary (macOS)
+                        b"\xfe\xed\xfa\xcf",  # Mach-O binary (macOS)
+                    ]
+
+                    for signature in binary_signatures:
+                        if chunk.startswith(signature):
+                            return False
+
+                    # Check for null bytes (strong indicator of binary content)
+                    if b"\x00" in chunk:
+                        return False
+
+                    # Try to decode as UTF-8 for final check
+                    try:
+                        chunk.decode("utf-8")
+                        return True
+                    except UnicodeDecodeError:
+                        # If UTF-8 fails, assume binary for simplicity
+                        return False
+
+            except (OSError, PermissionError, IsADirectoryError):
+                # If we can't read the file, assume it's not viewable
+                return False
+
+        except (OSError, ValueError):
+            # Handle any other OS-level errors or path issues
+            return False
+
+    def keyPressEvent(self, event) -> None:
+        """
+        Handle key press events.
+
+        Args:
+            event: The key press event
+        """
+        # Handle Enter/Return key to open files
+        if event and event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            current_index = self.currentIndex()
+            if current_index.isValid():
+                if not self._model.is_directory(current_index):
+                    # For files, emit file_opened signal
+                    file_path = self._model.get_file_path(current_index)
+                    if file_path and self._is_viewable_file(file_path):
+                        self.file_opened.emit(file_path)
+                        return
+                else:
+                    # For directories, toggle expansion
+                    if self.isExpanded(current_index):
+                        self.collapse(current_index)
+                    else:
+                        self.expand(current_index)
+                    return
+
+        # Call parent implementation for other keys
+        super().keyPressEvent(event)
+
     def set_root_directory(self, directory_path: Union[str, Path]) -> None:
         """
         Set the root directory for the file tree view.
 
         Args:
             directory_path: Path to the directory to display
+
+        Raises:
+            ValueError: If the path is invalid or inaccessible
+            PermissionError: If access is denied to the directory
         """
         # Convert to Path object for validation
         path = (
@@ -341,8 +631,13 @@ class FileTreeWidget(QTreeView):
         )
 
         if self._model:
-            root_index = self._model.set_root_directory(path)
-            self.setRootIndex(root_index)
+            try:
+                root_index = self._model.set_root_directory(path)
+                self.setRootIndex(root_index)
+            except (ValueError, PermissionError, OSError):
+                # Re-raise the exception to let the caller handle it
+                # The UI layer should catch and display appropriate error messages
+                raise
 
     def get_selected_file_path(self) -> Optional[Path]:
         """
@@ -414,18 +709,62 @@ class FileTreeWidget(QTreeView):
         Args:
             file_path: Path to expand to and select
         """
-        if not file_path.exists():
-            return
+        try:
+            # Resolve the path to handle symlinks
+            resolved_path = file_path.resolve()
 
-        # Get the model index for this path
-        index = self._model.index(str(file_path))
-        if index.isValid():
-            # Expand all parent directories
-            parent = index.parent()
-            while parent.isValid():
-                self.expand(parent)
-                parent = parent.parent()
+            # Check if the path exists
+            if not resolved_path.exists():
+                return
 
-            # Select and scroll to the item
-            self.setCurrentIndex(index)
-            self.scrollTo(index)
+            # Get the model index for this path
+            index = self._model.index(str(resolved_path))
+            if index.isValid():
+                # Expand all parent directories, but be careful about deep hierarchies
+                parent = index.parent()
+                expanded_count = 0
+                max_expansions = 100  # Prevent infinite loops or excessive expansion
+
+                while parent.isValid() and expanded_count < max_expansions:
+                    self.expand(parent)
+                    parent = parent.parent()
+                    expanded_count += 1
+
+                # Select and scroll to the item
+                self.setCurrentIndex(index)
+                self.scrollTo(index)
+
+        except (OSError, RuntimeError):
+            # Handle path resolution errors, deep recursion, or other issues
+            # Silently fail to avoid disrupting the UI
+            pass
+
+    def _show_context_menu(self, position: QPoint) -> None:
+        """
+        Show the context menu at the given position.
+
+        Args:
+            position: The position where the menu should be shown
+        """
+        # Create the context menu
+        menu = QMenu(self)
+
+        # Add refresh action
+        refresh_action = QAction("Refresh", self)
+        refresh_action.triggered.connect(self.refresh)
+        menu.addAction(refresh_action)
+
+        menu.addSeparator()
+
+        # Add expand/collapse actions
+        expand_all_action = QAction("Expand All", self)
+        expand_all_action.triggered.connect(self.expandAll)
+        menu.addAction(expand_all_action)
+
+        collapse_all_action = QAction("Collapse All", self)
+        collapse_all_action.triggered.connect(self.collapseAll)
+        menu.addAction(collapse_all_action)
+
+        # Show the menu at the requested position
+        global_pos = self.mapToGlobal(position)
+        menu.exec(global_pos)

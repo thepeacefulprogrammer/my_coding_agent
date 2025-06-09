@@ -79,6 +79,10 @@ class MainWindow(QMainWindow):
 
         self._file_tree.set_root_directory(os.getcwd())
 
+        # Connect file tree signals to update status bar
+        self._file_tree.file_selected.connect(self._on_file_selected)
+        self._file_tree.file_opened.connect(self._on_file_opened)
+
         left_layout.addWidget(self._file_tree)
 
         # Create right panel (will hold code viewer)
@@ -197,6 +201,45 @@ class MainWindow(QMainWindow):
             self._file_path_label.setText("No file selected")
         if hasattr(self, "_file_info_label"):
             self._file_info_label.setText("Ready")
+
+    def _on_file_selected(self, file_path: Path) -> None:
+        """
+        Handle file selection from the file tree.
+
+        Args:
+            file_path: Path to the selected file
+        """
+        # Update status bar with selected file
+        self.update_file_path_display(file_path)
+
+        # Get file info and display it
+        try:
+            file_size = file_path.stat().st_size
+            if file_size < 1024:
+                size_str = f"{file_size} B"
+            elif file_size < 1024 * 1024:
+                size_str = f"{file_size / 1024:.1f} KB"
+            else:
+                size_str = f"{file_size / (1024 * 1024):.1f} MB"
+
+            file_type = file_path.suffix.upper()[1:] if file_path.suffix else "File"
+            info_text = f"{file_type} | {size_str}"
+            self.update_file_info_display(info_text)
+        except OSError:
+            self.update_file_info_display("File info unavailable")
+
+    def _on_file_opened(self, file_path: Path) -> None:
+        """
+        Handle file opening from the file tree.
+
+        Args:
+            file_path: Path to the file to open
+        """
+        # For now, just update the status bar to indicate the file would be opened
+        # This will be expanded when the code viewer is implemented in task 4.0
+        self.update_file_info_display(f"Opening: {file_path.name}")
+
+        # TODO: In task 4.0, this will load the file content into the code viewer
 
     def _setup_settings(self) -> None:
         """Set up QSettings for persistent application state."""
