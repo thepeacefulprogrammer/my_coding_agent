@@ -952,6 +952,9 @@ class ChatWidget(QWidget):
         # Enter key handling
         self.input_field.installEventFilter(self)
 
+        # Connect message_sent signal to automatically add user messages
+        self.message_sent.connect(self._on_message_sent)
+
         # Initial button state
         self._update_send_button_state()
 
@@ -1003,6 +1006,15 @@ class ChatWidget(QWidget):
                     return True
 
         return super().eventFilter(a0, a1)
+
+    def _on_message_sent(self, message_text: str) -> None:
+        """Handle message sent signal by adding the message to the chat.
+
+        Args:
+            message_text: The text content of the message to add
+        """
+        # Add the user message to the chat
+        self.add_user_message(message_text)
 
     def _setup_accessibility(self) -> None:
         """Set up accessibility features."""
