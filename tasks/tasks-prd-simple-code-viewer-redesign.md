@@ -79,8 +79,8 @@
   - [ ] 4.8 Write unit tests for code viewer widget and syntax highlighting
 
 - [ ] 5.0 UI Polish, Dark Mode Theme, and Performance Optimization
-  - [ ] 5.1 Create ThemeManager class for dark mode styling
-  - [ ] 5.2 Design and implement dark theme QSS stylesheet
+  - [x] 5.1 Create ThemeManager class for dark mode styling
+  - [x] 5.2 Design and implement dark theme QSS stylesheet
   - [ ] 5.3 Add file type specific icons for Python, JavaScript, and generic files
   - [ ] 5.4 Implement performance optimizations for file tree scanning
   - [ ] 5.5 Add memory usage monitoring and optimization for large files

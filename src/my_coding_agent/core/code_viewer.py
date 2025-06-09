@@ -62,7 +62,7 @@ class PygmentsSyntaxHighlighter(QSyntaxHighlighter):
         if self._enabled:
             self.rehighlight()
 
-    def highlightBlock(self, text: str | None) -> None:
+    def highlightBlock(self, text: Optional[str]) -> None:
         """Highlight a block of text using Pygments."""
         if not self._enabled or not text or not text.strip():
             return
@@ -128,15 +128,6 @@ class LineNumbersWidget(QWidget):
         scroll_bar = self.text_editor.verticalScrollBar()
         if scroll_bar:
             scroll_bar.valueChanged.connect(self._sync_scroll)
-
-        # Set background color - light theme to match the application
-        self.setStyleSheet("""
-            LineNumbersWidget {
-                background-color: #f8f8f8;
-                color: #666666;
-                border-right: 1px solid #d0d0d0;
-            }
-        """)
 
         # Ensure widget is visible by default
         self.setVisible(True)

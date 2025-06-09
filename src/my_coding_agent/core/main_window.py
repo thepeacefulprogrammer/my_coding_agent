@@ -13,6 +13,8 @@ from PyQt6.QtCore import QSize
 from PyQt6.QtGui import QAction, QCloseEvent, QKeySequence
 from PyQt6.QtWidgets import QLabel, QMainWindow, QWidget
 
+from .theme_manager import ThemeManager
+
 
 class MainWindow(QMainWindow):
     """
@@ -30,12 +32,28 @@ class MainWindow(QMainWindow):
             parent (QWidget, optional): Parent widget. Defaults to None.
         """
         super().__init__(parent)
+
+        # Initialize theme manager
+        from PyQt6.QtWidgets import QApplication
+
+        app = QApplication.instance()
+        if app is not None and isinstance(app, QApplication):
+            self._theme_manager = ThemeManager(app)
+
         self._setup_window()
         self._setup_ui()
         self._setup_settings()
 
         # Restore window state from previous session
         self.restore_window_state()
+
+    def get_theme_manager(self) -> Optional[ThemeManager]:
+        """Get the theme manager instance.
+
+        Returns:
+            ThemeManager instance if available, None otherwise
+        """
+        return getattr(self, "_theme_manager", None)
 
     def _setup_window(self) -> None:
         """Set up basic window properties."""
@@ -99,6 +117,10 @@ class MainWindow(QMainWindow):
         self._code_viewer = CodeViewerWidget()
         right_layout.addWidget(self._code_viewer)
 
+        # Apply current theme to code viewer if theme manager is available
+        if hasattr(self, "_theme_manager"):
+            self._theme_manager.apply_theme_to_widget(self._code_viewer)
+
         # Add panels to splitter
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
@@ -158,6 +180,22 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
+        # Create View menu for theme switching
+        view_menu = menu_bar.addMenu("&View")
+        if view_menu is not None:
+            # Add theme toggle action
+            toggle_theme_action = QAction("Toggle &Dark Mode", self)
+            toggle_theme_action.setObjectName("toggle_theme_action")
+            toggle_theme_action.setShortcut(QKeySequence("Ctrl+D"))
+            toggle_theme_action.setStatusTip("Toggle between light and dark themes")
+            toggle_theme_action.setToolTip(
+                "Toggle between light and dark themes (Ctrl+D)"
+            )
+            toggle_theme_action.triggered.connect(self._toggle_theme)
+            view_menu.addAction(toggle_theme_action)
+
+            self._toggle_theme_action = toggle_theme_action
+
         # Store references for testing
         self._open_action = open_action
         self._exit_action = exit_action
@@ -170,6 +208,24 @@ class MainWindow(QMainWindow):
             self._file_path_label.setText("Open file functionality not yet implemented")
 
         # This method will be expanded when implementing file tree and code viewer
+
+    def _toggle_theme(self) -> None:
+        """Toggle between light and dark themes."""
+        if hasattr(self, "_theme_manager"):
+            new_theme = self._theme_manager.toggle_theme()
+
+            # Update status bar to show theme change
+            if hasattr(self, "_file_info_label"):
+                self._file_info_label.setText(f"Theme: {new_theme.title()}")
+
+            # Update toggle action text based on current theme
+            if hasattr(self, "_toggle_theme_action"):
+                if new_theme == "dark":
+                    self._toggle_theme_action.setText("Toggle &Light Mode")
+                    self._toggle_theme_action.setStatusTip("Switch to light theme")
+                else:
+                    self._toggle_theme_action.setText("Toggle &Dark Mode")
+                    self._toggle_theme_action.setStatusTip("Switch to dark theme")
 
     def _setup_status_bar(self) -> None:
         """Set up the status bar with file path and info displays."""

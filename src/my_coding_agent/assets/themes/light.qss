@@ -1,47 +1,33 @@
-/* Light Theme for My Coding Agent
- * A clean light theme with blue accents and good readability
- */
+/* Light Theme Stylesheet for Simple Code Viewer */
 
 /* Main Application Window */
 QMainWindow {
     background-color: #ffffff;
     color: #000000;
-    border: none;
 }
 
-/* Tree View (File Explorer) */
+/* General Widget Styling - Use default Qt styling for light theme */
+QWidget {
+    background-color: #ffffff;
+    color: #000000;
+}
+
+/* Tree View (File Tree) */
 QTreeView {
-    background-color: #f8f8f8;
-    color: #333333;
+    background-color: #ffffff;
+    color: #000000;
     border: 1px solid #d0d0d0;
-    selection-background-color: #0078d4;
+    selection-background-color: #3399ff;
     selection-color: #ffffff;
-    outline: none;
-    font-family: "Segoe UI", sans-serif;
-    font-size: 13px;
-}
-
-QTreeView::item {
-    height: 22px;
-    padding: 2px 5px;
-    border: none;
-}
-
-QTreeView::item:hover {
-    background-color: #e5f3ff;
 }
 
 QTreeView::item:selected {
-    background-color: #0078d4;
+    background-color: #3399ff;
     color: #ffffff;
 }
 
-QTreeView::branch:has-siblings:!adjoins-item {
-    border-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFklEQVQYV2P4//8/AzbAOKbQKjqGOQAAX8sOXlVWE1wAAAAASUVORK5CYII=) 0;
-}
-
-QTreeView::branch:has-siblings:adjoins-item {
-    border-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAFklEQVQYV2P4//8/AzbAOKbQKjqGOQAAX8sOXlVWE1wAAAAASUVORK5CYII=) 0;
+QTreeView::item:hover {
+    background-color: #e6f3ff;
 }
 
 /* Text Edit (Code Viewer) */
@@ -49,54 +35,69 @@ QTextEdit {
     background-color: #ffffff;
     color: #000000;
     border: 1px solid #d0d0d0;
-    selection-background-color: #0078d4;
+    selection-background-color: #3399ff;
     selection-color: #ffffff;
-    font-family: "JetBrains Mono", "Consolas", "Courier New", monospace;
-    font-size: 14px;
-    line-height: 1.4;
+    font-family: "JetBrains Mono", "Consolas", "Monaco", "Courier New", monospace;
 }
 
 QTextEdit:focus {
     border: 1px solid #0078d4;
 }
 
-/* Splitter */
-QSplitter {
-    background-color: #f0f0f0;
+/* Line Numbers Widget */
+LineNumbersWidget {
+    background-color: #f8f8f8;
+    color: #666666;
+    border-right: 1px solid #d0d0d0;
 }
 
-QSplitter::handle {
-    background-color: #d0d0d0;
+/* Status Bar */
+QStatusBar {
+    background-color: #f0f0f0;
+    color: #000000;
+    border-top: 1px solid #d0d0d0;
+}
+
+/* Menu Bar */
+QMenuBar {
+    background-color: #ffffff;
+    color: #000000;
+    border-bottom: 1px solid #d0d0d0;
+}
+
+QMenuBar::item:selected {
+    background-color: #e6f3ff;
+}
+
+/* Menu Dropdown */
+QMenu {
+    background-color: #ffffff;
+    color: #000000;
     border: 1px solid #d0d0d0;
 }
 
-QSplitter::handle:horizontal {
-    width: 3px;
-    min-width: 3px;
-    max-width: 3px;
+QMenu::item:selected {
+    background-color: #e6f3ff;
 }
 
-QSplitter::handle:vertical {
-    height: 3px;
-    min-height: 3px;
-    max-height: 3px;
+/* Splitter */
+QSplitter::handle {
+    background-color: #d0d0d0;
 }
 
 QSplitter::handle:hover {
-    background-color: #0078d4;
+    background-color: #b0b0b0;
 }
 
-/* Scroll Bars */
+/* Scroll Bars - Default Qt styling for light theme */
 QScrollBar:vertical {
     background-color: #f0f0f0;
-    width: 16px;
-    border: none;
+    width: 12px;
 }
 
 QScrollBar::handle:vertical {
     background-color: #c0c0c0;
-    min-height: 20px;
-    border-radius: 8px;
+    border-radius: 6px;
     margin: 2px;
 }
 
@@ -104,85 +105,13 @@ QScrollBar::handle:vertical:hover {
     background-color: #a0a0a0;
 }
 
-QScrollBar::add-line:vertical,
-QScrollBar::sub-line:vertical {
-    height: 0px;
-}
-
 QScrollBar:horizontal {
     background-color: #f0f0f0;
-    height: 16px;
-    border: none;
+    height: 12px;
 }
 
 QScrollBar::handle:horizontal {
     background-color: #c0c0c0;
-    min-width: 20px;
-    border-radius: 8px;
+    border-radius: 6px;
     margin: 2px;
-}
-
-QScrollBar::handle:horizontal:hover {
-    background-color: #a0a0a0;
-}
-
-QScrollBar::add-line:horizontal,
-QScrollBar::sub-line:horizontal {
-    width: 0px;
-}
-
-/* Status Bar */
-QStatusBar {
-    background-color: #0078d4;
-    color: #ffffff;
-    border: none;
-    font-size: 12px;
-    padding: 4px 8px;
-}
-
-/* Menu Bar */
-QMenuBar {
-    background-color: #f0f0f0;
-    color: #333333;
-    border-bottom: 1px solid #d0d0d0;
-    padding: 2px;
-}
-
-QMenuBar::item {
-    background-color: transparent;
-    padding: 4px 8px;
-}
-
-QMenuBar::item:selected {
-    background-color: #0078d4;
-    color: #ffffff;
-}
-
-QMenu {
-    background-color: #ffffff;
-    color: #333333;
-    border: 1px solid #d0d0d0;
-}
-
-QMenu::item {
-    padding: 4px 20px;
-}
-
-QMenu::item:selected {
-    background-color: #0078d4;
-    color: #ffffff;
-}
-
-/* Tool Tips */
-QToolTip {
-    background-color: #ffffcc;
-    color: #333333;
-    border: 1px solid #d0d0d0;
-    padding: 4px;
-    font-size: 12px;
-}
-
-/* Focus indicators */
-*:focus {
-    outline: none;
 }

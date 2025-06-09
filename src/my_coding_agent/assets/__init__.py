@@ -72,6 +72,34 @@ def get_theme_path(theme_name: str) -> Path:
     return theme_path
 
 
+def get_theme_file(filename: str) -> str:
+    """Get the full path to a theme file.
+
+    Args:
+        filename: Theme filename (e.g., 'dark.qss')
+
+    Returns:
+        Full path to the theme file as a string
+
+    Raises:
+        ValueError: If filename is empty
+        FileNotFoundError: If theme file doesn't exist
+    """
+    if not filename:
+        raise ValueError("Theme filename cannot be empty")
+
+    assets_dir = get_assets_dir()
+    theme_path = assets_dir / "themes" / filename
+
+    if not theme_path.exists():
+        available_themes = list_available_themes()
+        raise FileNotFoundError(
+            f"Theme file '{filename}' not found. Available themes: {available_themes}"
+        )
+
+    return str(theme_path)
+
+
 def list_available_themes() -> List[str]:
     """List all available theme names.
 
@@ -127,6 +155,7 @@ __all__ = [
     "get_assets_dir",
     "get_icon_path",
     "get_theme_path",
+    "get_theme_file",
     "list_available_themes",
     "validate_assets_structure",
 ]
