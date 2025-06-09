@@ -19,10 +19,10 @@ class TestAIAgentConfig:
         with patch.dict(
             os.environ,
             {
-                "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com/",
-                "AZURE_OPENAI_API_KEY": "test-key",
-                "AZURE_OPENAI_DEPLOYMENT_NAME": "test-deployment",
-                "AZURE_OPENAI_API_VERSION": "2024-02-15-preview",
+                "ENDPOINT": "https://test.openai.azure.com/",
+                "API_KEY": "test-key",
+                "MODEL": "test-deployment",
+                "API_VERSION": "2024-02-15-preview",
                 "AI_MAX_TOKENS": "1000",
                 "AI_TEMPERATURE": "0.5",
                 "AI_REQUEST_TIMEOUT": "20",
@@ -43,9 +43,9 @@ class TestAIAgentConfig:
         with patch.dict(
             os.environ,
             {
-                "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com/",
-                "AZURE_OPENAI_API_KEY": "test-key",
-                "AZURE_OPENAI_DEPLOYMENT_NAME": "test-deployment",
+                "ENDPOINT": "https://test.openai.azure.com/",
+                "API_KEY": "test-key",
+                "MODEL": "test-deployment",
             },
             clear=True,
         ):
@@ -60,7 +60,7 @@ class TestAIAgentConfig:
         """Test that missing required environment variables raise appropriate errors."""
         with (
             patch.dict(os.environ, {}, clear=True),
-            pytest.raises(ValueError, match="AZURE_OPENAI_ENDPOINT"),
+            pytest.raises(ValueError, match="ENDPOINT"),
         ):
             AIAgentConfig.from_env()
 

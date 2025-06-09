@@ -69,12 +69,20 @@ class MessageBubble(QWidget):
         content_layout.setContentsMargins(12, 8, 12, 8)
         content_layout.setSpacing(4)
 
-        # Content text
+        # Content text - use QLabel with simple, reliable sizing
         self.content_text = QLabel()
         self.content_text.setText(self.message.content)
         self.content_text.setWordWrap(True)
         self.content_text.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
+        )
+        # Use the most basic size policy - let Qt handle everything
+        self.content_text.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred
+        )
+        # Don't set any height constraints at all - let Qt figure it out
+        self.content_text.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )
         content_layout.addWidget(self.content_text)
 
@@ -84,21 +92,37 @@ class MessageBubble(QWidget):
         self.metadata_label.hide()
         content_layout.addWidget(self.metadata_label)
 
+        # Add spacing between content and bottom info
+        content_layout.addSpacing(4)
+
         # Bottom info layout
         info_layout = QHBoxLayout()
         info_layout.setContentsMargins(0, 0, 0, 0)
+        info_layout.setSpacing(6)  # Add spacing between timestamp and status
 
         # Timestamp
         self.timestamp_label = QLabel()
         self.timestamp_label.setText(self.message.format_timestamp("%H:%M"))
         self.timestamp_label.setFont(QFont("", 8))
+        self.timestamp_label.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+        )
         info_layout.addWidget(self.timestamp_label)
 
         # Status indicator
         self.status_label = QLabel()
         self._update_status_display()
         self.status_label.setFont(QFont("", 8))
+        self.status_label.setSizePolicy(
+            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
+        )
         info_layout.addWidget(self.status_label)
+
+        # Add stretch to push timestamp/status to the right for user messages
+        if self.role == MessageRole.USER:
+            info_layout.insertStretch(0, 1)  # Add stretch at the beginning
+        else:
+            info_layout.addStretch(1)  # Add stretch at the end
 
         # Error message (hidden by default)
         self.error_label = QLabel()
@@ -472,7 +496,7 @@ class MessageDisplayArea(QWidget):
         """Get message bubble by ID."""
         return self._message_bubbles.get(message_id)
 
-    def get_displayed_messages(self) -> list[ChatMessage]:
+    def get_displayed_messages(self) -> "list[ChatMessage]":
         """Get all displayed messages in order."""
         return self.message_model.get_all_messages()
 
@@ -755,7 +779,7 @@ class MessageDisplayArea(QWidget):
 
         return visible
 
-    def search_messages(self, query: str) -> list[ChatMessage]:
+    def search_messages(self, query: str) -> "list[ChatMessage]":
         """Search messages by content."""
         results = []
         for message in self.message_model.get_all_messages():

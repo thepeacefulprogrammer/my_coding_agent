@@ -120,9 +120,9 @@ def test_environment_configuration_exists():
         content = f.read()
 
     expected_keys = [
-        "AZURE_OPENAI_ENDPOINT",
-        "AZURE_OPENAI_API_KEY",
-        "AZURE_OPENAI_DEPLOYMENT_NAME",
+        "ENDPOINT",
+        "API_KEY",
+        "MODEL",
     ]
 
     for key in expected_keys:

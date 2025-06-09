@@ -6,6 +6,7 @@ application window using PyQt6. It provides the main layout structure
 and will later host the file tree and code viewer components.
 """
 
+import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -13,11 +14,45 @@ if TYPE_CHECKING:
     from .code_viewer import CodeViewerWidget
     from .file_tree import FileTreeWidget
 
-from PyQt6.QtCore import QSize
+from PyQt6.QtCore import QSize, QThread, pyqtSignal
 from PyQt6.QtGui import QAction, QCloseEvent, QKeySequence
 from PyQt6.QtWidgets import QLabel, QMainWindow, QWidget
 
+from .ai_agent import AIAgent, AIAgentConfig
 from .theme_manager import ThemeManager
+
+
+class AIWorkerThread(QThread):
+    """Worker thread for handling AI requests asynchronously."""
+
+    response_ready = pyqtSignal(str, bool, str)  # content, success, error
+
+    def __init__(self, ai_agent: AIAgent, message: str) -> None:
+        super().__init__()
+        self.ai_agent = ai_agent
+        self.message = message
+
+    def run(self) -> None:
+        """Run the AI request in a separate thread."""
+        loop = None
+        try:
+            # Create new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            # Run the AI request
+            response = loop.run_until_complete(self.ai_agent.send_message(self.message))
+
+            # Emit the response
+            self.response_ready.emit(
+                response.content, response.success, response.error or ""
+            )
+
+        except Exception as e:
+            self.response_ready.emit("", False, str(e))
+        finally:
+            if loop is not None:
+                loop.close()
 
 
 class MainWindow(QMainWindow):
@@ -173,6 +208,9 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_theme_manager"):
             current_theme = self._theme_manager.get_current_theme()
             self._chat_widget.apply_theme(current_theme)
+
+        # Initialize AI agent and connect chat widget
+        self._setup_ai_integration()
 
         # Add panels to splitter
         splitter.addWidget(left_panel)
@@ -447,7 +485,7 @@ class MainWindow(QMainWindow):
                 ):
                     try:
                         # Convert to integers if they're strings
-                        splitter_list = cast(list[Any], splitter_sizes)
+                        splitter_list = cast("list[Any]", splitter_sizes)
                         sizes: list[int] = [int(size) for size in splitter_list]
                         if all(size > 0 for size in sizes):
                             self._splitter.setSizes(sizes)
@@ -467,3 +505,60 @@ class MainWindow(QMainWindow):
         # Accept the close event
         if a0 is not None:
             a0.accept()
+
+    def _setup_ai_integration(self) -> None:
+        """Set up AI integration and connect chat widget."""
+        try:
+            # Initialize AI agent with configuration
+            self._ai_config = AIAgentConfig.from_env()
+            self._ai_agent = AIAgent(self._ai_config)
+
+            # Connect chat widget message_sent signal to our handler
+            self._chat_widget.message_sent.connect(self._handle_chat_message)
+
+            # Initialize worker thread as None
+            self._ai_worker_thread = None
+
+        except Exception as e:
+            # If AI initialization fails, show error in chat
+            self._chat_widget.add_system_message(
+                f"AI initialization failed: {str(e)}. Chat will work without AI responses."
+            )
+            self._ai_agent = None
+
+    def _handle_chat_message(self, message: str) -> None:
+        """Handle messages from the chat widget and generate AI responses."""
+        if not self._ai_agent:
+            # If no AI agent, show a simple echo response
+            self._chat_widget.add_assistant_message(
+                "AI is not available. Configuration required for responses."
+            )
+            return
+
+        # Show thinking indicator
+        self._chat_widget.show_ai_thinking(animated=True)
+
+        # Create and start worker thread for AI request
+        self._ai_worker_thread = AIWorkerThread(self._ai_agent, message)
+        self._ai_worker_thread.response_ready.connect(self._handle_ai_response)
+        self._ai_worker_thread.start()
+
+    def _handle_ai_response(self, content: str, success: bool, error: str) -> None:
+        """Handle AI response from worker thread."""
+        # Hide typing indicator
+        self._chat_widget.hide_typing_indicator()
+
+        if success and content:
+            # Add successful AI response
+            self._chat_widget.add_assistant_message(content)
+        else:
+            # Add error message
+            error_msg = (
+                f"AI Error: {error}" if error else "AI failed to generate response"
+            )
+            self._chat_widget.add_assistant_message(error_msg)
+
+        # Clean up worker thread
+        if self._ai_worker_thread:
+            self._ai_worker_thread.deleteLater()
+            self._ai_worker_thread = None

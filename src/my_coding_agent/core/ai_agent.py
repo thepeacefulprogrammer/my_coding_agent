@@ -50,9 +50,9 @@ class AIAgentConfig(BaseModel):
             ValueError: If required environment variables are missing.
         """
         required_vars = [
-            "AZURE_OPENAI_ENDPOINT",
-            "AZURE_OPENAI_API_KEY",
-            "AZURE_OPENAI_DEPLOYMENT_NAME",
+            "ENDPOINT",
+            "API_KEY",
+            "MODEL",
         ]
 
         missing_vars = [var for var in required_vars if not os.getenv(var)]
@@ -62,10 +62,10 @@ class AIAgentConfig(BaseModel):
             )
 
         return cls(
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT") or "",
-            azure_api_key=os.getenv("AZURE_OPENAI_API_KEY") or "",
-            deployment_name=os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME") or "",
-            api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview"),
+            azure_endpoint=os.getenv("ENDPOINT") or "",
+            azure_api_key=os.getenv("API_KEY") or "",
+            deployment_name=os.getenv("MODEL") or "",
+            api_version=os.getenv("API_VERSION", "2024-02-15-preview"),
             max_tokens=int(os.getenv("AI_MAX_TOKENS", "2000")),
             temperature=float(os.getenv("AI_TEMPERATURE", "0.7")),
             request_timeout=int(os.getenv("AI_REQUEST_TIMEOUT", "30")),
