@@ -1,6 +1,7 @@
 """Unit tests for MCP file system security and permissions."""
 
 import asyncio
+import contextlib
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
@@ -259,18 +260,12 @@ class TestMCPSecurityPermissions:
 
         with patch("my_coding_agent.core.mcp_file_server.logger") as mock_logger:
             # Attempt path traversal
-            try:
+            with contextlib.suppress(FileOperationError):
                 await server.read_file("../external/secret.txt")
-            except FileOperationError:
-                pass
 
             # Verify security violation is logged
             mock_logger.warning.assert_called()
-            logged_message = mock_logger.warning.call_args[0][0]
-            assert (
-                "security violation" in logged_message.lower()
-                or "path traversal" in logged_message.lower()
-            )
+            assert "Security violation" in str(mock_logger.warning.call_args)
 
     def test_configuration_validation(self, temp_workspace):
         """Test configuration validation for security settings."""
@@ -337,7 +332,6 @@ class TestMCPSecurityPermissions:
         server.is_connected = True
 
         # Test attempts to modify configuration at runtime
-        original_config = server.config
 
         # Attempt to modify configuration
         malicious_config = MCPFileConfig(
@@ -387,12 +381,11 @@ class TestMCPSecurityPermissions:
 
         for malicious_input in malicious_inputs:
             with pytest.raises((FileOperationError, ValueError, TypeError)):
-                if malicious_input is not None:
-                    await server.read_file(malicious_input)
+                await server.read_file(malicious_input)
 
-        # Test None input separately
-        with pytest.raises((FileOperationError, ValueError, TypeError)):
-            await server.read_file(None)
+        # Test None input separately - this should raise TypeError
+        with pytest.raises(TypeError):
+            await server.read_file(None)  # type: ignore
 
     def test_security_configuration_immutability(self, secure_config):
         """Test that security configuration cannot be modified after creation."""
@@ -403,12 +396,33 @@ class TestMCPSecurityPermissions:
         original_blocked_paths = server.config.blocked_paths.copy()
 
         # Attempt to modify security settings
-        try:
+        with pytest.raises(AttributeError):
             server.config.enforce_workspace_boundaries = False
-            server.config.blocked_paths.clear()
-        except (AttributeError, TypeError):
-            pass  # Configuration might be immutable
 
-        # Critical security settings should remain unchanged
-        # (Note: This test depends on implementation details)
-        # In a real implementation, we might use frozen dataclasses or property setters
+        with pytest.raises(AttributeError):
+            server.config.blocked_paths.clear()
+
+        # Verify original configuration is preserved
+        assert server.config.enforce_workspace_boundaries == original_boundaries
+        assert server.config.blocked_paths == original_blocked_paths
+
+    @pytest.mark.asyncio
+    async def test_security_boundary_enforcement(self, secure_config):
+        """Test that security boundaries cannot be bypassed."""
+        server = MCPFileServer(secure_config)
+        server.is_connected = True
+
+        # Original configuration should be preserved
+        original_boundaries = server.config.enforce_workspace_boundaries
+        original_blocked_paths = server.config.blocked_paths.copy()
+
+        # Attempt to modify security settings
+        with pytest.raises((AttributeError, TypeError)):
+            server.config.enforce_workspace_boundaries = False
+
+        with pytest.raises((AttributeError, TypeError)):
+            server.config.blocked_paths.clear()
+
+        # Verify security settings remain intact
+        assert server.config.enforce_workspace_boundaries == original_boundaries
+        assert server.config.blocked_paths == original_blocked_paths

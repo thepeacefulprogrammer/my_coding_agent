@@ -113,16 +113,18 @@ class TestAIAgentFilesystemTools:
         agent = ai_agent_with_filesystem
 
         # Mock the MCP connection and file server read operation
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server,
                 "read_file",
                 return_value="def hello(): return 'world'",
-            ) as mock_read:
-                result = await agent._tool_read_file("example.py")
+            ) as mock_read,
+        ):
+            result = await agent._tool_read_file("example.py")
 
-                assert result == "def hello(): return 'world'"
-                mock_read.assert_called_once_with("example.py")
+            assert result == "def hello(): return 'world'"
+            mock_read.assert_called_once_with("example.py")
 
     @pytest.mark.asyncio
     async def test_write_file_tool(self, ai_agent_with_filesystem):
@@ -130,14 +132,16 @@ class TestAIAgentFilesystemTools:
         agent = ai_agent_with_filesystem
 
         # Mock the MCP connection and file server write operation
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server, "write_file", return_value=True
-            ) as mock_write:
-                result = await agent._tool_write_file("test.py", "print('hello')")
+            ) as mock_write,
+        ):
+            result = await agent._tool_write_file("test.py", "print('hello')")
 
-                assert result == "File written successfully"
-                mock_write.assert_called_once_with("test.py", "print('hello')")
+            assert result == "File written successfully"
+            mock_write.assert_called_once_with("test.py", "print('hello')")
 
     @pytest.mark.asyncio
     async def test_list_directory_tool(self, ai_agent_with_filesystem):
@@ -146,16 +150,18 @@ class TestAIAgentFilesystemTools:
 
         # Mock the MCP connection and file server list operation
         expected_files = ["example.py", "config.json", "README.md", "src/"]
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server, "list_directory", return_value=expected_files
-            ) as mock_list:
-                result = await agent._tool_list_directory(".")
+            ) as mock_list,
+        ):
+            result = await agent._tool_list_directory(".")
 
-                assert "example.py" in result
-                assert "config.json" in result
-                assert "README.md" in result
-                mock_list.assert_called_once_with(".")
+            assert "example.py" in result
+            assert "config.json" in result
+            assert "README.md" in result
+            mock_list.assert_called_once_with(".")
 
     @pytest.mark.asyncio
     async def test_create_directory_tool(self, ai_agent_with_filesystem):
@@ -163,14 +169,16 @@ class TestAIAgentFilesystemTools:
         agent = ai_agent_with_filesystem
 
         # Mock the MCP connection and file server create directory operation
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server, "create_directory", return_value=True
-            ) as mock_create:
-                result = await agent._tool_create_directory("new_folder")
+            ) as mock_create,
+        ):
+            result = await agent._tool_create_directory("new_folder")
 
-                assert result == "Directory created successfully"
-                mock_create.assert_called_once_with("new_folder")
+            assert result == "Directory created successfully"
+            mock_create.assert_called_once_with("new_folder")
 
     @pytest.mark.asyncio
     async def test_get_file_info_tool(self, ai_agent_with_filesystem):
@@ -184,15 +192,17 @@ class TestAIAgentFilesystemTools:
             "type": "file",
             "modified": "2023-01-01T12:00:00Z",
         }
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server, "get_file_info", return_value=expected_info
-            ) as mock_info:
-                result = await agent._tool_get_file_info("example.py")
+            ) as mock_info,
+        ):
+            result = await agent._tool_get_file_info("example.py")
 
-                assert "example.py" in result
-                assert "25" in result
-                mock_info.assert_called_once_with("example.py")
+            assert "example.py" in result
+            assert "25" in result
+            mock_info.assert_called_once_with("example.py")
 
     @pytest.mark.asyncio
     async def test_search_files_tool(self, ai_agent_with_filesystem):
@@ -201,15 +211,17 @@ class TestAIAgentFilesystemTools:
 
         # Mock the MCP connection and file server search operation
         expected_results = ["example.py", "src/main.py"]
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server, "search_files", return_value=expected_results
-            ) as mock_search:
-                result = await agent._tool_search_files("*.py", ".")
+            ) as mock_search,
+        ):
+            result = await agent._tool_search_files("*.py", ".")
 
-                assert "example.py" in result
-                assert "src/main.py" in result
-                mock_search.assert_called_once_with("*.py", ".")
+            assert "example.py" in result
+            assert "src/main.py" in result
+            mock_search.assert_called_once_with("*.py", ".")
 
     @pytest.mark.asyncio
     async def test_filesystem_tool_error_handling(self, ai_agent_with_filesystem):
@@ -260,26 +272,23 @@ class TestAIAgentFilesystemTools:
         mock_response = Mock()
         mock_response.data = "I can see the example.py file contains a hello function. Here's how to improve it..."
 
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
-                agent._agent, "run", return_value=mock_response
-            ) as mock_run:
-                with patch.object(
-                    agent.mcp_file_server,
-                    "read_file",
-                    return_value="def hello(): return 'world'",
-                ):
-                    response = await agent.send_message_with_tools(
-                        "Can you help me improve the example.py file?",
-                        enable_filesystem=True,
-                    )
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(agent._agent, "run", return_value=mock_response) as mock_run,
+            patch.object(
+                agent.mcp_file_server,
+                "read_file",
+                return_value="def hello(): return 'world'",
+            ),
+        ):
+            response = await agent.send_message_with_tools(
+                "Can you help me improve the example.py file?",
+                enable_filesystem=True,
+            )
 
-                    assert response.success is True
-                    assert (
-                        "example.py" in response.content
-                        or "improve" in response.content
-                    )
-                    mock_run.assert_called_once()
+            assert response.success is True
+            assert "example.py" in response.content or "improve" in response.content
+            mock_run.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_file_analysis_workflow(self, ai_agent_with_filesystem):
@@ -287,29 +296,33 @@ class TestAIAgentFilesystemTools:
         agent = ai_agent_with_filesystem
 
         # Mock file operations for analysis workflow
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server,
                 "list_directory",
                 return_value=["app.py", "config.py", "tests/"],
-            ):
-                with patch.object(agent.mcp_file_server, "read_file") as mock_read:
-                    mock_read.side_effect = [
-                        "from config import settings\ndef main(): pass",  # app.py
-                        "DATABASE_URL = 'sqlite:///app.db'\nDEBUG = True",  # config.py
-                    ]
+            ),
+            patch.object(agent.mcp_file_server, "read_file") as mock_read,
+        ):
+            mock_read.side_effect = [
+                "from config import settings\ndef main(): pass",  # app.py
+                "DATABASE_URL = 'sqlite:///app.db'\nDEBUG = True",  # config.py
+            ]
 
-                    # Mock AI response
-                    mock_response = Mock()
-                    mock_response.data = "Based on the code analysis, I found potential security issues..."
+            # Mock AI response
+            mock_response = Mock()
+            mock_response.data = (
+                "Based on the code analysis, I found potential security issues..."
+            )
 
-                    with patch.object(agent._agent, "run", return_value=mock_response):
-                        response = await agent.analyze_project_files()
+            with patch.object(agent._agent, "run", return_value=mock_response):
+                response = await agent.analyze_project_files()
 
-                        assert response.success is True
-                        assert (
-                            mock_read.call_count >= 0
-                        )  # Updated since we don't automatically read files
+                assert response.success is True
+                assert (
+                    mock_read.call_count >= 0
+                )  # Updated since we don't automatically read files
 
     @pytest.mark.asyncio
     async def test_code_generation_with_file_writing(self, ai_agent_with_filesystem):
@@ -317,23 +330,25 @@ class TestAIAgentFilesystemTools:
         agent = ai_agent_with_filesystem
 
         # Mock file write operation
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server, "write_file", return_value=True
-            ) as mock_write:
-                generated_code = """
+            ) as mock_write,
+        ):
+            generated_code = """
 def calculate_fibonacci(n):
     if n <= 1:
         return n
     return calculate_fibonacci(n-1) + calculate_fibonacci(n-2)
 """
 
-                result = await agent.generate_and_save_code(
-                    "Create a fibonacci function", "fibonacci.py", generated_code
-                )
+            result = await agent.generate_and_save_code(
+                "Create a fibonacci function", "fibonacci.py", generated_code
+            )
 
-                assert result.success is True
-                mock_write.assert_called_once_with("fibonacci.py", generated_code)
+            assert result.success is True
+            mock_write.assert_called_once_with("fibonacci.py", generated_code)
 
     @pytest.mark.asyncio
     async def test_workspace_scoped_operations(
@@ -343,15 +358,17 @@ def calculate_fibonacci(n):
         agent = ai_agent_with_filesystem
 
         # Test that operations outside workspace are blocked when connected
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server,
                 "read_file",
                 side_effect=FileOperationError("Outside workspace"),
-            ):
-                result = await agent._tool_read_file("../../../etc/passwd")
-                assert "Error" in result
-                assert "workspace" in result.lower() or "outside" in result.lower()
+            ),
+        ):
+            result = await agent._tool_read_file("../../../etc/passwd")
+            assert "Error" in result
+            assert "workspace" in result.lower() or "outside" in result.lower()
 
     @pytest.mark.asyncio
     async def test_tool_registration_and_descriptions(self, ai_agent_with_filesystem):
@@ -380,22 +397,24 @@ def calculate_fibonacci(n):
         agent = ai_agent_with_filesystem
 
         # Mock multiple file operations
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(agent.mcp_file_server, "read_file") as mock_read:
-                mock_read.side_effect = ["content1", "content2", "content3"]
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(agent.mcp_file_server, "read_file") as mock_read,
+        ):
+            mock_read.side_effect = ["content1", "content2", "content3"]
 
-                # Run concurrent file reads
-                tasks = [
-                    agent._tool_read_file("file1.py"),
-                    agent._tool_read_file("file2.py"),
-                    agent._tool_read_file("file3.py"),
-                ]
+            # Run concurrent file reads
+            tasks = [
+                agent._tool_read_file("file1.py"),
+                agent._tool_read_file("file2.py"),
+                agent._tool_read_file("file3.py"),
+            ]
 
-                results = await asyncio.gather(*tasks)
+            results = await asyncio.gather(*tasks)
 
-                assert len(results) == 3
-                assert all("content" in result for result in results)
-                assert mock_read.call_count == 3
+            assert len(results) == 3
+            assert all("content" in result for result in results)
+            assert mock_read.call_count == 3
 
     @pytest.mark.asyncio
     async def test_filesystem_tool_security_validation(self, ai_agent_with_filesystem):
@@ -403,25 +422,30 @@ def calculate_fibonacci(n):
         agent = ai_agent_with_filesystem
 
         # Test blocked file extensions when connected
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server,
                 "read_file",
                 side_effect=FileOperationError("Extension not allowed"),
-            ):
-                result = await agent._tool_read_file("malware.exe")
-                assert "Error" in result
-                assert "not allowed" in result.lower()
+            ),
+        ):
+            result = await agent._tool_read_file("malware.exe")
+            assert "Error" in result
+            assert "not allowed" in result.lower()
 
-            # Test blocked paths when connected
-            with patch.object(
+        # Test blocked paths when connected
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server,
                 "read_file",
                 side_effect=FileOperationError("Path blocked"),
-            ):
-                result = await agent._tool_read_file("secrets/api_key.py")
-                assert "Error" in result
-                assert "blocked" in result.lower()
+            ),
+        ):
+            result = await agent._tool_read_file("secrets/api_key.py")
+            assert "Error" in result
+            assert "blocked" in result.lower()
 
     def test_tool_availability_configuration(self, ai_config, mcp_config):
         """Test that tool availability can be configured."""
@@ -454,19 +478,19 @@ def calculate_fibonacci(n):
             mock_response.data = "I've analyzed your files and here's what I found..."
             return mock_response
 
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(agent._agent, "run", side_effect=mock_run_with_tools):
-                with patch.object(
-                    agent.mcp_file_server, "read_file", return_value="file content"
-                ):
-                    with patch.object(
-                        agent.mcp_file_server,
-                        "list_directory",
-                        return_value=["file1.py"],
-                    ):
-                        response = await agent.send_message_with_tools(
-                            "Analyze my project"
-                        )
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(agent._agent, "run", side_effect=mock_run_with_tools),
+            patch.object(
+                agent.mcp_file_server, "read_file", return_value="file content"
+            ),
+            patch.object(
+                agent.mcp_file_server,
+                "list_directory",
+                return_value=["file1.py"],
+            ),
+        ):
+            response = await agent.send_message_with_tools("Analyze my project")
 
-                        assert response.success is True
-                        assert "analyzed" in response.content.lower()
+            assert response.success is True
+            assert "analyzed" in response.content.lower()

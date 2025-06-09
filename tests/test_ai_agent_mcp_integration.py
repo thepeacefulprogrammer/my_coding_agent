@@ -60,11 +60,13 @@ class TestAIAgentMCPIntegration:
     @pytest.fixture
     def ai_agent_with_mcp(self, ai_config, mcp_config):
         """Create AI Agent with MCP integration for testing."""
-        with patch("my_coding_agent.core.ai_agent.OpenAIModel"):
-            with patch("my_coding_agent.core.ai_agent.Agent"):
-                agent = AIAgent(ai_config)
-                agent.mcp_file_server = MCPFileServer(mcp_config)
-                return agent
+        with (
+            patch("my_coding_agent.core.ai_agent.OpenAIModel"),
+            patch("my_coding_agent.core.ai_agent.Agent"),
+        ):
+            agent = AIAgent(ai_config)
+            agent.mcp_file_server = MCPFileServer(mcp_config)
+            return agent
 
     def test_ai_agent_mcp_initialization(self, ai_agent_with_mcp):
         """Test AI Agent initialization with MCP file server."""
@@ -142,22 +144,24 @@ class TestAIAgentMCPIntegration:
     async def test_ai_agent_mcp_connection_management(self, ai_agent_with_mcp):
         """Test AI Agent MCP connection management."""
         # Mock the connect method
-        with patch.object(
-            ai_agent_with_mcp.mcp_file_server, "connect", new_callable=AsyncMock
-        ) as mock_connect:
-            with patch.object(
+        with (
+            patch.object(
+                ai_agent_with_mcp.mcp_file_server, "connect", new_callable=AsyncMock
+            ) as mock_connect,
+            patch.object(
                 ai_agent_with_mcp.mcp_file_server, "disconnect", new_callable=AsyncMock
-            ) as mock_disconnect:
-                mock_connect.return_value = True
+            ) as mock_disconnect,
+        ):
+            mock_connect.return_value = True
 
-                # Test connection
-                result = await ai_agent_with_mcp.connect_mcp()
-                assert result is True
-                mock_connect.assert_called_once()
+            # Test connection
+            result = await ai_agent_with_mcp.connect_mcp()
+            assert result is True
+            mock_connect.assert_called_once()
 
-                # Test disconnection
-                await ai_agent_with_mcp.disconnect_mcp()
-                mock_disconnect.assert_called_once()
+            # Test disconnection
+            await ai_agent_with_mcp.disconnect_mcp()
+            mock_disconnect.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_ai_agent_mcp_error_handling(self, ai_agent_with_mcp):
@@ -299,20 +303,22 @@ class TestAIAgentMCPIntegration:
     @pytest.mark.asyncio
     async def test_ai_agent_mcp_context_manager(self, ai_agent_with_mcp):
         """Test AI Agent using MCP as context manager."""
-        with patch.object(
-            ai_agent_with_mcp.mcp_file_server, "connect", new_callable=AsyncMock
-        ) as mock_connect:
-            with patch.object(
+        with (
+            patch.object(
+                ai_agent_with_mcp.mcp_file_server, "connect", new_callable=AsyncMock
+            ) as mock_connect,
+            patch.object(
                 ai_agent_with_mcp.mcp_file_server, "disconnect", new_callable=AsyncMock
-            ) as mock_disconnect:
-                mock_connect.return_value = True
+            ) as mock_disconnect,
+        ):
+            mock_connect.return_value = True
 
-                async with ai_agent_with_mcp.mcp_context():
-                    # Simulate some file operations
-                    pass
+            async with ai_agent_with_mcp.mcp_context():
+                # Simulate some file operations
+                pass
 
-                mock_connect.assert_called_once()
-                mock_disconnect.assert_called_once()
+            mock_connect.assert_called_once()
+            mock_disconnect.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_ai_agent_mcp_file_validation(self, ai_agent_with_mcp):
@@ -321,15 +327,15 @@ class TestAIAgentMCPIntegration:
         ai_agent_with_mcp.mcp_file_server.is_connected = True
 
         # Mock the file validation to raise an error for invalid extension
-        with patch.object(
-            ai_agent_with_mcp.mcp_file_server,
-            "read_file",
-            side_effect=FileOperationError("File extension .exe not allowed"),
+        with (
+            patch.object(
+                ai_agent_with_mcp.mcp_file_server,
+                "read_file",
+                side_effect=FileOperationError("File extension .exe not allowed"),
+            ),
+            pytest.raises(FileOperationError, match="File extension .exe not allowed"),
         ):
-            with pytest.raises(
-                FileOperationError, match="File extension .exe not allowed"
-            ):
-                await ai_agent_with_mcp.read_file("malware.exe")
+            await ai_agent_with_mcp.read_file("malware.exe")
 
     @pytest.mark.asyncio
     async def test_ai_agent_mcp_configuration_update(

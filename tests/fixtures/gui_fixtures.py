@@ -10,7 +10,7 @@ pipelines by checking for display availability and using virtual displays.
 
 import os
 import sys
-from typing import Generator, Optional
+from collections.abc import Generator
 from unittest.mock import Mock
 
 import pytest
@@ -89,7 +89,7 @@ def setup_headless_display() -> None:
 
 
 @pytest.fixture(scope="session")
-def qapp_instance() -> Generator[Optional[QApplication], None, None]:
+def qapp_instance() -> Generator[QApplication | None, None, None]:
     """Provide a QApplication instance for GUI testing.
 
     This fixture ensures that there's exactly one QApplication instance

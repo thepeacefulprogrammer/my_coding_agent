@@ -194,11 +194,14 @@ class TestFileOperationErrorHandling:
 
     def test_write_file_disk_full_simulation(self, ai_agent):
         """Test error handling when disk is full (simulated)."""
-        with patch(
-            "pathlib.Path.write_text", side_effect=OSError("No space left on device")
+        with (
+            patch(
+                "pathlib.Path.write_text",
+                side_effect=OSError("No space left on device"),
+            ),
+            pytest.raises(OSError, match="No space left on device"),
         ):
-            with pytest.raises(OSError, match="No space left on device"):
-                ai_agent.write_workspace_file("test.txt", "content")
+            ai_agent.write_workspace_file("test.txt", "content")
 
     def test_delete_file_not_found(self, ai_agent):
         """Test error handling when deleting non-existent file."""

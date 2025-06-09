@@ -1353,9 +1353,7 @@ class TestFileTreePerformanceOptimizations:
         expected_metrics = ["scan_time", "cache_hits", "cache_misses"]
         for metric in expected_metrics:
             assert metric in optimized_model._performance_metrics
-            assert isinstance(
-                optimized_model._performance_metrics[metric], (int, float)
-            )
+            assert isinstance(optimized_model._performance_metrics[metric], int | float)
 
     def test_memory_management_limits(self, optimized_model):
         """Test that memory usage is controlled through caching limits."""

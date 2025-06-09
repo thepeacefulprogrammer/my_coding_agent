@@ -418,19 +418,19 @@ class TestMCPFileServer:
     @pytest.mark.asyncio
     async def test_context_manager_behavior(self, mcp_server):
         """Test MCP server as context manager."""
-        with patch.object(
-            mcp_server, "connect", new_callable=AsyncMock
-        ) as mock_connect:
-            with patch.object(
+        with (
+            patch.object(mcp_server, "connect", new_callable=AsyncMock) as mock_connect,
+            patch.object(
                 mcp_server, "disconnect", new_callable=AsyncMock
-            ) as mock_disconnect:
-                mock_connect.return_value = True
+            ) as mock_disconnect,
+        ):
+            mock_connect.return_value = True
 
-                async with mcp_server:
-                    pass
+            async with mcp_server:
+                assert mcp_server.is_connected is True
 
-                mock_connect.assert_called_once()
-                mock_disconnect.assert_called_once()
+            mock_connect.assert_called_once()
+            mock_disconnect.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_context_manager_connection_failure(self, mcp_server):
