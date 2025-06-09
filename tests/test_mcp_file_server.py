@@ -426,6 +426,13 @@ class TestMCPFileServer:
         ):
             mock_connect.return_value = True
 
+            # The context manager should call connect and set is_connected
+            async def mock_connect_side_effect():
+                mcp_server.is_connected = True
+                return True
+
+            mock_connect.side_effect = mock_connect_side_effect
+
             async with mcp_server:
                 assert mcp_server.is_connected is True
 

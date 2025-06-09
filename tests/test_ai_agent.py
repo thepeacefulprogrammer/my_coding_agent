@@ -361,10 +361,13 @@ class TestAIAgent:
         """Test health status reporting."""
         status = ai_agent.get_health_status()
 
-        assert "model_configured" in status
-        assert "agent_initialized" in status
-        assert status["model_configured"] is True
-        assert status["agent_initialized"] is True
+        assert "configured" in status
+        assert "model_name" in status
+        assert "endpoint" in status
+        assert "max_retries" in status
+        assert "timeout" in status
+        assert status["configured"] is True
+        assert status["model_name"] == "test-deployment"
 
     @pytest.mark.asyncio
     async def test_retry_mechanism_with_retryable_error(self, ai_agent):
@@ -386,7 +389,7 @@ class TestAIAgent:
             response = await ai_agent.send_message("Hello, AI!")
 
             assert response.success is False
-            assert "500 Internal Server Error" in response.error
+            assert "Server error (500)" in response.error
             assert mock_sleep.call_count >= 1  # Should have retried
 
     @pytest.mark.asyncio
@@ -409,6 +412,8 @@ class TestAIAgent:
     @pytest.mark.asyncio
     async def test_successful_retry_after_transient_error(self, ai_agent):
         """Test successful retry after transient error."""
+        import httpx
+
         mock_result = Mock()
         mock_result.data = "Hello! How can I help you today?"
         mock_usage = Mock()
@@ -421,7 +426,12 @@ class TestAIAgent:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise Exception("Temporary server error")
+                # Use a retryable server error instead of generic Exception
+                raise httpx.HTTPStatusError(
+                    "503 Service Unavailable",
+                    request=httpx.Request("POST", "https://test.com"),
+                    response=httpx.Response(503),
+                )
             return mock_result
 
         with (
