@@ -1,0 +1,11 @@
+Collecting QtAwesome
+  Downloading qtawesome-1.4.0-py3-none-any.whl.metadata (11 kB)
+Collecting qtpy (from QtAwesome)
+  Downloading QtPy-2.4.3-py3-none-any.whl.metadata (12 kB)
+Requirement already satisfied: packaging in ./venv/lib/python3.13/site-packages (from qtpy->QtAwesome) (25.0)
+Downloading qtawesome-1.4.0-py3-none-any.whl (2.6 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.6/2.6 MB 7.1 MB/s eta 0:00:00
+Downloading QtPy-2.4.3-py3-none-any.whl (95 kB)
+Installing collected packages: qtpy, QtAwesome
+
+Successfully installed QtAwesome-1.4.0 qtpy-2.4.3

@@ -6,10 +6,11 @@ using PyQt6's QFileSystemModel as the foundation.
 """
 
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Dict, Optional, Union
 
-from PyQt6.QtCore import QDir, QModelIndex, QPoint, Qt, pyqtSignal
-from PyQt6.QtGui import QAction, QFileSystemModel, QIcon
+import qtawesome as qta
+from PyQt6.QtCore import QDir, QModelIndex, QPoint, QRect, Qt, pyqtSignal
+from PyQt6.QtGui import QAction, QFileSystemModel, QIcon, QPainter
 from PyQt6.QtWidgets import QMenu, QTreeView
 
 
@@ -244,7 +245,7 @@ class FileTreeModel(QFileSystemModel):
         ext = file_path.suffix.lower()
         return ext in code_extensions
 
-    def get_file_info(self, index: QModelIndex) -> "dict[str, Any]":
+    def get_file_info(self, index: QModelIndex) -> "Dict[str, Any]":
         """
         Get detailed information about a file or directory.
 
@@ -368,6 +369,26 @@ class FileTreeWidget(QTreeView):
 
         # Enable custom context menu
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+
+        # Set up Font Awesome expansion icons
+        self._setup_expansion_icons()
+
+    def _setup_expansion_icons(self) -> None:
+        """Set up Font Awesome icons for folder expansion indicators."""
+        try:
+            # Get theme-appropriate color for icons
+            # Use a mid-gray that works well in both light and dark themes
+            icon_color = "#666666"  # Neutral gray that works in both themes
+
+            # Create Font Awesome icons for expansion indicators
+            self._collapsed_icon = qta.icon("fa6s.chevron-right", color=icon_color)
+            self._expanded_icon = qta.icon("fa6s.chevron-down", color=icon_color)
+
+        except Exception as e:
+            # Fallback if Font Awesome fails to load
+            print(f"Warning: Could not load Font Awesome icons: {e}")
+            self._collapsed_icon = None
+            self._expanded_icon = None
 
     def _connect_signals(self) -> None:
         """Connect internal signals to handle file selection and opening."""
@@ -652,7 +673,7 @@ class FileTreeWidget(QTreeView):
 
         return self._model.get_file_path(current_index)
 
-    def get_selected_file_info(self) -> "dict[str, Any]":
+    def get_selected_file_info(self) -> "Dict[str, Any]":
         """
         Get file information for the currently selected item.
 
@@ -768,3 +789,81 @@ class FileTreeWidget(QTreeView):
         # Show the menu at the requested position
         global_pos = self.mapToGlobal(position)
         menu.exec(global_pos)
+
+    def drawBranches(
+        self, painter: Optional[QPainter], rect: QRect, index: QModelIndex
+    ) -> None:
+        """
+        Override drawBranches method to paint Font Awesome icons at correct tree positions
+
+        Args:
+            painter: QPainter object for drawing
+            rect: QRect object for the branch area
+            index: QModelIndex for the item
+        """
+        if not painter or not index.isValid():
+            return
+
+        if self._model.is_directory(index):
+            if (
+                hasattr(self, "_expanded_icon")
+                and hasattr(self, "_collapsed_icon")
+                and self._expanded_icon
+                and self._collapsed_icon
+            ):
+                # Use Qt's provided rect which is already positioned correctly for the branch area
+                # The rect parameter represents where the branch indicator should be drawn
+                icon_size = 12  # Slightly smaller to fit better in the branch area
+
+                # Center the icon within the provided branch rect
+                icon_x = rect.left() + (rect.width() - icon_size) // 2
+                icon_y = rect.top() + (rect.height() - icon_size) // 2
+
+                # Choose and draw the appropriate icon
+                if self.isExpanded(index):
+                    pixmap = self._expanded_icon.pixmap(icon_size, icon_size)
+                else:
+                    pixmap = self._collapsed_icon.pixmap(icon_size, icon_size)
+
+                painter.drawPixmap(icon_x, icon_y, pixmap)
+        else:
+            # For non-directories, call parent implementation to maintain tree lines
+            super().drawBranches(painter, rect, index)
+
+    def mousePressEvent(self, e) -> None:
+        """
+        Override mouse press event to handle clicks on our custom chevron icons.
+
+        Args:
+            e: QMouseEvent object
+        """
+        if e and e.button() == Qt.MouseButton.LeftButton:
+            index = self.indexAt(e.pos())
+            if index.isValid() and self._model.is_directory(index):
+                # Calculate the branch area using Qt's standard approach
+                branch_rect = self.visualRect(index)
+                depth = 0
+                parent = index.parent()
+                while parent.isValid():
+                    depth += 1
+                    parent = parent.parent()
+
+                # Standard Qt indentation
+                indent_size = self.indentation()
+                branch_x = depth * indent_size
+
+                # Create the clickable area for the chevron
+                click_rect = QRect(
+                    branch_x, branch_rect.y(), indent_size, branch_rect.height()
+                )
+
+                if click_rect.contains(e.pos()):
+                    # Toggle expanded state
+                    if self.isExpanded(index):
+                        self.collapse(index)
+                    else:
+                        self.expand(index)
+                    return  # Don't call parent to avoid selection
+
+        # Call parent implementation for all other clicks (file selection, etc.)
+        super().mousePressEvent(e)

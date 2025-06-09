@@ -214,6 +214,10 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_theme_manager"):
             new_theme = self._theme_manager.toggle_theme()
 
+            # Apply theme to code viewer if it exists
+            if hasattr(self, "_code_viewer"):
+                self._theme_manager.apply_theme_to_widget(self._code_viewer)
+
             # Update status bar to show theme change
             if hasattr(self, "_file_info_label"):
                 self._file_info_label.setText(f"Theme: {new_theme.title()}")

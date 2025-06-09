@@ -30,24 +30,9 @@ QTreeView::item:hover {
     background-color: #e6f3ff;
 }
 
-/* Tree branch indicators for collapsed folders (plus-like pattern) */
-QTreeView::branch:has-children:!has-siblings:closed,
-QTreeView::branch:closed:has-children:has-siblings {
-    width: 10px;
-    height: 10px;
-    background-color: #cccccc;
-    border: 1px solid #aaaaaa;
-    margin: 3px;
-}
-
-/* Tree branch indicators for expanded folders (minus-like pattern) */
-QTreeView::branch:open:has-children:!has-siblings,
-QTreeView::branch:open:has-children:has-siblings {
-    width: 10px;
-    height: 3px;
-    background-color: #999999;
-    border: 1px solid #777777;
-    margin: 6px 3px;
+/* Tree branch indicators - handled programmatically with Font Awesome */
+QTreeView::branch {
+    background: transparent;
 }
 
 /* Text Edit (Code Viewer) */

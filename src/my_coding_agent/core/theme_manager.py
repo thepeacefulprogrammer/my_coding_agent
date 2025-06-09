@@ -24,13 +24,13 @@ class ThemeManager:
         self.app = app
         self._available_themes = ["light", "dark"]
 
-        # Load saved theme or default to light
+        # Load saved theme or default to dark
         self._settings = QSettings("my_coding_agent", "Simple Code Viewer")
-        saved_theme = self._settings.value("theme/current", "light")
+        saved_theme = self._settings.value("theme/current", "dark")
 
         # Validate saved theme
         if saved_theme not in self._available_themes:
-            saved_theme = "light"
+            saved_theme = "dark"
 
         self._current_theme = saved_theme
 
