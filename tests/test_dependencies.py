@@ -4,7 +4,10 @@ This test ensures that PyQt6 and Pygments are properly installed
 and can be imported for the code viewer application.
 """
 
+from pathlib import Path
+
 import pytest
+import toml
 
 
 def test_pyqt6_available() -> None:
@@ -76,3 +79,51 @@ def test_pygments_syntax_highlighting() -> None:
 
     except Exception as e:
         pytest.fail(f"Pygments syntax highlighting test failed: {e}")
+
+
+def test_ai_dependencies_added():
+    """Test that Pydantic AI and MCP dependencies are added to pyproject.toml."""
+    # Read the pyproject.toml file
+    project_root = Path(__file__).parent.parent
+    pyproject_path = project_root / "pyproject.toml"
+
+    with open(pyproject_path) as f:
+        config = toml.load(f)
+
+    # Check that the main dependencies include AI libraries
+    dependencies = config["project"]["dependencies"]
+
+    # Expected AI dependencies
+    expected_ai_deps = [
+        "pydantic-ai",
+        "openai",  # Azure OpenAI client
+        "mcp",  # Model Context Protocol
+    ]
+
+    # Check each dependency is present (allowing for version specifications)
+    for expected_dep in expected_ai_deps:
+        found = any(dep.startswith(expected_dep) for dep in dependencies)
+        assert found, f"Missing dependency: {expected_dep} in {dependencies}"
+
+
+def test_environment_configuration_exists():
+    """Test that .env_example file exists for Azure AI configuration."""
+    project_root = Path(__file__).parent.parent
+    env_example_path = project_root / ".env_example"
+
+    assert env_example_path.exists(), (
+        ".env_example file should exist for Azure AI configuration"
+    )
+
+    # Check that it contains Azure AI configuration keys
+    with open(env_example_path) as f:
+        content = f.read()
+
+    expected_keys = [
+        "AZURE_OPENAI_ENDPOINT",
+        "AZURE_OPENAI_API_KEY",
+        "AZURE_OPENAI_DEPLOYMENT_NAME",
+    ]
+
+    for key in expected_keys:
+        assert key in content, f"Missing environment variable: {key} in .env_example"
