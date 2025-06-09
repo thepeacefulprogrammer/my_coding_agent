@@ -1,9 +1,15 @@
 ## Relevant Files
 
-- `src/my_coding_agent/core/ai_agent.py` - Main AI Agent orchestrator class with Pydantic AI integration
+- `src/my_coding_agent/core/ai_agent.py` - Main AI Agent orchestrator class with Pydantic AI integration and filesystem tools
 - `tests/test_ai_agent.py` - Unit tests for AI Agent functionality
-- `src/my_coding_agent/core/mcp_file_server.py` - MCP server for file system operations
+- `src/my_coding_agent/core/mcp_file_server.py` - MCP server for file system operations with security enhancements
 - `tests/test_mcp_file_server.py` - Unit tests for MCP file server
+- `tests/test_mcp_security_permissions.py` - Comprehensive security and permissions tests for MCP file server
+- `tests/test_ai_agent_mcp_integration.py` - Unit tests for AI Agent MCP integration
+- `tests/test_ai_agent_filesystem_tools.py` - Unit tests for AI Agent filesystem tools integration
+- `tests/test_ai_agent_workspace_operations.py` - Unit tests for workspace-aware file operations with security boundaries
+- `tests/test_ai_agent_error_handling.py` - Comprehensive error handling and validation tests for file operations
+- `tests/test_mcp_integration_comprehensive.py` - Comprehensive MCP integration tests covering edge cases and complete scenarios
 - `src/my_coding_agent/gui/chat_widget.py` - PyQt6 chat interface widget
 - `tests/test_chat_widget.py` - Unit tests for chat widget
 - `src/my_coding_agent/gui/main_window.py` - Modified main window with three-panel layout
@@ -12,8 +18,8 @@
 - `tests/test_workflow_manager.py` - Unit tests for workflow manager
 - `src/my_coding_agent/core/task_parser.py` - Markdown task file parser and updater
 - `tests/test_task_parser.py` - Unit tests for task parser
-- `requirements.txt` - Updated dependencies with Pydantic AI and MCP libraries
-- `.env.example` - Example environment file for Azure AI configuration
+- `pyproject.toml` - Updated dependencies with Pydantic AI and MCP libraries
+- `.env_example` - Updated environment file with Azure AI configuration
 
 ### Notes
 
@@ -24,22 +30,22 @@
 
 ## Tasks
 
-- [ ] 1.0 Set up AI Agent Core Infrastructure
-  - [ ] 1.1 Add Pydantic AI and Azure AI dependencies to requirements.txt
-  - [ ] 1.2 Create .env.example with Azure AI configuration template
-  - [ ] 1.3 Create AI Agent service class with Azure provider integration
-  - [ ] 1.4 Implement basic chat functionality (send message, receive response)
-  - [ ] 1.5 Add error handling and logging for AI service failures
-  - [ ] 1.6 Write unit tests for AI Agent core functionality
+- [x] 1.0 Set up AI Agent Core Infrastructure
+  - [x] 1.1 Add Pydantic AI and Azure AI dependencies to requirements.txt
+  - [x] 1.2 Create .env.example with Azure AI configuration template
+  - [x] 1.3 Create AI Agent service class with Azure provider integration
+  - [x] 1.4 Implement basic chat functionality (send message, receive response)
+  - [x] 1.5 Add error handling and logging for AI service failures
+  - [x] 1.6 Write unit tests for AI Agent core functionality
 
-- [ ] 2.0 Implement MCP File System Integration
-  - [ ] 2.1 Create MCP server using FastMCP pattern for file operations
-  - [ ] 2.2 Implement file reading capabilities (text files, markdown)
-  - [ ] 2.3 Implement file writing capabilities with safety checks
-  - [ ] 2.4 Implement file creation and deletion operations
-  - [ ] 2.5 Add directory listing and navigation capabilities
-  - [ ] 2.6 Integrate MCP server with AI Agent for file operations
-  - [ ] 2.7 Write comprehensive unit tests for all file operations
+- [x] 2.0 Integrate with MCP File System Server
+  - [x] 2.1 Install and configure the official MCP filesystem server
+  - [x] 2.2 Set up MCP client integration in AI Agent
+  - [x] 2.3 Configure file system permissions and security boundaries
+  - [x] 2.4 Integrate MCP filesystem tools with AI Agent capabilities
+  - [x] 2.5 Add workspace-aware file operations (scoped to project directory)
+  - [x] 2.6 Implement file operation error handling and validation
+  - [x] 2.7 Write unit tests for MCP client integration and file operations
 
 - [ ] 3.0 Create Chat Interface UI Component
   - [ ] 3.1 Design and implement chat message model for PyQt6
