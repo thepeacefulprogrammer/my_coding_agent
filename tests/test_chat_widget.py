@@ -791,3 +791,90 @@ class TestChatWidget:
         # Focus might not be set in headless test environment, but should not crash
         # Just ensure the method is callable
         assert True  # If we get here, focus setting didn't crash
+
+    def test_chat_widget_ai_processing_indicators(self, chat_widget):
+        """Test AI processing indicators with different states."""
+        # Test thinking state
+        chat_widget.show_ai_thinking()
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Test processing state
+        chat_widget.show_ai_processing("Processing your request...")
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Test generating state
+        chat_widget.show_ai_generating("Generating response...")
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Test custom processing message
+        chat_widget.show_ai_processing("Analyzing code...")
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Hide all indicators
+        chat_widget.hide_typing_indicator()
+        assert not chat_widget.display_area.is_typing_indicator_visible()
+
+    def test_chat_widget_processing_states_with_animations(self, chat_widget):
+        """Test that processing indicators support animated states."""
+        # Test animated thinking dots
+        chat_widget.show_ai_thinking(animated=True)
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Test animated processing
+        chat_widget.show_ai_processing("Loading", animated=True)
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Should be able to update message while animated
+        chat_widget.update_processing_message("Still processing...")
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Hide indicators
+        chat_widget.hide_typing_indicator()
+        assert not chat_widget.display_area.is_typing_indicator_visible()
+
+    def test_chat_widget_processing_indicators_styling(self, chat_widget):
+        """Test that processing indicators have proper styling."""
+        # Show a processing indicator
+        chat_widget.show_ai_processing("Thinking...")
+
+        # Apply dark theme and verify indicator adapts
+        chat_widget.apply_theme("dark")
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Apply light theme and verify indicator adapts
+        chat_widget.apply_theme("light")
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Hide indicator
+        chat_widget.hide_typing_indicator()
+
+    def test_chat_widget_processing_error_states(self, chat_widget):
+        """Test processing error state indicators."""
+        # Test showing error state
+        chat_widget.show_ai_error("Failed to process request")
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Error states should be visually distinct
+        # This will be implemented to use different styling
+
+        # Hide error indicator
+        chat_widget.hide_typing_indicator()
+        assert not chat_widget.display_area.is_typing_indicator_visible()
+
+    def test_chat_widget_processing_state_transitions(self, chat_widget):
+        """Test smooth transitions between processing states."""
+        # Start with thinking
+        chat_widget.show_ai_thinking()
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Transition to processing
+        chat_widget.show_ai_processing("Reading files...")
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Transition to generating
+        chat_widget.show_ai_generating()
+        assert chat_widget.display_area.is_typing_indicator_visible()
+
+        # Transition to completion (hide)
+        chat_widget.hide_typing_indicator()
+        assert not chat_widget.display_area.is_typing_indicator_visible()

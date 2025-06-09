@@ -70,6 +70,11 @@ class MainWindow(QMainWindow):
         return self._code_viewer
 
     @property
+    def chat_widget(self):
+        """Get the chat widget."""
+        return self._chat_widget
+
+    @property
     def theme_manager(self) -> ThemeManager | None:
         """Get the theme manager instance."""
         return getattr(self, "_theme_manager", None)
@@ -100,7 +105,7 @@ class MainWindow(QMainWindow):
         # Set up menu bar first
         self._setup_menu_bar()
 
-        # Create horizontal splitter for main layout (30% left, 70% right)
+        # Create horizontal splitter for main layout (25% left, 45% center, 30% right)
         from PyQt6.QtCore import Qt
         from PyQt6.QtWidgets import QFrame, QSplitter
 
@@ -132,37 +137,58 @@ class MainWindow(QMainWindow):
 
         left_layout.addWidget(self._file_tree)
 
-        # Create right panel (will hold code viewer)
-        right_panel = QFrame()
-        right_panel.setFrameStyle(QFrame.Shape.StyledPanel)
-        right_panel.setLineWidth(1)
+        # Create center panel (code viewer)
+        center_panel = QFrame()
+        center_panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        center_panel.setLineWidth(1)
 
-        # Add code viewer widget to right panel
+        # Add code viewer widget to center panel
         from .code_viewer import CodeViewerWidget
 
-        right_layout = QVBoxLayout(right_panel)
-        right_layout.setContentsMargins(5, 5, 5, 5)  # Small margins
+        center_layout = QVBoxLayout(center_panel)
+        center_layout.setContentsMargins(5, 5, 5, 5)  # Small margins
 
         self._code_viewer = CodeViewerWidget()
-        right_layout.addWidget(self._code_viewer)
+        center_layout.addWidget(self._code_viewer)
 
         # Apply current theme to code viewer if theme manager is available
         if hasattr(self, "_theme_manager"):
             self._theme_manager.apply_theme_to_widget(self._code_viewer)
 
+        # Create right panel (chat widget)
+        right_panel = QFrame()
+        right_panel.setFrameStyle(QFrame.Shape.StyledPanel)
+        right_panel.setLineWidth(1)
+
+        # Add chat widget to right panel
+        from ..gui.chat_widget import ChatWidget
+
+        right_layout = QVBoxLayout(right_panel)
+        right_layout.setContentsMargins(5, 5, 5, 5)  # Small margins
+
+        self._chat_widget = ChatWidget()
+        right_layout.addWidget(self._chat_widget)
+
+        # Apply current theme to chat widget if theme manager is available
+        if hasattr(self, "_theme_manager"):
+            self._theme_manager.apply_theme_to_widget(self._chat_widget)
+
         # Add panels to splitter
         splitter.addWidget(left_panel)
+        splitter.addWidget(center_panel)
         splitter.addWidget(right_panel)
 
-        # Set initial sizes for 30%/70% split
-        # Calculate based on default window width (1000px)
-        left_width = int(1000 * 0.3)  # 300px
-        right_width = int(1000 * 0.7)  # 700px
-        splitter.setSizes([left_width, right_width])
+        # Set initial sizes for 25%/45%/30% split
+        # Calculate based on default window width (1200px)
+        left_width = int(1200 * 0.25)  # 300px
+        center_width = int(1200 * 0.45)  # 540px
+        right_width = int(1200 * 0.30)  # 360px
+        splitter.setSizes([left_width, center_width, right_width])
 
         # Set minimum sizes to prevent panels from being too small
-        left_panel.setMinimumWidth(150)  # Minimum 150px for file tree
-        right_panel.setMinimumWidth(300)  # Minimum 300px for code viewer
+        left_panel.setMinimumWidth(120)  # Minimum for file tree
+        center_panel.setMinimumWidth(250)  # Minimum for code viewer
+        right_panel.setMinimumWidth(200)  # Minimum for chat widget
 
         # Make splitter handle visible and responsive
         splitter.setChildrenCollapsible(False)  # Prevent complete collapse
@@ -171,6 +197,7 @@ class MainWindow(QMainWindow):
         # Store references for future use
         self._splitter = splitter
         self._left_panel = left_panel
+        self._center_panel = center_panel
         self._right_panel = right_panel
 
         # Set up enhanced status bar
@@ -411,7 +438,7 @@ class MainWindow(QMainWindow):
                 if (
                     splitter_sizes is not None
                     and isinstance(splitter_sizes, list)
-                    and len(splitter_sizes) == 2
+                    and len(splitter_sizes) == 3
                 ):
                     try:
                         # Convert to integers if they're strings

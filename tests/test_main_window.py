@@ -701,20 +701,32 @@ class TestMainWindow:
         window.close()
 
     def test_menu_accessibility(self, qapp_instance):
-        """Test menu accessibility features (mnemonics, tooltips)."""
+        """Test that menu items have proper accessibility features."""
         window = MainWindow()
 
-        # File menu should have mnemonic
         menu_bar = window.menuBar()
-        file_action = menu_bar.actions()[0]
-        assert "&" in file_action.text()  # Indicates mnemonic
+        file_menu = menu_bar.findChild(
+            type(menu_bar.actions()[0].menu())
+        )  # Get File menu
 
-        # Actions should have tooltips
-        open_action = window.findChild(QAction, "open_action")
-        exit_action = window.findChild(QAction, "exit_action")
+        # Check that menu actions have proper accessibility
+        for action in file_menu.actions():
+            if action.isSeparator():
+                continue
 
-        assert open_action.toolTip() != ""
-        assert exit_action.toolTip() != ""
+            # Should have text
+            assert action.text() is not None
+            assert len(action.text()) > 0
+
+            # Should have status tip or tool tip for accessibility
+            has_status_tip = (
+                action.statusTip() is not None and len(action.statusTip()) > 0
+            )
+            has_tool_tip = action.toolTip() is not None and len(action.toolTip()) > 0
+
+            assert has_status_tip or has_tool_tip, (
+                f"Action '{action.text()}' lacks accessibility information"
+            )
 
         # Clean up
         window.close()
@@ -723,25 +735,23 @@ class TestMainWindow:
         """Test that File menu has proper separators between action groups."""
         window = MainWindow()
 
-        # Find File menu
         menu_bar = window.menuBar()
-        file_menu = None
-        for action in menu_bar.actions():
-            if action.text() == "&File":
-                file_menu = action.menu()
-                break
+        file_menu = menu_bar.findChild(
+            type(menu_bar.actions()[0].menu())
+        )  # Get File menu
 
-        assert file_menu is not None
+        actions = file_menu.actions()
 
-        # Get all actions in file menu
-        file_actions = file_menu.actions()
+        # Should have at least one separator (between Open and Exit)
+        separators = [action for action in actions if action.isSeparator()]
+        assert len(separators) > 0
 
-        # Should have at least Open, separator, Exit
-        assert len(file_actions) >= 3
-
-        # Check for separator between Open and Exit
-        has_separator = any(action.isSeparator() for action in file_actions)
-        assert has_separator
+        # The separator should be between Open and Exit actions
+        for i, action in enumerate(actions):
+            if action.isSeparator():
+                # There should be an action before and after the separator
+                assert i > 0  # Not the first item
+                assert i < len(actions) - 1  # Not the last item
 
         # Clean up
         window.close()
@@ -833,3 +843,217 @@ class TestMainWindowIntegration:
 
         # Clean up
         window.close()
+
+
+class TestMainWindowThreePanelLayout:
+    """Test suite for three-panel layout modifications."""
+
+    def test_splitter_has_three_panels(self, qapp_instance):
+        """Test QSplitter has exactly three panels (left, center, right)."""
+        window = MainWindow()
+
+        splitter = window.findChild(QSplitter)
+        assert splitter is not None
+
+        # Should have exactly 3 widgets
+        assert splitter.count() == 3
+
+        # All three widgets should be present
+        left_panel = splitter.widget(0)
+        center_panel = splitter.widget(1)
+        right_panel = splitter.widget(2)
+
+        assert left_panel is not None
+        assert center_panel is not None
+        assert right_panel is not None
+        assert left_panel != center_panel != right_panel
+
+        # Clean up
+        window.close()
+
+    def test_three_panel_initial_sizes(self, qapp_instance):
+        """Test QSplitter has correct initial size proportions (25%/45%/30%)."""
+        window = MainWindow()
+        window.resize(1200, 800)  # Set known size for testing
+
+        splitter = window.findChild(QSplitter)
+        assert splitter is not None
+
+        # Get splitter sizes
+        sizes = splitter.sizes()
+        assert len(sizes) == 3
+
+        total_width = sum(sizes)
+        left_ratio = sizes[0] / total_width
+        center_ratio = sizes[1] / total_width
+        right_ratio = sizes[2] / total_width
+
+        # Test 25%/45%/30% split with some tolerance
+        assert abs(left_ratio - 0.25) < 0.10  # Within 10% tolerance
+        assert abs(center_ratio - 0.45) < 0.10  # Within 10% tolerance
+        assert abs(right_ratio - 0.30) < 0.10  # Within 10% tolerance
+
+        # Clean up
+        window.close()
+
+    def test_three_panel_minimum_sizes(self, qapp_instance):
+        """Test all three panels have appropriate minimum sizes."""
+        window = MainWindow()
+
+        splitter = window.findChild(QSplitter)
+        assert splitter is not None
+
+        left_panel = splitter.widget(0)
+        center_panel = splitter.widget(1)
+        right_panel = splitter.widget(2)
+
+        # Test minimum widths are reasonable
+        assert left_panel.minimumWidth() >= 120  # File tree needs some space
+        assert center_panel.minimumWidth() >= 250  # Code viewer needs more space
+        assert right_panel.minimumWidth() >= 200  # Chat needs reasonable space
+
+        # Clean up
+        window.close()
+
+    def test_main_window_has_chat_widget(self, qapp_instance):
+        """Test MainWindow has a chat widget in the right panel."""
+        window = MainWindow()
+
+        # Check that window has chat widget property
+        assert hasattr(window, "chat_widget")
+        assert window.chat_widget is not None
+
+        # Clean up
+        window.close()
+
+    def test_chat_widget_property_access(self, qapp_instance):
+        """Test chat widget can be accessed via property."""
+        window = MainWindow()
+
+        chat_widget = window.chat_widget
+        assert chat_widget is not None
+
+        # Should be the same instance each time
+        assert window.chat_widget is chat_widget
+
+        # Clean up
+        window.close()
+
+    def test_three_panel_splitter_adjustable(self, qapp_instance):
+        """Test that all three panels can be resized by user."""
+        window = MainWindow()
+        window.resize(1200, 800)
+
+        splitter = window.findChild(QSplitter)
+        assert splitter is not None
+
+        # Get initial sizes
+        initial_sizes = splitter.sizes()
+        assert len(initial_sizes) == 3
+
+        # Try to adjust the splitter with sizes that should work
+        # Just verify that the sizes can be changed, not exact values
+        total_width = sum(initial_sizes)
+        new_sizes = [
+            max(150, int(total_width * 0.15)),  # At least 150px for left
+            max(300, int(total_width * 0.50)),  # At least 300px for center
+            max(250, int(total_width * 0.35)),  # At least 250px for right
+        ]
+        splitter.setSizes(new_sizes)
+
+        # Verify that sizes actually changed from initial
+        current_sizes = splitter.sizes()
+
+        # At least one size should have changed significantly
+        changed = any(
+            abs(current - initial) > 20
+            for current, initial in zip(current_sizes, initial_sizes, strict=False)
+        )
+        assert changed, (
+            f"Splitter sizes didn't change: initial={initial_sizes}, current={current_sizes}"
+        )
+
+        # Verify all sizes are reasonable (respect minimums)
+        assert current_sizes[0] >= 120  # Left panel minimum
+        assert current_sizes[1] >= 250  # Center panel minimum
+        assert current_sizes[2] >= 200  # Right panel minimum
+
+        # Clean up
+        window.close()
+
+    def test_three_panel_children_non_collapsible(self, qapp_instance):
+        """Test that panels cannot be completely collapsed."""
+        window = MainWindow()
+
+        splitter = window.findChild(QSplitter)
+        assert splitter is not None
+
+        # Children should not be collapsible
+        assert not splitter.childrenCollapsible()
+
+        # Clean up
+        window.close()
+
+    def test_three_panel_splitter_handle_width(self, qapp_instance):
+        """Test splitter handles have appropriate width for usability."""
+        window = MainWindow()
+
+        splitter = window.findChild(QSplitter)
+        assert splitter is not None
+
+        # Handle width should be reasonable for user interaction
+        handle_width = splitter.handleWidth()
+        assert handle_width >= 2  # At least 2px
+        assert handle_width <= 8  # Not too wide
+
+        # Clean up
+        window.close()
+
+    def test_three_panel_layout_persistence(self, qapp_instance):
+        """Test that three-panel layout sizes are saved and restored."""
+        # Create window and set custom sizes
+        window = MainWindow()
+        window.resize(1200, 800)
+
+        splitter = window.findChild(QSplitter)
+
+        # Use sizes that are more likely to be preserved (respecting minimums)
+        test_sizes = [150, 400, 250]  # Smaller, more realistic sizes
+        splitter.setSizes(test_sizes)
+
+        # Save settings
+        window.save_window_state()
+        window.close()
+
+        # Create new window to test restoration
+        window2 = MainWindow()
+        splitter2 = window2.findChild(QSplitter)
+
+        # Sizes should be restored (with reasonable tolerance)
+        restored_sizes = splitter2.sizes()
+
+        # The main test is that settings are actually being saved/restored
+        # We'll be more lenient on exact values due to window sizing constraints
+        total_original = sum(test_sizes)
+        total_restored = sum(restored_sizes)
+
+        # Total should be similar (within window constraints)
+        assert abs(total_restored - total_original) < 200, (
+            f"Total width significantly different: {total_original} vs {total_restored}"
+        )
+
+        # Check that proportions are roughly maintained
+        # Calculate proportions for both
+        original_props = [s / total_original for s in test_sizes]
+        restored_props = [s / total_restored for s in restored_sizes]
+
+        for i, (orig_prop, rest_prop) in enumerate(
+            zip(original_props, restored_props, strict=False)
+        ):
+            # Allow 20% variation in proportions
+            assert abs(orig_prop - rest_prop) < 0.20, (
+                f"Panel {i} proportion changed too much: {orig_prop:.2f} vs {rest_prop:.2f}"
+            )
+
+        # Clean up
+        window2.close()

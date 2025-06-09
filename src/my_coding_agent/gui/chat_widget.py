@@ -1,5 +1,6 @@
 """Chat widget with message display area for PyQt6."""
 
+from enum import Enum
 from typing import Any
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
@@ -24,6 +25,16 @@ from .chat_message_model import (
     MessageRole,
     MessageStatus,
 )
+
+
+class AIProcessingState(Enum):
+    """Enumeration of AI processing states."""
+
+    IDLE = "idle"
+    THINKING = "thinking"
+    PROCESSING = "processing"
+    GENERATING = "generating"
+    ERROR = "error"
 
 
 class MessageBubble(QWidget):
@@ -332,13 +343,19 @@ class MessageDisplayArea(QWidget):
         super().__init__(parent)
         self.message_model = message_model
         self._message_bubbles: dict[str, MessageBubble] = {}
-        self._typing_indicator: QLabel | None = None
+        self._test_mode = False  # For reliable testing
         self._scroll_state = (
             "bottom"  # Track intended scroll position: "top", "bottom", "middle"
         )
-        self._test_mode = False  # Flag for test environment behavior
-        self._typing_indicator_shown = False  # Initialize state tracking
         self._auto_scroll_timer: QTimer | None = None  # Track auto-scroll timer
+
+        # Enhanced typing/processing indicator state
+        self._typing_indicator: QLabel | None = None
+        self._typing_indicator_shown = False  # Initialize state tracking
+        self._current_processing_state = AIProcessingState.IDLE
+        self._animation_timer: QTimer | None = None
+        self._animation_dots = 0  # For animated dots (0-3)
+        self._base_message = ""  # Base message without animation
 
         self._setup_ui()
         self._connect_signals()
@@ -545,45 +562,163 @@ class MessageDisplayArea(QWidget):
                     return True
         return True
 
-    def show_typing_indicator(self, text: str = "AI is typing...") -> None:
-        """Show typing indicator."""
+    def show_typing_indicator(
+        self,
+        text: str = "AI is typing...",
+        state: AIProcessingState = AIProcessingState.THINKING,
+        animated: bool = False,
+    ) -> None:
+        """Show typing indicator with enhanced states and animation support.
+
+        Args:
+            text: Text to display in the indicator
+            state: AI processing state (affects styling)
+            animated: Whether to show animated dots
+        """
         if self._typing_indicator is None:
             self._typing_indicator = QLabel()
-            self._typing_indicator.setStyleSheet("""
-                QLabel {
-                    color: #666;
-                    font-style: italic;
-                    padding: 8px;
-                    background-color: #f8f8f8;
-                    border-radius: 12px;
-                    margin: 0px 50px 0px 20px;
-                }
-            """)
-            # Insert before the spacer (last item)
+
+        # Update state
+        self._current_processing_state = state
+        self._base_message = text
+
+        # Apply state-specific styling
+        self._apply_indicator_styling(state)
+
+        # Set up animation if requested
+        if animated:
+            self._start_animation()
+        else:
+            self._stop_animation()
+            self._typing_indicator.setText(text)
+
+        # Add to layout if not already added
+        if self._typing_indicator.parent() is None:
             self.content_layout.insertWidget(
                 self.content_layout.count() - 1, self._typing_indicator
             )
 
-        self._typing_indicator.setText(text)
-        # Make sure it's visible and properly sized
         self._typing_indicator.setVisible(True)
         self._typing_indicator.show()
 
-        # Track state for test mode
+        # Mark as shown for state tracking
         self._typing_indicator_shown = True
 
-        # Force layout update and ensure widget is processed
-        self.content_widget.updateGeometry()
+        # Update geometry and scroll to bottom
         self._typing_indicator.updateGeometry()
-        QApplication.processEvents()
+        QTimer.singleShot(10, self.scroll_to_bottom)
 
-        # Double-check visibility after processing
+        # Ensure visibility in test mode
         if not self._typing_indicator.isVisible():
             self._typing_indicator.setVisible(True)
             self._typing_indicator.show()
-            QApplication.processEvents()
 
-        QTimer.singleShot(10, self.scroll_to_bottom)
+    def _apply_indicator_styling(self, state: AIProcessingState) -> None:
+        """Apply styling based on processing state and current theme."""
+        if not self._typing_indicator:
+            return
+
+        # Determine theme (basic detection for now)
+        # This could be enhanced to get theme from parent or theme manager
+        is_dark_theme = self.palette().window().color().lightness() < 128
+
+        if is_dark_theme:
+            if state == AIProcessingState.ERROR:
+                # Error state: red tint
+                bg_color = "#4a2c2c"
+                border_color = "#ff6b6b"
+                text_color = "#ff9999"
+            elif state == AIProcessingState.PROCESSING:
+                # Processing state: blue tint
+                bg_color = "#2c3a4a"
+                border_color = "#4a9eff"
+                text_color = "#87ceeb"
+            elif state == AIProcessingState.GENERATING:
+                # Generating state: green tint
+                bg_color = "#2c4a2c"
+                border_color = "#4aff4a"
+                text_color = "#90ee90"
+            else:  # THINKING or default
+                # Default thinking state
+                bg_color = "#404040"
+                border_color = "#666666"
+                text_color = "#cccccc"
+        else:
+            if state == AIProcessingState.ERROR:
+                # Error state: red tint
+                bg_color = "#ffe6e6"
+                border_color = "#ff9999"
+                text_color = "#cc0000"
+            elif state == AIProcessingState.PROCESSING:
+                # Processing state: blue tint
+                bg_color = "#e6f2ff"
+                border_color = "#99ccff"
+                text_color = "#0066cc"
+            elif state == AIProcessingState.GENERATING:
+                # Generating state: green tint
+                bg_color = "#e6ffe6"
+                border_color = "#99ff99"
+                text_color = "#006600"
+            else:  # THINKING or default
+                # Default thinking state
+                bg_color = "#f0f0f0"
+                border_color = "#cccccc"
+                text_color = "#666666"
+
+        # Apply styling using f-string
+        style = f"""
+            QLabel {{
+                background-color: {bg_color};
+                border: 1px solid {border_color};
+                border-radius: 16px;
+                padding: 8px 16px;
+                margin: 4px 20px;
+                font-style: italic;
+                font-size: 13px;
+                color: {text_color};
+            }}
+        """
+        self._typing_indicator.setStyleSheet(style)
+
+    def _start_animation(self) -> None:
+        """Start the animated dots animation."""
+        if self._animation_timer is None:
+            self._animation_timer = QTimer()
+            self._animation_timer.timeout.connect(self._update_animation)
+
+        self._animation_dots = 0
+        self._animation_timer.start(500)  # Update every 500ms
+        self._update_animation()
+
+    def _stop_animation(self) -> None:
+        """Stop the animated dots animation."""
+        if self._animation_timer:
+            self._animation_timer.stop()
+
+    def _update_animation(self) -> None:
+        """Update the animated dots."""
+        if not self._typing_indicator:
+            return
+
+        dots = "." * self._animation_dots
+        self._typing_indicator.setText(f"{self._base_message}{dots}")
+
+        self._animation_dots = (self._animation_dots + 1) % 4  # Cycle 0-3
+
+    def update_processing_message(self, message: str) -> None:
+        """Update the processing message while maintaining current state and animation.
+
+        Args:
+            message: New message to display
+        """
+        self._base_message = message
+        if self._animation_timer and self._animation_timer.isActive():
+            # Animation is running, it will pick up the new message
+            pass
+        else:
+            # No animation, update directly
+            if self._typing_indicator:
+                self._typing_indicator.setText(message)
 
     def hide_typing_indicator(self) -> None:
         """Hide typing indicator."""
@@ -917,9 +1052,20 @@ class ChatWidget(QWidget):
         """Clear error for a message."""
         return self.message_model.clear_message_error(message_id)
 
-    def show_typing_indicator(self, text: str = "AI is typing...") -> None:
-        """Show typing indicator."""
-        self.display_area.show_typing_indicator(text)
+    def show_typing_indicator(
+        self,
+        text: str = "AI is typing...",
+        state: AIProcessingState = AIProcessingState.THINKING,
+        animated: bool = False,
+    ) -> None:
+        """Show typing indicator with enhanced states and animation support.
+
+        Args:
+            text: Text to display in the indicator
+            state: AI processing state (affects styling)
+            animated: Whether to show animated dots
+        """
+        self.display_area.show_typing_indicator(text, state, animated)
 
     def hide_typing_indicator(self) -> None:
         """Hide typing indicator."""
@@ -945,3 +1091,51 @@ class ChatWidget(QWidget):
     def search_messages(self, query: str) -> list[ChatMessage]:
         """Search messages in the chat."""
         return self.display_area.search_messages(query)
+
+    def show_ai_thinking(self, animated: bool = False) -> None:
+        """Show AI thinking indicator.
+
+        Args:
+            animated: Whether to show animated dots
+        """
+        self.show_typing_indicator(
+            "AI is thinking", AIProcessingState.THINKING, animated
+        )
+
+    def show_ai_processing(
+        self, message: str = "Processing your request", animated: bool = False
+    ) -> None:
+        """Show AI processing indicator.
+
+        Args:
+            message: Custom processing message
+            animated: Whether to show animated dots
+        """
+        self.show_typing_indicator(message, AIProcessingState.PROCESSING, animated)
+
+    def show_ai_generating(
+        self, message: str = "Generating response", animated: bool = False
+    ) -> None:
+        """Show AI generating response indicator.
+
+        Args:
+            message: Custom generating message
+            animated: Whether to show animated dots
+        """
+        self.show_typing_indicator(message, AIProcessingState.GENERATING, animated)
+
+    def show_ai_error(self, message: str = "Error processing request") -> None:
+        """Show AI error state indicator.
+
+        Args:
+            message: Error message to display
+        """
+        self.show_typing_indicator(message, AIProcessingState.ERROR, animated=False)
+
+    def update_processing_message(self, message: str) -> None:
+        """Update the current processing message.
+
+        Args:
+            message: New message to display
+        """
+        self.display_area.update_processing_message(message)
