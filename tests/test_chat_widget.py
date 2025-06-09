@@ -568,30 +568,26 @@ class TestChatWidget:
     def test_chat_widget_input_field_present(self, chat_widget):
         """Test that the chat widget has an input field."""
         # Should have input field for typing messages
-        assert hasattr(chat_widget, "input_field")
+        assert hasattr(chat_widget, 'input_field')
         assert chat_widget.input_field is not None
 
         # Input field should be a text edit widget
         from PyQt6.QtWidgets import QLineEdit, QPlainTextEdit, QTextEdit
-
-        assert isinstance(
-            chat_widget.input_field, (QLineEdit, QTextEdit, QPlainTextEdit)
-        )
+        assert isinstance(chat_widget.input_field, QLineEdit | QTextEdit | QPlainTextEdit)
 
     def test_chat_widget_send_button_present(self, chat_widget):
         """Test that the chat widget has a send button."""
         # Should have send button
-        assert hasattr(chat_widget, "send_button")
+        assert hasattr(chat_widget, 'send_button')
         assert chat_widget.send_button is not None
 
         # Send button should be a push button
         from PyQt6.QtWidgets import QPushButton
-
         assert isinstance(chat_widget.send_button, QPushButton)
 
         # Button should have appropriate text
         button_text = chat_widget.send_button.text().lower()
-        assert "send" in button_text or "submit" in button_text
+        assert 'send' in button_text or 'submit' in button_text
 
     def test_chat_widget_input_field_functionality(self, chat_widget):
         """Test input field text entry and retrieval."""
@@ -622,11 +618,7 @@ class TestChatWidget:
         qtbot.mouseClick(chat_widget.send_button, Qt.MouseButton.LeftButton)
 
         # Input field should be cleared
-        current_text = (
-            chat_widget.input_field.text()
-            if hasattr(chat_widget.input_field, "text")
-            else chat_widget.input_field.toPlainText()
-        )
+        current_text = chat_widget.input_field.text() if hasattr(chat_widget.input_field, 'text') else chat_widget.input_field.toPlainText()
         assert current_text == ""
 
     def test_chat_widget_send_empty_message_ignored(self, chat_widget, qtbot):
@@ -635,9 +627,9 @@ class TestChatWidget:
         chat_widget.input_field.clear()
 
         # Should not emit signal for empty message
-        with pytest.raises(Exception):  # Should timeout waiting for signal
-            with qtbot.waitSignal(chat_widget.message_sent, timeout=500):
-                qtbot.mouseClick(chat_widget.send_button, Qt.MouseButton.LeftButton)
+        from pytestqt.exceptions import TimeoutError
+        with pytest.raises(TimeoutError), qtbot.waitSignal(chat_widget.message_sent, timeout=500):
+            qtbot.mouseClick(chat_widget.send_button, Qt.MouseButton.LeftButton)
 
     def test_chat_widget_send_whitespace_only_ignored(self, chat_widget, qtbot):
         """Test that whitespace-only messages are not sent."""
@@ -645,9 +637,9 @@ class TestChatWidget:
         chat_widget.input_field.setPlainText("   \n\t   ")
 
         # Should not emit signal for whitespace-only message
-        with pytest.raises(Exception):  # Should timeout waiting for signal
-            with qtbot.waitSignal(chat_widget.message_sent, timeout=500):
-                qtbot.mouseClick(chat_widget.send_button, Qt.MouseButton.LeftButton)
+        from pytestqt.exceptions import TimeoutError
+        with pytest.raises(TimeoutError), qtbot.waitSignal(chat_widget.message_sent, timeout=500):
+            qtbot.mouseClick(chat_widget.send_button, Qt.MouseButton.LeftButton)
 
     def test_chat_widget_enter_key_sends_message(self, chat_widget, qtbot):
         """Test sending message with Enter key."""
@@ -666,11 +658,8 @@ class TestChatWidget:
         """Test that Shift+Enter adds newline instead of sending."""
         # This test only applies if using QTextEdit or QPlainTextEdit
         from PyQt6.QtWidgets import QPlainTextEdit, QTextEdit
-
-        if not isinstance(chat_widget.input_field, (QTextEdit, QPlainTextEdit)):
-            pytest.skip(
-                "Newline functionality only available for multi-line text widgets"
-            )
+        if not isinstance(chat_widget.input_field, QTextEdit | QPlainTextEdit):
+            pytest.skip("Newline functionality only available for multi-line text widgets")
 
         # Enter text and press Shift+Enter
         test_message = "First line"
@@ -680,12 +669,8 @@ class TestChatWidget:
         # Should not send message, should add newline
         try:
             with qtbot.waitSignal(chat_widget.message_sent, timeout=500):
-                qtbot.keyPress(
-                    chat_widget.input_field,
-                    Qt.Key.Key_Return,
-                    Qt.KeyboardModifier.ShiftModifier,
-                )
-            assert False, "Should not have sent message with Shift+Enter"
+                qtbot.keyPress(chat_widget.input_field, Qt.Key.Key_Return, Qt.KeyboardModifier.ShiftModifier)
+            raise AssertionError("Should not have sent message with Shift+Enter")
         except Exception:
             # This is expected - signal should not be emitted
             pass
@@ -712,10 +697,6 @@ class TestChatWidget:
         # Button should be disabled when input is empty
         chat_widget.input_field.clear()
         QApplication.processEvents()  # Process any pending events
-
-        # Check if button responds to empty input (implementation may vary)
-        # This is a behavior that should be implemented
-        button_enabled_empty = chat_widget.send_button.isEnabled()
 
         # Add text - button should be enabled
         chat_widget.input_field.setPlainText("Some text")
