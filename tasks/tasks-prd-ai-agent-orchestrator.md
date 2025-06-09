@@ -56,8 +56,8 @@
   - [x] 3.1 Design and implement chat message model for PyQt6
   - [x] 3.2 Create chat widget with message display area
   - [x] 3.3 Implement message input field with send button functionality
-  - [ ] 3.4 Add message bubbles with user/AI distinction styling
-  - [ ] 3.5 Implement scrollable message history with auto-scroll
+  - [x] 3.4 Add message bubbles with user/AI distinction styling
+  - [x] 3.5 Implement scrollable message history with auto-scroll
   - [ ] 3.6 Apply dark theme styling consistent with existing UI
   - [ ] 3.7 Add AI processing indicators (typing, loading states)
   - [ ] 3.8 Write unit tests for chat widget functionality

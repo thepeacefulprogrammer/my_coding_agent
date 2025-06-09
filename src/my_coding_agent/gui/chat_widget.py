@@ -37,6 +37,7 @@ class MessageBubble(QWidget):
         self._metadata_visible = False
         self._current_status = message.status  # Initialize with message status
         self._current_error = message.error_message  # Initialize with message error
+        self._current_theme = "light"  # Default theme
 
         self._setup_ui()
         self._apply_styling()
@@ -80,7 +81,6 @@ class MessageBubble(QWidget):
         self.timestamp_label = QLabel()
         self.timestamp_label.setText(self.message.format_timestamp("%H:%M"))
         self.timestamp_label.setFont(QFont("", 8))
-        self.timestamp_label.setStyleSheet("color: #666;")
         info_layout.addWidget(self.timestamp_label)
 
         # Status indicator
@@ -91,7 +91,6 @@ class MessageBubble(QWidget):
 
         # Error message (hidden by default)
         self.error_label = QLabel()
-        self.error_label.setStyleSheet("color: red; font-weight: bold;")
         self.error_label.hide()
 
         content_layout.addLayout(info_layout)
@@ -106,7 +105,18 @@ class MessageBubble(QWidget):
             main_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
     def _apply_styling(self) -> None:
-        """Apply styling based on message role."""
+        """Apply styling based on message role and current theme."""
+        if self._current_theme == "dark":
+            self._apply_dark_theme_styling()
+        else:
+            self._apply_light_theme_styling()
+
+    def _apply_light_theme_styling(self) -> None:
+        """Apply light theme styling (current implementation)."""
+        # Timestamp styling for light theme
+        self.timestamp_label.setStyleSheet("color: #666;")
+        self.error_label.setStyleSheet("color: red; font-weight: bold;")
+
         if self.role == MessageRole.USER:
             self.setStyleSheet("""
                 MessageBubble {
@@ -156,6 +166,67 @@ class MessageBubble(QWidget):
                     background-color: #fff3cd;
                     border-radius: 12px;
                     border: 1px solid #ffeaa7;
+                }
+            """)
+
+    def _apply_dark_theme_styling(self) -> None:
+        """Apply dark theme styling consistent with main application."""
+        # Timestamp styling for dark theme (consistent with dark.qss)
+        self.timestamp_label.setStyleSheet("color: #888888;")
+        self.error_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+
+        if self.role == MessageRole.USER:
+            # User messages: Keep blue but adapt for dark theme
+            self.setStyleSheet("""
+                MessageBubble {
+                    background-color: #1976D2;
+                    border-radius: 18px;
+                    margin-left: 50px;
+                }
+                QLabel {
+                    color: white;
+                    background-color: transparent;
+                }
+                QFrame {
+                    background-color: #1976D2;
+                    border-radius: 18px;
+                    border: none;
+                }
+            """)
+        elif self.role == MessageRole.ASSISTANT:
+            # Assistant messages: Use dark theme colors from dark.qss
+            self.setStyleSheet("""
+                MessageBubble {
+                    background-color: #383838;
+                    border-radius: 18px;
+                    margin-right: 50px;
+                }
+                QLabel {
+                    color: #ffffff;
+                    background-color: transparent;
+                }
+                QFrame {
+                    background-color: #383838;
+                    border-radius: 18px;
+                    border: 1px solid #555555;
+                }
+            """)
+        else:  # SYSTEM
+            # System messages: Dark theme system colors
+            self.setStyleSheet("""
+                MessageBubble {
+                    background-color: #353535;
+                    border-radius: 12px;
+                    margin: 0px 20px;
+                }
+                QLabel {
+                    color: #ffffff;
+                    background-color: transparent;
+                }
+                QFrame {
+                    background-color: #353535;
+                    border-radius: 12px;
+                    border: 1px solid #555555;
                 }
             """)
 
@@ -242,6 +313,15 @@ class MessageBubble(QWidget):
     def is_metadata_visible(self) -> bool:
         """Check if metadata is visible."""
         return self._metadata_visible
+
+    def apply_theme(self, theme: str) -> None:
+        """Apply theme to the message bubble.
+
+        Args:
+            theme: Theme name ('light' or 'dark')
+        """
+        self._current_theme = theme
+        self._apply_styling()
 
 
 class MessageDisplayArea(QWidget):
@@ -571,6 +651,10 @@ class MessageDisplayArea(QWidget):
                 }
             """)
 
+        # Apply theme to all existing message bubbles
+        for _message_id, bubble in self._message_bubbles.items():
+            bubble.apply_theme(theme)
+
 
 class ChatWidget(QWidget):
     """Main chat widget combining message display and input."""
@@ -604,12 +688,9 @@ class ChatWidget(QWidget):
         # Input container
         input_container = QWidget()
         input_container.setFixedHeight(80)
-        input_container.setStyleSheet("""
-            QWidget {
-                background-color: #f8f9fa;
-                border-top: 1px solid #dee2e6;
-            }
-        """)
+
+        # Store reference for theme application
+        self._input_container = input_container
 
         # Input layout
         input_layout = QHBoxLayout(input_container)
@@ -620,42 +701,13 @@ class ChatWidget(QWidget):
         self.input_field = QPlainTextEdit()
         self.input_field.setPlaceholderText("Type your message here...")
         self.input_field.setMaximumHeight(60)
-        self.input_field.setStyleSheet("""
-            QPlainTextEdit {
-                border: 1px solid #ced4da;
-                border-radius: 8px;
-                padding: 8px;
-                font-size: 14px;
-                background-color: white;
-            }
-            QPlainTextEdit:focus {
-                border: 2px solid #2196F3;
-            }
-        """)
 
         # Send button
         self.send_button = QPushButton("Send")
         self.send_button.setFixedSize(80, 40)
-        self.send_button.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                font-weight: bold;
-                font-size: 14px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:pressed {
-                background-color: #0D47A1;
-            }
-            QPushButton:disabled {
-                background-color: #cccccc;
-                color: #666666;
-            }
-        """)
+
+        # Apply initial light theme styling after widgets are created
+        self._apply_input_theme("light")
 
         input_layout.addWidget(self.input_field)
         input_layout.addWidget(self.send_button)
@@ -664,6 +716,94 @@ class ChatWidget(QWidget):
 
         # Connect signals
         self._connect_input_signals()
+
+    def _apply_input_theme(self, theme: str) -> None:
+        """Apply theme styling to input area components."""
+        if theme == "dark":
+            # Dark theme styling consistent with dark.qss
+            self._input_container.setStyleSheet("""
+                QWidget {
+                    background-color: #353535;
+                    border-top: 1px solid #555555;
+                }
+            """)
+
+            self.input_field.setStyleSheet("""
+                QPlainTextEdit {
+                    border: 1px solid #555555;
+                    border-radius: 8px;
+                    padding: 8px;
+                    font-size: 14px;
+                    background-color: #2b2b2b;
+                    color: #ffffff;
+                }
+                QPlainTextEdit:focus {
+                    border: 2px solid #1976D2;
+                }
+            """)
+
+            self.send_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #1976D2;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-weight: bold;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #1565C0;
+                }
+                QPushButton:pressed {
+                    background-color: #0D47A1;
+                }
+                QPushButton:disabled {
+                    background-color: #555555;
+                    color: #888888;
+                }
+            """)
+        else:
+            # Light theme styling (original)
+            self._input_container.setStyleSheet("""
+                QWidget {
+                    background-color: #f8f9fa;
+                    border-top: 1px solid #dee2e6;
+                }
+            """)
+
+            self.input_field.setStyleSheet("""
+                QPlainTextEdit {
+                    border: 1px solid #ced4da;
+                    border-radius: 8px;
+                    padding: 8px;
+                    font-size: 14px;
+                    background-color: white;
+                }
+                QPlainTextEdit:focus {
+                    border: 2px solid #2196F3;
+                }
+            """)
+
+            self.send_button.setStyleSheet("""
+                QPushButton {
+                    background-color: #2196F3;
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    font-weight: bold;
+                    font-size: 14px;
+                }
+                QPushButton:hover {
+                    background-color: #1976D2;
+                }
+                QPushButton:pressed {
+                    background-color: #0D47A1;
+                }
+                QPushButton:disabled {
+                    background-color: #cccccc;
+                    color: #666666;
+                }
+            """)
 
     def _connect_input_signals(self) -> None:
         """Connect input-related signals."""
@@ -800,6 +940,7 @@ class ChatWidget(QWidget):
     def apply_theme(self, theme: str) -> None:
         """Apply theme to the chat widget."""
         self.display_area.apply_theme(theme)
+        self._apply_input_theme(theme)
 
     def search_messages(self, query: str) -> list[ChatMessage]:
         """Search messages in the chat."""

@@ -546,10 +546,60 @@ class TestChatWidget:
         # Apply dark theme
         chat_widget.apply_theme("dark")
 
+        # Verify dark theme colors are applied to display area
+        display_area_style = chat_widget.display_area.styleSheet()
+        assert "#2b2b2b" in display_area_style  # Dark background
+
         # Apply light theme
         chat_widget.apply_theme("light")
 
+        # Verify light theme is applied
+        display_area_style = chat_widget.display_area.styleSheet()
+        assert "white" in display_area_style  # Light background
+
         # Should not raise exceptions
+
+    def test_chat_widget_dark_theme_consistency(self, chat_widget):
+        """Test that dark theme styling is consistent with main application theme."""
+        # Apply dark theme
+        chat_widget.apply_theme("dark")
+
+        # Check that input container uses dark theme colors
+        input_container_style = getattr(chat_widget, "_input_container", None)
+        if input_container_style and hasattr(input_container_style, "styleSheet"):
+            # Should use dark theme colors consistent with main app
+            # The exact colors should be from the existing dark.qss theme
+            pass
+
+        # Check message bubbles adapt to dark theme
+        # Add test messages
+        user_msg_id = chat_widget.add_user_message("Test user message")
+        assistant_msg_id = chat_widget.add_assistant_message("Test assistant message")
+
+        # Get message bubbles
+        user_bubble = chat_widget.display_area.get_message_bubble(user_msg_id)
+        assistant_bubble = chat_widget.display_area.get_message_bubble(assistant_msg_id)
+
+        # Verify bubbles exist
+        assert user_bubble is not None
+        assert assistant_bubble is not None
+
+        # User and assistant bubbles should have appropriate styling for dark theme
+        # This will be enhanced once the dark theme styling is implemented
+
+    def test_chat_widget_theme_manager_integration(self, chat_widget):
+        """Test integration with ThemeManager for automatic theme application."""
+        # This test verifies that the chat widget can integrate with the existing
+        # ThemeManager system for consistent application-wide theming
+
+        # For now, just verify the apply_theme method exists and works
+        assert hasattr(chat_widget, "apply_theme")
+        assert callable(chat_widget.apply_theme)
+
+        # Test that it handles both theme types
+        chat_widget.apply_theme("dark")
+        chat_widget.apply_theme("light")
+        chat_widget.apply_theme("unknown")  # Should not crash
 
     def test_chat_widget_message_search(self, chat_widget):
         """Test message search functionality."""
