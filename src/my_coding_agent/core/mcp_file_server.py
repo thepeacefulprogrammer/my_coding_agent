@@ -198,7 +198,9 @@ class MCPFileServer:
                 )
 
             # Test write permissions if write operations enabled
-            if self.config.enable_write_operations and not os.access(self.config.base_directory, os.W_OK):
+            if self.config.enable_write_operations and not os.access(
+                self.config.base_directory, os.W_OK
+            ):
                 raise FileOperationError(
                     f"No write permission for base directory: {self.config.base_directory}"
                 )
@@ -529,7 +531,9 @@ class MCPFileServer:
         except FileOperationError:
             raise
         except Exception as e:
-            raise FileOperationError(f"Failed to list directory: {e}", directory_path) from e
+            raise FileOperationError(
+                f"Failed to list directory: {e}", directory_path
+            ) from e
 
     async def create_directory(self, directory_path: str) -> bool:
         """Create directory.
@@ -566,7 +570,9 @@ class MCPFileServer:
         except FileOperationError:
             raise
         except Exception as e:
-            raise FileOperationError(f"Failed to create directory: {e}", directory_path) from e
+            raise FileOperationError(
+                f"Failed to create directory: {e}", directory_path
+            ) from e
 
     async def delete_file(self, file_path: str) -> bool:
         """Delete file.
