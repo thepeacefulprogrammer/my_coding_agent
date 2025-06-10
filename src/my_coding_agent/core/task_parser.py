@@ -5,6 +5,8 @@ This module provides functionality to parse, manipulate, and save markdown task 
 It supports nested task structures, task completion tracking, and managing relevant files sections.
 """
 
+from __future__ import annotations
+
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -20,7 +22,7 @@ class TaskItem:
     completed: bool
     level: int
     line_number: int
-    subtasks: list["TaskItem"] = field(default_factory=list)
+    subtasks: list[TaskItem] = field(default_factory=list)
     parent_id: str | None = None
 
     def all_subtasks_complete(self) -> bool:
@@ -33,7 +35,7 @@ class TaskItem:
             return True
         return all(subtask.completed for subtask in self.subtasks)
 
-    def add_subtask(self, subtask: "TaskItem") -> None:
+    def add_subtask(self, subtask: TaskItem) -> None:
         """Add a subtask to this task.
 
         Args:

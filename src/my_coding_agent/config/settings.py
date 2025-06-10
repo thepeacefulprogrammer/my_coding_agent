@@ -8,6 +8,8 @@ This module provides a centralized configuration system that supports:
 - File handling preferences
 """
 
+from __future__ import annotations
+
 import contextlib
 import os
 from dataclasses import dataclass, field

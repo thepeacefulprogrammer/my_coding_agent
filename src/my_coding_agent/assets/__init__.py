@@ -5,6 +5,8 @@ icons, themes, and other resources. It offers a centralized way to access
 and validate asset files.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 
 

@@ -8,6 +8,8 @@ This module provides type-safe configuration handling with support for:
 - Plugin configuration
 """
 
+from __future__ import annotations
+
 from .settings import Settings, get_settings
 
 __all__ = [

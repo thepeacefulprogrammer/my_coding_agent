@@ -15,6 +15,8 @@ Example:
         $ python -m my_coding_agent /path/to/code
 """
 
+from __future__ import annotations
+
 import argparse
 import sys
 from pathlib import Path

@@ -1,9 +1,12 @@
 """AI Agent service for interacting with Azure OpenAI through Pydantic AI."""
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
 import re
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -14,6 +17,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 
 from .mcp_file_server import FileOperationError, MCPFileConfig, MCPFileServer
+from .streaming import StreamHandler
 
 # Load environment variables
 load_dotenv()
@@ -40,7 +44,7 @@ class AIAgentConfig(BaseModel):
     )
 
     @classmethod
-    def from_env(cls) -> "AIAgentConfig":
+    def from_env(cls) -> AIAgentConfig:
         """Create configuration from environment variables.
 
         Returns:
@@ -88,6 +92,9 @@ class AIResponse(BaseModel):
         default=0, description="Number of tokens used in the response"
     )
     retry_count: int = Field(default=0, description="Number of retries attempted")
+    stream_id: str | None = Field(
+        default=None, description="Stream ID if this was a streaming response"
+    )
 
 
 class AIAgent:
@@ -109,6 +116,8 @@ class AIAgent:
         self.config = config
         self.mcp_file_server: MCPFileServer | None = None
         self.workspace_root: Path | None = None
+        self.current_stream_handler: StreamHandler | None = None
+        self.current_stream_id: str | None = None
 
         # Auto-detect filesystem tools enablement
         if enable_filesystem_tools is None:
@@ -122,6 +131,9 @@ class AIAgent:
         if mcp_config and self.filesystem_tools_enabled:
             self.mcp_file_server = MCPFileServer(mcp_config)
             logger.info("AI Agent initialized with MCP file server integration")
+
+        # Initialize streaming handler
+        self.stream_handler = StreamHandler()
 
         self._setup_logging()
         self._create_model()
@@ -187,7 +199,7 @@ class AIAgent:
             logger.error("Failed to create Pydantic AI Agent: %s", e)
             raise
 
-    def _register_tools(self):
+    def _register_tools(self) -> None:
         """Register tools with the AI Agent."""
         if not self.filesystem_tools_enabled or not self.mcp_file_server:
             logger.info("Filesystem tools not enabled or MCP server not configured")
@@ -447,7 +459,7 @@ class AIAgent:
 
     async def send_message_with_tools(
         self, message: str, enable_filesystem: bool = True
-    ) -> "AIResponse":
+    ) -> AIResponse:
         """Send a message with tool support enabled.
 
         Args:
@@ -477,7 +489,7 @@ class AIAgent:
                 success=False, content=f"Error: {e}", error_type=type(e).__name__
             )
 
-    async def analyze_project_files(self) -> "AIResponse":
+    async def analyze_project_files(self) -> AIResponse:
         """Analyze project files using filesystem tools.
 
         Returns:
@@ -513,7 +525,7 @@ class AIAgent:
 
     async def generate_and_save_code(
         self, prompt: str, file_path: str, code: str
-    ) -> "AIResponse":
+    ) -> AIResponse:
         """Generate and save code to a file.
 
         Args:
@@ -570,21 +582,19 @@ class AIAgent:
                 UnexpectedModelBehavior,
                 UsageLimitExceeded,
             )
+
+            # Handle specific Pydantic AI exceptions
+            if isinstance(exception, UnexpectedModelBehavior):
+                return "model_behavior", f"AI model behavior error: {error_str}"
+
+            if isinstance(exception, UsageLimitExceeded):
+                return "usage_limit", f"Usage limit exceeded: {error_str}"
+
+            if isinstance(exception, ModelHTTPError):
+                return "http_error", f"HTTP error from AI service: {error_str}"
         except ImportError:
-            # Fallback if exceptions are not available
-            UnexpectedModelBehavior = None
-            UsageLimitExceeded = None
-            ModelHTTPError = None
-
-        # Handle specific Pydantic AI exceptions
-        if UnexpectedModelBehavior and isinstance(exception, UnexpectedModelBehavior):
-            return "model_behavior", f"AI model behavior error: {error_str}"
-
-        if UsageLimitExceeded and isinstance(exception, UsageLimitExceeded):
-            return "usage_limit", f"Usage limit exceeded: {error_str}"
-
-        if ModelHTTPError and isinstance(exception, ModelHTTPError):
-            return "http_error", f"HTTP error from AI service: {error_str}"
+            # Pydantic AI exceptions not available, continue with other error types
+            pass
 
         # Handle timeout errors
         if isinstance(exception, asyncio.TimeoutError):
@@ -828,7 +838,7 @@ class AIAgent:
             await self.mcp_file_server.disconnect()
 
     @asynccontextmanager
-    async def mcp_context(self):
+    async def mcp_context(self) -> AsyncGenerator[None, None]:
         """Context manager for MCP file server operations."""
         if not self.mcp_file_server:
             raise FileOperationError("MCP file server not configured")
@@ -863,6 +873,7 @@ class AIAgent:
             FileOperationError: If file cannot be read or MCP not connected.
         """
         self._ensure_mcp_connected()
+        assert self.mcp_file_server is not None  # Type guard
         return await self.mcp_file_server.read_file(file_path)
 
     async def write_file(self, file_path: str, content: str) -> bool:
@@ -879,6 +890,7 @@ class AIAgent:
             FileOperationError: If file cannot be written or MCP not connected.
         """
         self._ensure_mcp_connected()
+        assert self.mcp_file_server is not None  # Type guard
         return await self.mcp_file_server.write_file(file_path, content)
 
     async def list_directory(self, directory_path: str = ".") -> list[str]:
@@ -894,6 +906,7 @@ class AIAgent:
             FileOperationError: If directory cannot be listed or MCP not connected.
         """
         self._ensure_mcp_connected()
+        assert self.mcp_file_server is not None  # Type guard
         return await self.mcp_file_server.list_directory(directory_path)
 
     async def delete_file(self, file_path: str) -> bool:
@@ -909,6 +922,7 @@ class AIAgent:
             FileOperationError: If file cannot be deleted or MCP not connected.
         """
         self._ensure_mcp_connected()
+        assert self.mcp_file_server is not None  # Type guard
         return await self.mcp_file_server.delete_file(file_path)
 
     async def create_directory(self, directory_path: str) -> bool:
@@ -924,6 +938,7 @@ class AIAgent:
             FileOperationError: If directory cannot be created or MCP not connected.
         """
         self._ensure_mcp_connected()
+        assert self.mcp_file_server is not None  # Type guard
         return await self.mcp_file_server.create_directory(directory_path)
 
     async def get_file_info(self, file_path: str) -> dict[str, Any]:
@@ -939,6 +954,7 @@ class AIAgent:
             FileOperationError: If file info cannot be retrieved or MCP not connected.
         """
         self._ensure_mcp_connected()
+        assert self.mcp_file_server is not None  # Type guard
         return await self.mcp_file_server.get_file_info(file_path)
 
     async def search_files(self, pattern: str, directory: str = ".") -> list[str]:
@@ -955,6 +971,7 @@ class AIAgent:
             FileOperationError: If search cannot be performed or MCP not connected.
         """
         self._ensure_mcp_connected()
+        assert self.mcp_file_server is not None  # Type guard
         return await self.mcp_file_server.search_files(pattern, directory)
 
     async def read_multiple_files(self, file_paths: list[str]) -> dict[str, str]:
@@ -1503,7 +1520,7 @@ User message: {message}
         Raises:
             FileOperationError: If all retries are exhausted.
         """
-        last_error = None
+        last_error: Exception | None = None
 
         for attempt in range(max_retries + 1):
             try:
@@ -1521,7 +1538,9 @@ User message: {message}
                     logger.error(f"Read failed after {max_retries} retries: {e}")
                     break
 
-        raise last_error
+        if last_error:
+            raise last_error
+        raise RuntimeError("Unexpected error in retry logic")
 
     async def write_file_with_retry(
         self, file_path: str, content: str, max_retries: int = 3
@@ -1539,7 +1558,7 @@ User message: {message}
         Raises:
             FileOperationError: If all retries are exhausted.
         """
-        last_error = None
+        last_error: Exception | None = None
 
         for attempt in range(max_retries + 1):
             try:
@@ -1556,7 +1575,9 @@ User message: {message}
                     logger.error(f"Write failed after {max_retries} retries: {e}")
                     break
 
-        raise last_error
+        if last_error:
+            raise last_error
+        raise RuntimeError("Unexpected error in retry logic")
 
     # Enhanced error handling for workspace operations
     def safe_read_workspace_file(self, file_path: str) -> tuple[str | None, str | None]:
@@ -1597,7 +1618,7 @@ User message: {message}
         Returns:
             Dict[str, Any]: Health status information.
         """
-        health = {
+        health: dict[str, Any] = {
             "workspace_set": self.workspace_root is not None,
             "workspace_accessible": False,
             "workspace_writable": False,
@@ -1630,3 +1651,188 @@ User message: {message}
                 health["errors"].append("MCP server not connected")
 
         return health
+
+    async def send_message_with_tools_stream(
+        self,
+        message: str,
+        on_chunk,
+        on_error=None,
+        enable_filesystem: bool = True,
+    ) -> AIResponse:
+        """Send a message with tool support and streaming output.
+
+        Args:
+            message: The message to send to the AI
+            on_chunk: Callback function called for each chunk (chunk: str, is_final: bool)
+            on_error: Optional callback function called on errors (error: Exception)
+            enable_filesystem: Whether to enable filesystem tools for this conversation
+
+        Returns:
+            AIResponse: The response from the AI with stream_id populated
+        """
+        max_retries = self.config.max_retries
+        retry_count = 0
+        last_error: Exception | None = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                if (
+                    enable_filesystem
+                    and self.filesystem_tools_enabled
+                    and self.mcp_file_server
+                    and not self.mcp_file_server.is_connected
+                ):
+                    # Ensure MCP connection
+                    await self.connect_mcp()
+
+                # Create and track stream handler
+                if not hasattr(self, "_stream_handler"):
+                    self._stream_handler = StreamHandler()
+
+                stream_handler = self._stream_handler
+                self.current_stream_handler = stream_handler
+
+                # Start streaming with our handler
+                stream_id = await stream_handler.start_stream(
+                    on_chunk, on_error=on_error
+                )
+                self.current_stream_id = stream_id
+
+                try:
+                    # Use Pydantic AI's streaming capabilities
+                    async with self._agent.run_stream(message) as response:
+                        # Stream the response text in real-time
+                        full_content = []
+                        chunk_count = 0
+
+                        # Stream chunks as they arrive
+                        async for chunk in response.stream_text():
+                            full_content.append(chunk)
+                            chunk_count += 1
+
+                            # Call the external callback directly for each chunk
+                            try:
+                                # We don't know if this is the final chunk yet, so pass False
+                                callback_result = on_chunk(chunk, False)
+                                if hasattr(callback_result, "__await__"):
+                                    await callback_result
+                            except Exception as callback_error:
+                                logger.error(
+                                    f"Error in streaming callback: {callback_error}"
+                                )
+                                if on_error:
+                                    try:
+                                        on_error(callback_error)
+                                    except Exception:
+                                        pass  # Ignore callback errors
+
+                        # After all chunks are streamed, send a final empty chunk to mark completion
+                        try:
+                            callback_result = on_chunk(
+                                "", True
+                            )  # Empty chunk with is_final=True
+                            if hasattr(callback_result, "__await__"):
+                                await callback_result
+                        except Exception as callback_error:
+                            logger.error(
+                                f"Error in final streaming callback: {callback_error}"
+                            )
+
+                        # Get the final output
+                        final_output = await response.get_output()
+                        full_text = "".join(full_content)
+
+                        # Complete the stream in our handler (for internal tracking only)
+                        if stream_handler:
+                            await stream_handler.complete_stream(stream_id)
+
+                        # Clear current stream tracking
+                        self.current_stream_handler = None
+                        self.current_stream_id = None
+
+                        return AIResponse(
+                            success=True,
+                            content=final_output or full_text,
+                            stream_id=stream_id,
+                            retry_count=retry_count,
+                        )
+
+                except Exception as stream_error:
+                    # Handle streaming errors
+                    await stream_handler.handle_error(stream_id, stream_error)
+                    # Clear current stream tracking on error
+                    self.current_stream_handler = None
+                    self.current_stream_id = None
+                    raise stream_error
+
+            except Exception as e:
+                last_error = e
+                retry_count = attempt
+
+                # Don't retry on the last attempt
+                if attempt < max_retries:
+                    # Calculate exponential backoff: 2^attempt seconds
+                    backoff_time = 2**attempt
+                    logger.warning(
+                        f"Streaming attempt {attempt + 1} failed: {e}. "
+                        f"Retrying in {backoff_time}s (attempt {attempt + 2}/{max_retries + 1})"
+                    )
+
+                    # Wait before retrying with exponential backoff
+                    await asyncio.sleep(backoff_time)
+
+                    # Check if stream was interrupted during backoff
+                    if (
+                        hasattr(self, "current_stream_handler")
+                        and self.current_stream_handler
+                        and hasattr(self.current_stream_handler, "_interrupt_event")
+                        and self.current_stream_handler._interrupt_event.is_set()
+                    ):
+                        logger.info("Stream was interrupted during retry backoff")
+                        break
+                else:
+                    logger.error(
+                        f"All streaming attempts failed after {max_retries} retries. Final error: {e}"
+                    )
+
+        # All retries exhausted - return failure response
+        if last_error:
+            error_type, error_message = self._categorize_error(last_error)
+
+            # Call error callback if provided
+            if on_error:
+                try:
+                    on_error(last_error)
+                except Exception as callback_error:
+                    logger.error(f"Error in error callback: {callback_error}")
+
+            return AIResponse(
+                success=False,
+                content=error_message,
+                error=str(last_error),
+                error_type=error_type,
+                retry_count=retry_count,
+                stream_id=getattr(locals(), "stream_id", None),
+            )
+
+        # This should not be reached, but handle edge case
+        return AIResponse(
+            success=False,
+            content="Unexpected error in retry logic",
+            error="No error captured in retry loop",
+            error_type="unknown",
+            retry_count=retry_count,
+        )
+
+    async def interrupt_current_stream(self) -> bool:
+        """Interrupt the current stream if it exists.
+
+        Returns:
+            bool: True if a stream was interrupted, False if no active stream
+        """
+        if self.current_stream_handler and self.current_stream_id:
+            await self.current_stream_handler.interrupt_stream(self.current_stream_id)
+            self.current_stream_handler = None
+            self.current_stream_id = None
+            return True
+        return False

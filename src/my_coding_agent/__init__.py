@@ -38,6 +38,8 @@ Attributes:
     __email__ (str): Contact email for support.
 """
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 try:

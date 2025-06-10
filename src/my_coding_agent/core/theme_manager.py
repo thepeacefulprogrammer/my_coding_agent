@@ -4,6 +4,8 @@ This module provides the ThemeManager class for handling application themes,
 including dark mode styling and theme persistence.
 """
 
+from __future__ import annotations
+
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication, QWidget
 

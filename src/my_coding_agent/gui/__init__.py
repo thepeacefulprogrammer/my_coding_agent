@@ -17,6 +17,8 @@ Example:
     >>> apply_dark_theme(app)
 """
 
+from __future__ import annotations
+
 # GUI module version
 __version__ = "0.1.0"
 

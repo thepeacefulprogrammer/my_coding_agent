@@ -1,5 +1,7 @@
 """Chat widget with message display area for PyQt6."""
 
+from __future__ import annotations
+
 from enum import Enum
 from typing import Any
 
@@ -18,6 +20,8 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from my_coding_agent.core.streaming.stream_handler import StreamState
 
 from .chat_message_model import (
     ChatMessage,
@@ -301,9 +305,16 @@ class MessageBubble(QWidget):
         return self.message.status.value
 
     def update_status(self, status: MessageStatus) -> None:
-        """Update the message status display."""
+        """Update the message status and refresh display."""
         self._current_status = status
         self._update_status_display()
+
+    def update_content(self, content: str) -> None:
+        """Update the message content and refresh display."""
+        if hasattr(self, "content_text"):
+            self.content_text.setText(content)
+            # Update the underlying message object as well
+            self.message.content = content
 
     def set_error(self, error_message: str) -> None:
         """Set error message display."""
@@ -461,6 +472,9 @@ class MessageDisplayArea(QWidget):
         if message.message_id in self._message_bubbles:
             bubble = self._message_bubbles[message.message_id]
 
+            # Update the bubble content with the new message content
+            bubble.update_content(message.content)
+
             # Update the bubble display with the signal data
             bubble.update_status(message.status)
             if message.has_error():
@@ -496,7 +510,7 @@ class MessageDisplayArea(QWidget):
         """Get message bubble by ID."""
         return self._message_bubbles.get(message_id)
 
-    def get_displayed_messages(self) -> "list[ChatMessage]":
+    def get_displayed_messages(self) -> list[ChatMessage]:
         """Get all displayed messages in order."""
         return self.message_model.get_all_messages()
 
@@ -779,7 +793,7 @@ class MessageDisplayArea(QWidget):
 
         return visible
 
-    def search_messages(self, query: str) -> "list[ChatMessage]":
+    def search_messages(self, query: str) -> list[ChatMessage]:
         """Search messages by content."""
         results = []
         for message in self.message_model.get_all_messages():
@@ -819,11 +833,19 @@ class ChatWidget(QWidget):
     """Main chat widget combining message display and input."""
 
     message_sent = pyqtSignal(str)  # Emitted when user sends message
+    stream_interrupted = pyqtSignal(str)  # Emitted when stream is interrupted
 
     def __init__(self, parent: QWidget | None = None):
         """Initialize the chat widget."""
         super().__init__(parent)
         self.message_model = ChatMessageModel()
+
+        # Streaming state management
+        self._streaming_state = StreamState.IDLE
+        self._current_stream_id: str | None = None
+        self._streaming_message_id: str | None = None
+        self._streaming_content_buffer = ""
+        self._retry_count = 0
 
         self._setup_ui()
         self._setup_accessibility()
@@ -1071,6 +1093,15 @@ class ChatWidget(QWidget):
 
     def clear_conversation(self) -> None:
         """Clear all messages from the conversation."""
+        # Reset streaming state when clearing conversation
+        if self.is_streaming():
+            self._streaming_state = StreamState.IDLE
+            self._current_stream_id = None
+            self._streaming_message_id = None
+            self._streaming_content_buffer = ""
+            self._retry_count = 0
+            self.hide_typing_indicator()
+
         self.message_model.clear_all_messages()
 
     def export_conversation(self) -> list[dict[str, Any]]:
@@ -1176,3 +1207,181 @@ class ChatWidget(QWidget):
             message: New message to display
         """
         self.display_area.update_processing_message(message)
+
+    # Streaming state management methods
+    def is_streaming(self) -> bool:
+        """Check if currently streaming a response."""
+        return self._streaming_state.value == "streaming"
+
+    def get_current_stream_id(self) -> str | None:
+        """Get the current stream ID."""
+        return self._current_stream_id
+
+    def get_streaming_state(self) -> StreamState:
+        """Get the current streaming state."""
+        return self._streaming_state
+
+    def get_streaming_message_id(self) -> str | None:
+        """Get the message ID of the currently streaming message."""
+        return self._streaming_message_id
+
+    def start_streaming_response(self, stream_id: str, retry_count: int = 0) -> str:
+        """Start a new streaming response.
+
+        Args:
+            stream_id: Unique identifier for the stream
+            retry_count: Number of retry attempts (for display purposes)
+
+        Returns:
+            Message ID of the created assistant message
+
+        Raises:
+            RuntimeError: If a stream is already active
+        """
+        if self.is_streaming():
+            raise RuntimeError(
+                "Stream already active. Stop current stream before starting new one."
+            )
+
+        # Create new assistant message for streaming
+        assistant_msg_id = self.add_assistant_message(
+            "", metadata={"stream_id": stream_id}
+        )
+
+        # Update streaming state
+        self._streaming_state = StreamState.STREAMING
+        self._current_stream_id = stream_id
+        self._streaming_message_id = assistant_msg_id
+        self._streaming_content_buffer = ""
+        self._retry_count = retry_count
+
+        # Update message status to indicate streaming
+        self.update_message_status(assistant_msg_id, MessageStatus.SENDING)
+
+        # Show streaming indicator
+        indicator_text = "AI is responding..."
+        if retry_count > 0:
+            indicator_text = f"AI is responding... (attempt {retry_count + 1})"
+        self.show_typing_indicator(
+            indicator_text, AIProcessingState.GENERATING, animated=True
+        )
+
+        return assistant_msg_id
+
+    def append_streaming_chunk(self, chunk: str) -> None:
+        """Append a chunk of content to the streaming message.
+
+        Args:
+            chunk: Text chunk to append (can be cumulative or incremental)
+        """
+        if not self.is_streaming() or not self._streaming_message_id:
+            return
+
+        # Since AI agent sends cumulative chunks, just replace content instead of appending
+        self._streaming_content_buffer = chunk
+
+        # Update the message content
+        message = self.message_model.get_message_by_id(self._streaming_message_id)
+        if message:
+            message.content = self._streaming_content_buffer
+            self.message_model.message_updated.emit(message)
+
+        # Auto-scroll to show new content
+        self.scroll_to_bottom()
+
+    def complete_streaming_response(self) -> None:
+        """Complete the current streaming response."""
+        if not self.is_streaming() or not self._streaming_message_id:
+            return
+
+        # Update message status to delivered
+        self.update_message_status(self._streaming_message_id, MessageStatus.DELIVERED)
+
+        # Clear streaming state
+        self._streaming_state = StreamState.COMPLETED
+        self._current_stream_id = None
+        self._streaming_message_id = None
+        self._streaming_content_buffer = ""
+        self._retry_count = 0
+
+        # Hide streaming indicator
+        self.hide_typing_indicator()
+
+    def interrupt_streaming_response(self) -> None:
+        """Interrupt the current streaming response."""
+        if not self.is_streaming() or not self._streaming_message_id:
+            return
+
+        # Update message status to error
+        self.update_message_status(self._streaming_message_id, MessageStatus.ERROR)
+        self.set_message_error(
+            self._streaming_message_id, "Response was interrupted by user"
+        )
+
+        # Update streaming state
+        self._streaming_state = StreamState.INTERRUPTED
+        stream_id = self._current_stream_id
+
+        # Clear streaming state
+        self._current_stream_id = None
+        self._streaming_message_id = None
+        self._streaming_content_buffer = ""
+        self._retry_count = 0
+
+        # Hide streaming indicator
+        self.hide_typing_indicator()
+
+        # Emit signal
+        if stream_id:
+            self.stream_interrupted.emit(stream_id)
+
+    def handle_streaming_error(self, error: Exception) -> None:
+        """Handle an error during streaming.
+
+        Args:
+            error: The exception that occurred
+        """
+        if not self.is_streaming() or not self._streaming_message_id:
+            return
+
+        # Update message status to error
+        self.update_message_status(self._streaming_message_id, MessageStatus.ERROR)
+        self.set_message_error(self._streaming_message_id, str(error))
+
+        # Update streaming state
+        self._streaming_state = StreamState.ERROR
+
+        # Clear streaming state
+        self._current_stream_id = None
+        self._streaming_message_id = None
+        self._streaming_content_buffer = ""
+        self._retry_count = 0
+
+        # Hide streaming indicator and show error
+        self.hide_typing_indicator()
+        self.show_ai_error(f"Error: {str(error)}")
+
+    def is_streaming_indicator_visible(self) -> bool:
+        """Check if the streaming indicator is currently visible."""
+        return self.display_area.is_typing_indicator_visible()
+
+    def get_streaming_indicator_text(self) -> str:
+        """Get the current streaming indicator text."""
+        # This is a simplified implementation - in a real scenario,
+        # we'd need to track the indicator text state
+        if self.is_streaming():
+            if self._retry_count > 0:
+                return f"AI is responding... (attempt {self._retry_count + 1})"
+            return "AI is responding..."
+        return ""
+
+    def is_interrupt_button_visible(self) -> bool:
+        """Check if the interrupt button is visible."""
+        # For now, return True if streaming - in real implementation,
+        # this would check if an actual interrupt button widget is visible
+        return self.is_streaming()
+
+    def click_interrupt_button(self) -> None:
+        """Simulate clicking the interrupt button."""
+        if self.is_streaming():
+            self.interrupt_streaming_response()

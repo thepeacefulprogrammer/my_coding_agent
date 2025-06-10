@@ -2,6 +2,8 @@
 Code viewer widget for displaying source code with syntax highlighting.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 
 # Import pygments with type ignores for stub warnings

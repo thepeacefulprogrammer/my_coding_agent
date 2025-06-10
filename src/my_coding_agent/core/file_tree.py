@@ -5,6 +5,8 @@ This module provides the file tree model and widget for directory navigation
 using PyQt6's QFileSystemModel as the foundation.
 """
 
+from __future__ import annotations
+
 import threading
 from pathlib import Path
 from typing import Any
@@ -316,7 +318,7 @@ class FileTreeModel(QFileSystemModel):
         ext = file_path.suffix.lower()
         return ext in code_extensions
 
-    def get_file_info(self, index: QModelIndex) -> "dict[str, Any]":
+    def get_file_info(self, index: QModelIndex) -> dict[str, Any]:
         """
         Get detailed information about a file or directory.
 
@@ -752,7 +754,7 @@ class FileTreeWidget(QTreeView):
 
         return self._model.get_file_path(current_index)
 
-    def get_selected_file_info(self) -> "dict[str, Any]":
+    def get_selected_file_info(self) -> dict[str, Any]:
         """
         Get file information for the currently selected item.
 

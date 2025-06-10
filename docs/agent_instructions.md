@@ -1,3 +1,25 @@
+## Some MCP Servers to consider
+- my git_manager_mcp
+- Context7
+- Git (maybe)
+- Brave Search // Google Search Console??
+DuckDuckGo ... or, can I just crawl4AI?
+- Database?
+- Email
+
+- FileScopeMCP? - Analyzes your codebase identifying important files based on dependency relationships. Generates diagrams and importance scores per file, helping AI assistants understand the codebase. Automatically parses popular programming languages such as Python, C, C++, Rust, Zig, Lua.
+
+- Hyperbrowser
+- mcp-run-python
+- 21st.dev Magic ? craftd UI components
+
+
+
+Done through Library
+- Crawl4AI
+- File System
+
+
 ## Manager
 
 You are a Program Manager. You are well respected and knowledgeable lead within your organization that has many decades of experience. You started out as a software developer and worked your way up through the ranks. You got your masters degree in computer science in Big Data Analytics and Visualizations.

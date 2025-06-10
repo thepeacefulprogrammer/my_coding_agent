@@ -6,6 +6,8 @@ application window using PyQt6. It provides the main layout structure
 and will later host the file tree and code viewer components.
 """
 
+from __future__ import annotations
+
 import asyncio
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -14,9 +16,9 @@ if TYPE_CHECKING:
     from .code_viewer import CodeViewerWidget
     from .file_tree import FileTreeWidget
 
-from PyQt6.QtCore import QSize, QThread, pyqtSignal
+from PyQt6.QtCore import QSize, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QCloseEvent, QKeySequence
-from PyQt6.QtWidgets import QLabel, QMainWindow, QWidget
+from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QWidget
 
 from .ai_agent import AIAgent, AIAgentConfig
 from .theme_manager import ThemeManager
@@ -34,25 +36,17 @@ class AIWorkerThread(QThread):
 
     def run(self) -> None:
         """Run the AI request in a separate thread."""
-        loop = None
         try:
-            # Create new event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-            # Run the AI request
-            response = loop.run_until_complete(self.ai_agent.send_message(self.message))
-
-            # Emit the response
-            self.response_ready.emit(
-                response.content, response.success, response.error or ""
-            )
-
+            # This is the old synchronous approach - kept for compatibility
+            # but should not be used with the new streaming implementation
+            response = None  # Placeholder - old sync method removed
+            if response and response.success:
+                self.response_ready.emit(response.content, True, "")
+            else:
+                error_msg = response.error if response else "Unknown error"
+                self.response_ready.emit("", False, error_msg)
         except Exception as e:
             self.response_ready.emit("", False, str(e))
-        finally:
-            if loop is not None:
-                loop.close()
 
 
 class MainWindow(QMainWindow):
@@ -62,6 +56,12 @@ class MainWindow(QMainWindow):
     This class inherits from QMainWindow and provides the main window
     structure including status bar, central widget, and proper sizing.
     """
+
+    # Add custom signals for thread-safe communication
+    start_streaming_signal = pyqtSignal(str)  # stream_id
+    append_chunk_signal = pyqtSignal(str)  # chunk
+    complete_streaming_signal = pyqtSignal()  # no args
+    streaming_error_signal = pyqtSignal(Exception)  # error
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """
@@ -73,18 +73,25 @@ class MainWindow(QMainWindow):
         super().__init__(parent)
 
         # Initialize theme manager
-        from PyQt6.QtWidgets import QApplication
-
         app = QApplication.instance()
         if app is not None and isinstance(app, QApplication):
             self._theme_manager = ThemeManager(app)
 
-        self._setup_window()
+        # Set up the user interface
         self._setup_ui()
+
+        # Apply initial theme and window settings
+        self._setup_window()
+
+        # Set up persistent settings
         self._setup_settings()
 
-        # Restore window state from previous session
+        # Restore previous window state if available
         self.restore_window_state()
+
+        # Apply theme after UI setup to ensure consistent styling
+        if hasattr(self, "_theme_manager"):
+            self._theme_manager.refresh_theme()
 
     def get_theme_manager(self) -> ThemeManager | None:
         """Get the theme manager instance.
@@ -95,12 +102,12 @@ class MainWindow(QMainWindow):
         return getattr(self, "_theme_manager", None)
 
     @property
-    def file_tree(self) -> "FileTreeWidget":
+    def file_tree(self) -> FileTreeWidget:
         """Get the file tree widget."""
         return self._file_tree
 
     @property
-    def code_viewer(self) -> "CodeViewerWidget":
+    def code_viewer(self) -> CodeViewerWidget:
         """Get the code viewer widget."""
         return self._code_viewer
 
@@ -511,13 +518,57 @@ class MainWindow(QMainWindow):
         try:
             # Initialize AI agent with configuration
             self._ai_config = AIAgentConfig.from_env()
-            self._ai_agent = AIAgent(self._ai_config)
+
+            # Set up MCP configuration for filesystem tools
+            from pathlib import Path
+
+            from .mcp_file_server import MCPFileConfig
+
+            # Configure MCP for current workspace
+            workspace_path = Path.cwd()
+            mcp_config = MCPFileConfig(
+                base_directory=workspace_path,
+                allowed_extensions=[
+                    ".py",
+                    ".md",
+                    ".txt",
+                    ".json",
+                    ".yaml",
+                    ".yml",
+                    ".toml",
+                    ".cfg",
+                    ".ini",
+                ],
+                enable_write_operations=True,
+                enable_delete_operations=False,  # Safer to keep disabled
+                max_file_size=5 * 1024 * 1024,  # 5MB limit
+            )
+
+            # Initialize AI agent with MCP support
+            self._ai_agent = AIAgent(
+                config=self._ai_config,
+                mcp_config=mcp_config,
+                enable_filesystem_tools=True,
+            )
 
             # Connect chat widget message_sent signal to our handler
             self._chat_widget.message_sent.connect(self._handle_chat_message)
 
             # Initialize worker thread as None
             self._ai_worker_thread = None
+
+            # Show success message in chat
+            available_tools = self._ai_agent.get_available_tools()
+            if available_tools:
+                tools_list = ", ".join(available_tools)
+                self._chat_widget.add_system_message(
+                    f"AI initialized with filesystem tools: {tools_list}"
+                )
+            else:
+                self._chat_widget.add_system_message("AI initialized successfully")
+
+            # Connect streaming signals now that chat widget is available
+            self._connect_streaming_signals()
 
         except Exception as e:
             # If AI initialization fails, show error in chat
@@ -526,8 +577,26 @@ class MainWindow(QMainWindow):
             )
             self._ai_agent = None
 
+    def _connect_streaming_signals(self) -> None:
+        """Connect streaming signals to ChatWidget methods."""
+        if hasattr(self, "_chat_widget"):
+            print("🔗 MainWindow: Connecting streaming signals to ChatWidget")
+            self.start_streaming_signal.connect(
+                self._chat_widget.start_streaming_response
+            )
+            self.append_chunk_signal.connect(self._chat_widget.append_streaming_chunk)
+            self.complete_streaming_signal.connect(
+                self._chat_widget.complete_streaming_response
+            )
+            self.streaming_error_signal.connect(
+                self._chat_widget.handle_streaming_error
+            )
+            print("✅ MainWindow: All streaming signals connected")
+        else:
+            print("❌ MainWindow: Chat widget not found, cannot connect signals")
+
     def _handle_chat_message(self, message: str) -> None:
-        """Handle messages from the chat widget and generate AI responses."""
+        """Handle messages from the chat widget and generate AI responses with streaming."""
         if not self._ai_agent:
             # If no AI agent, show a simple echo response
             self._chat_widget.add_assistant_message(
@@ -538,27 +607,116 @@ class MainWindow(QMainWindow):
         # Show thinking indicator
         self._chat_widget.show_ai_thinking(animated=True)
 
-        # Create and start worker thread for AI request
-        self._ai_worker_thread = AIWorkerThread(self._ai_agent, message)
-        self._ai_worker_thread.response_ready.connect(self._handle_ai_response)
-        self._ai_worker_thread.start()
+        # Start streaming AI response asynchronously
+        QTimer.singleShot(10, lambda: self._start_streaming_response(message))
 
-    def _handle_ai_response(self, content: str, success: bool, error: str) -> None:
-        """Handle AI response from worker thread."""
-        # Hide typing indicator
+    def _start_streaming_response(self, message: str) -> None:
+        """Start the streaming AI response in an async context."""
+        import threading
+
+        # Create a new thread for the async operation
+        def run_async_response():
+            # Create a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            try:
+                # Run the streaming response
+                loop.run_until_complete(self._stream_ai_response(message))
+            except Exception as error:
+                # Handle any errors - capture exception variable properly
+                self.streaming_error_signal.emit(error)
+            finally:
+                loop.close()
+
+        # Start the thread
+        thread = threading.Thread(target=run_async_response, daemon=True)
+        thread.start()
+
+    async def _stream_ai_response(self, message: str) -> None:
+        """Generate streaming AI response."""
+        print(f"🚀 Starting stream for message: '{message}'")
+
+        # Add None check for AI agent
+        if not self._ai_agent:
+            print("❌ No AI agent available")
+            self.streaming_error_signal.emit(Exception("AI agent not available"))
+            return
+
+        try:
+            print("🔄 Hiding typing indicator and starting stream")
+            # Hide thinking indicator and start streaming response
+            QTimer.singleShot(0, lambda: self._chat_widget.hide_typing_indicator())
+
+            # Generate a unique stream ID
+            import uuid
+
+            stream_id = str(uuid.uuid4())
+            print(f"📝 Stream ID: {stream_id}")
+
+            # Start streaming response in the chat widget
+            print("🎯 MainWindow: About to emit start_streaming_signal")
+            self.start_streaming_signal.emit(stream_id)
+            print("🎯 MainWindow: Emitted start_streaming_signal")
+
+            # Define streaming callbacks
+            def on_chunk(chunk: str, is_final: bool) -> None:
+                """Handle streaming chunks from AI response."""
+                print(f"🔍 MainWindow callback: chunk='{chunk}', is_final={is_final}")
+
+                # Only append non-empty chunks to avoid empty content
+                if chunk:
+                    print("🎯 MainWindow: About to emit append_chunk_signal")
+                    self.append_chunk_signal.emit(chunk)
+                    print("🎯 MainWindow: Emitted append_chunk_signal")
+
+                if is_final:
+                    print("🏁 MainWindow: Completing streaming response")
+                    # Complete the streaming response
+                    print("🎯 MainWindow: About to emit complete_streaming_signal")
+                    self.complete_streaming_signal.emit()
+                    print("🎯 MainWindow: Emitted complete_streaming_signal")
+
+            def on_error(error: Exception) -> None:
+                """Handle streaming errors."""
+                print(f"❌ MainWindow callback: error={error}")
+                self.streaming_error_signal.emit(error)
+
+            # Send message with streaming support
+            print(f"📡 Calling AI agent streaming with message: '{message}'")
+            response = await self._ai_agent.send_message_with_tools_stream(
+                message=message,
+                on_chunk=on_chunk,
+                on_error=on_error,
+                enable_filesystem=True,
+            )
+            print(
+                f"✅ AI agent response: success={response.success}, content='{response.content}'"
+            )
+
+            # Check if response failed without calling callbacks
+            if not response.success and response.error:
+                print(f"❌ AI agent failed: {response.error}")
+                self.streaming_error_signal.emit(Exception(response.error))
+
+        except Exception as error:
+            # Handle any unexpected errors - capture exception variable properly
+            self.streaming_error_signal.emit(error)
+
+    def _handle_streaming_error(self, error: Exception) -> None:
+        """Handle streaming errors in the main thread."""
+        # Hide any indicators and show error
         self._chat_widget.hide_typing_indicator()
 
-        if success and content:
-            # Add successful AI response
-            self._chat_widget.add_assistant_message(content)
+        # If there's an active stream, handle the error through the streaming system
+        if self._chat_widget.is_streaming():
+            self._chat_widget.handle_streaming_error(error)
         else:
-            # Add error message
-            error_msg = (
-                f"AI Error: {error}" if error else "AI failed to generate response"
-            )
-            self._chat_widget.add_assistant_message(error_msg)
+            # Fallback: add error message directly
+            self._chat_widget.add_assistant_message(f"AI Error: {str(error)}")
 
-        # Clean up worker thread
-        if self._ai_worker_thread:
-            self._ai_worker_thread.deleteLater()
-            self._ai_worker_thread = None
+    def _handle_ai_response(self, content: str, success: bool, error: str) -> None:
+        """Handle AI response from worker thread - DEPRECATED: Now using streaming."""
+        # This method is kept for compatibility but should not be used
+        # with the new streaming implementation
+        pass

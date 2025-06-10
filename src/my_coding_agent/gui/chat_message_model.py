@@ -1,5 +1,7 @@
 """Chat message model for PyQt6 chat interface."""
 
+from __future__ import annotations
+
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -52,7 +54,7 @@ class ChatMessage:
     @classmethod
     def create_user_message(
         cls, content: str, metadata: dict[str, Any] | None = None
-    ) -> "ChatMessage":
+    ) -> ChatMessage:
         """Create a user message."""
         return cls(
             content=content,
@@ -64,7 +66,7 @@ class ChatMessage:
     @classmethod
     def create_assistant_message(
         cls, content: str, metadata: dict[str, Any] | None = None
-    ) -> "ChatMessage":
+    ) -> ChatMessage:
         """Create an assistant message."""
         return cls(
             content=content,
@@ -76,7 +78,7 @@ class ChatMessage:
     @classmethod
     def create_system_message(
         cls, content: str, metadata: dict[str, Any] | None = None
-    ) -> "ChatMessage":
+    ) -> ChatMessage:
         """Create a system message."""
         return cls(
             content=content,
