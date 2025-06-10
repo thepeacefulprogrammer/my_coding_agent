@@ -21,7 +21,7 @@ class TestMCPFileConfig:
         """Test creating config with default values."""
         config = MCPFileConfig()
 
-        assert config.base_directory == str(Path.cwd())
+        assert config.base_directory == Path.cwd()
         assert config.allowed_extensions == [
             ".py",
             ".md",
@@ -39,8 +39,9 @@ class TestMCPFileConfig:
 
     def test_config_with_custom_values(self):
         """Test creating config with custom values."""
+        custom_path = Path("/tmp")  # Use existing directory for testing
         config = MCPFileConfig(
-            base_directory="/custom/path",
+            base_directory=custom_path,
             allowed_extensions=[".py", ".js"],
             max_file_size=5 * 1024 * 1024,
             enable_write_operations=False,
@@ -48,7 +49,7 @@ class TestMCPFileConfig:
             follow_symlinks=True,
         )
 
-        assert config.base_directory == "/custom/path"
+        assert config.base_directory == custom_path
         assert config.allowed_extensions == [".py", ".js"]
         assert config.max_file_size == 5 * 1024 * 1024
         assert config.enable_write_operations is False
@@ -90,45 +91,47 @@ class TestMCPFileServer:
 
     def test_server_initialization(self, mcp_server, temp_workspace):
         """Test MCP server initialization."""
-        assert mcp_server.config.base_directory == temp_workspace
+        assert mcp_server.config.base_directory == Path(temp_workspace)
         assert mcp_server.is_connected is False
         assert mcp_server.client_session is None
 
     @pytest.mark.asyncio
     async def test_connect_to_mcp_server_success(self, mcp_server):
         """Test successful connection to MCP server."""
+        # Mock a successful MCP client connection
         mock_session = AsyncMock()
         mock_session.initialize = AsyncMock()
-        mock_session.list_tools = AsyncMock(
-            return_value=[
-                {"name": "read_file", "description": "Read file contents"},
-                {"name": "write_file", "description": "Write file contents"},
-                {"name": "list_directory", "description": "List directory contents"},
-            ]
-        )
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+
+        mock_read_stream = AsyncMock()
+        mock_write_stream = AsyncMock()
 
         with patch("my_coding_agent.core.mcp_file_server.ClientSession") as mock_client:
-            mock_client.return_value.__aenter__ = AsyncMock(return_value=mock_session)
-            mock_client.return_value.__aexit__ = AsyncMock(return_value=None)
+            mock_client.return_value = mock_session
 
             with patch("mcp.client.stdio.stdio_client") as mock_stdio:
-                mock_stdio.return_value.__aenter__ = AsyncMock(
-                    return_value=(AsyncMock(), AsyncMock())
+                # Create an async context manager mock
+                mock_stdio_instance = AsyncMock()
+                mock_stdio_instance.__aenter__ = AsyncMock(
+                    return_value=(mock_read_stream, mock_write_stream)
                 )
-                mock_stdio.return_value.__aexit__ = AsyncMock(return_value=None)
+                mock_stdio_instance.__aexit__ = AsyncMock(return_value=None)
+                mock_stdio.return_value = mock_stdio_instance
 
                 result = await mcp_server.connect()
 
                 assert result is True
                 assert mcp_server.is_connected is True
+                # Verify the session was created and initialized
+                mock_client.assert_called_once_with(mock_read_stream, mock_write_stream)
                 mock_session.initialize.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_connect_to_mcp_server_failure(self, mcp_server):
         """Test failed connection to MCP server."""
-        with patch("mcp.client.stdio.stdio_client") as mock_stdio:
-            mock_stdio.side_effect = Exception("Connection failed")
-
+        # Test case where base directory access fails (should return False)
+        with patch("os.access", return_value=False):
             result = await mcp_server.connect()
 
             assert result is False
