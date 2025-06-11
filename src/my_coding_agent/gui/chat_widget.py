@@ -82,68 +82,72 @@ class MessageBubble(QWidget):
 
     def _setup_ui(self) -> None:
         """Set up the user interface."""
-        # Remove width constraint - let messages fill naturally
-        # self.setMaximumWidth(600)
-
-        # Main layout
+        # Main layout with proper sizing constraints
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(8, 6, 8, 6)
         main_layout.setSpacing(4)
 
-        # Content area - remove frame styling since we'll style the MessageBubble itself
+        # Content area with proper sizing
         content_frame = QFrame()
-        # Remove the frame border - we'll style the bubble itself
-        # content_frame.setFrameStyle(QFrame.Shape.Box)
         content_layout = QVBoxLayout(content_frame)
         content_layout.setContentsMargins(12, 8, 12, 8)
         content_layout.setSpacing(4)
 
-        # Content text - use QLabel with simple, reliable sizing
+        # Content text - use QLabel with proper size policy for content-based sizing
         self.content_text = QLabel()
         self.content_text.setText(self.message.content)
         self.content_text.setWordWrap(True)
         self.content_text.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse
         )
-        # Use the most basic size policy - let Qt handle everything
+
+        # CRITICAL FIX: Use Minimum vertical size policy to prevent stretching
+        # and allow the label to size to its content height only
         self.content_text.setSizePolicy(
-            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum
         )
-        # Don't set any height constraints at all - let Qt figure it out
+
+        # Ensure proper content alignment at top-left
         self.content_text.setAlignment(
             Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )
+
+        # Enable height-for-width to ensure proper text wrapping calculations
+        self.content_text.setWordWrap(True)
+
         content_layout.addWidget(self.content_text)
 
         # Metadata area (hidden by default)
         self.metadata_label = QLabel()
         self.metadata_label.setFont(QFont("", 8))
         self.metadata_label.hide()
+        # Also set proper size policy for metadata
+        self.metadata_label.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum
+        )
         content_layout.addWidget(self.metadata_label)
-
-        # Add spacing between content and bottom info
-        content_layout.addSpacing(4)
-
-        # No bottom info layout - all metadata (timestamps and status) removed
 
         # Error message (hidden by default)
         self.error_label = QLabel()
         self.error_label.hide()
-
+        # Set proper size policy for error label too
+        self.error_label.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum
+        )
         content_layout.addWidget(self.error_label)
 
         main_layout.addWidget(content_frame)
 
-        # All messages are left-aligned now for consistent layout
-        main_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        # CRITICAL FIX: Set the MessageBubble itself to size to content
+        # This prevents the entire bubble from stretching to fill available space
+        self.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum
+        )
 
-        # Only AI messages get unlimited width for natural flow
-        if self.role == MessageRole.ASSISTANT:
-            # Natural text flow - fill the width for better readability
-            self.setMaximumWidth(16777215)  # Remove width constraint for natural flow
-        else:
-            # User and system messages can have reasonable max width
-            self.setMaximumWidth(600)
+        # FULL WIDTH: All messages should span the full width of the window
+        # Remove width constraints to allow full window width
+        self.setMaximumWidth(16777215)  # No width limit for any message type
+        self.setMinimumWidth(0)  # Allow natural minimum width
 
     def _apply_styling(self) -> None:
         """Apply styling based on message role and current theme."""
@@ -426,9 +430,18 @@ class MessageDisplayArea(QWidget):
 
         # Content widget for messages
         self.content_widget = QWidget()
+        # CRITICAL FIX: Set content widget size policy to prevent vertical stretching
+        self.content_widget.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum
+        )
+
         self.content_layout = QVBoxLayout(self.content_widget)
         self.content_layout.setContentsMargins(8, 8, 8, 8)
         self.content_layout.setSpacing(8)
+
+        # CRITICAL FIX: Set the content layout to align items at the top
+        # This prevents message bubbles from being stretched to fill available space
+        self.content_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
         # Add spacer to push messages to bottom initially
         self.content_layout.addItem(

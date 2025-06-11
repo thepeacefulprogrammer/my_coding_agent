@@ -12,11 +12,11 @@ from PyQt6.QtGui import (
     QPen,
 )
 from PyQt6.QtWidgets import (
-    QFrame,
     QLabel,
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSpacerItem,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -77,33 +77,34 @@ class SimplifiedMessageBubble(QWidget):
         """Set up the UI with minimal nesting."""
         # Single layout, no nested containers
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        # PADDING FIX: Restore proper padding inside bubbles for text spacing
+        layout.setContentsMargins(12, 8, 12, 8)
+        layout.setSpacing(4)
 
-        # Content display - use QTextEdit for better sizing behavior
-        self.content_display = QTextEdit()
-        self.content_display.setPlainText(self.message.content)
-        self.content_display.setReadOnly(True)
-        self.content_display.setFrameStyle(QFrame.Shape.NoFrame)
-        self.content_display.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
-        )
-        self.content_display.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        # Content display - use QLabel for better sizing behavior
+        self.content_display = QLabel()
+        self.content_display.setText(self.message.content)
+        self.content_display.setWordWrap(True)  # Enable word wrapping
+        self.content_display.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse
+            | Qt.TextInteractionFlag.TextSelectableByKeyboard
+        )  # Allow text selection like QTextEdit
+        self.content_display.setAlignment(
+            Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft
         )
 
-        # Make the text edit size to content
-        self.content_display.setMaximumHeight(16777215)  # Remove height constraints
+        # Make the label size to content properly
         self.content_display.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum
         )
 
-        # Adjust height to content - connect signal safely
-        doc = self.content_display.document()
-        if doc and hasattr(doc, "documentLayout"):
-            doc_layout = doc.documentLayout()
-            if doc_layout and hasattr(doc_layout, "documentSizeChanged"):
-                doc_layout.documentSizeChanged.connect(self.adjust_text_height)
+        # FULL WIDTH: All messages should span the full width of the window
+        # Set size policy to allow full width expansion with content-based height
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
+
+        # Remove width constraints to allow full window width for all message types
+        self.setMaximumWidth(16777215)  # No width limit
+        self.setMinimumWidth(0)  # Allow natural minimum width
 
         layout.addWidget(self.content_display)
 
@@ -113,101 +114,74 @@ class SimplifiedMessageBubble(QWidget):
         self.error_label.hide()
         layout.addWidget(self.error_label)
 
-    def adjust_text_height(self) -> None:
-        """Adjust text edit height to fit content."""
-        doc = self.content_display.document()
-        if doc:
-            # Get the document height
-            doc_height = int(doc.size().height())
-
-            # Add padding based on role - user messages have 12px padding on QTextEdit
-            padding = 24 if self.role == MessageRole.USER else 10
-
-            # Set the height with padding included
-            total_height = doc_height + padding
-            self.content_display.setFixedHeight(total_height)
-
     def apply_styling(self) -> None:
         """Apply role-based styling."""
-        if self.role == MessageRole.USER:
-            # User messages: light grey border, slightly lighter background
-            self.setStyleSheet(f"""
-                SimplifiedMessageBubble {{
-                    background-color: {"#3a3a3a" if self._current_theme == "dark" else "#f0f0f0"};
-                    border: 2px solid {"#666666" if self._current_theme == "dark" else "#cccccc"};
-                    border-radius: 6px;
-                    margin: 8px 0px;
-                    padding: 0px;
-                }}
-                QTextEdit {{
-                    background-color: transparent;
-                    border: none;
-                    color: {"#ffffff" if self._current_theme == "dark" else "#333"};
-                    font-size: 14px;
-                    padding: 12px;
-                }}
-            """)
-            # Force widget to have solid background
-            self.setAutoFillBackground(True)
+        if self._current_theme == "dark":
+            if self.role == MessageRole.USER:
+                bg_color = "#444444"
+                text_color = "#ffffff"
+                border_color = "#555555"
+            elif self.role == MessageRole.ASSISTANT:
+                bg_color = "#2d2d2d"
+                text_color = "#ffffff"
+                border_color = "#444444"
+            else:  # SYSTEM
+                bg_color = "#1a1a1a"
+                text_color = "#aaaaaa"
+                border_color = "#333333"
+        else:  # light theme
+            if self.role == MessageRole.USER:
+                bg_color = "#e3f2fd"
+                text_color = "#000000"
+                border_color = "#bbdefb"
+            elif self.role == MessageRole.ASSISTANT:
+                bg_color = "#f5f5f5"
+                text_color = "#000000"
+                border_color = "#e0e0e0"
+            else:  # SYSTEM
+                bg_color = "#fff3e0"
+                text_color = "#666666"
+                border_color = "#ffcc02"
 
-        elif self.role == MessageRole.ASSISTANT:
-            # AI messages: full width, transparent
-            self.setStyleSheet(f"""
-                SimplifiedMessageBubble {{
-                    background-color: transparent;
-                    border: none;
-                    margin: 8px 0px;
-                    padding: 0px;
-                }}
-                QTextEdit {{
-                    background-color: transparent;
-                    border: none;
-                    color: {"#ffffff" if self._current_theme == "dark" else "#333"};
-                    font-size: 14px;
-                }}
-            """)
-            # Ensure no background for AI messages
-            self.setAutoFillBackground(False)
+        self.setStyleSheet(f"""
+            SimplifiedMessageBubble {{
+                background-color: {bg_color};
+                border: 1px solid {border_color};
+                border-radius: 8px;
+                margin: 4px 0px;
+            }}
+        """)
 
-        else:  # SYSTEM
-            # System messages: distinct styling
-            self.setStyleSheet(f"""
-                SimplifiedMessageBubble {{
-                    background-color: {"#404040" if self._current_theme == "dark" else "#fff3cd"};
-                    border: 1px solid {"#666666" if self._current_theme == "dark" else "#ffeaa7"};
-                    border-radius: 8px;
-                    margin: 8px 0px;
-                    padding: 10px;
-                    max-width: 600px;
-                }}
-                QTextEdit {{
-                    background-color: transparent;
-                    border: none;
-                    color: {"#ffffff" if self._current_theme == "dark" else "#856404"};
-                    font-size: 13px;
-                    font-style: italic;
-                }}
-            """)
-            # Force widget to have background for system messages
-            self.setAutoFillBackground(True)
+        # Apply text color to the label
+        self.content_display.setStyleSheet(f"""
+            QLabel {{
+                color: {text_color};
+                background-color: transparent;
+                border: none;
+                padding: 0px;
+            }}
+        """)
 
     def apply_theme(self, theme: str) -> None:
-        """Apply theme to the bubble."""
+        """Apply theme to the message bubble."""
         self._current_theme = theme
         self.apply_styling()
 
     def update_content(self, content: str) -> None:
         """Update the message content."""
-        self.message.content = content
-        self.content_display.setPlainText(content)
+        self.content_display.setText(content)
 
     def set_error(self, error_message: str) -> None:
-        """Display error message."""
-        self.error_label.setText(f"Error: {error_message}")
-        self.error_label.setStyleSheet(
-            "color: #ff6b6b; font-weight: bold; margin-top: 4px;"
-        )
-        self.error_label.show()
+        """Display error message in the bubble."""
+        self.content_display.setText(f"Error: {error_message}")
+        self.setStyleSheet(f"""
+            SimplifiedMessageBubble {{
+                background-color: {"#4a1a1a" if self._current_theme == "dark" else "#ffebee"};
+                border: 1px solid {"#ff4444" if self._current_theme == "dark" else "#e57373"};
+                border-radius: 8px;
+                margin: 4px 0px;
+            }}
+        """)
 
     def clear_error(self) -> None:
         """Clear error message."""
@@ -277,10 +251,14 @@ class SimplifiedMessageDisplayArea(QScrollArea):
         self.container = QWidget()
         self.container_layout = QVBoxLayout(self.container)
         self.container_layout.setContentsMargins(16, 16, 16, 16)
-        self.container_layout.setSpacing(4)
+        self.container_layout.setSpacing(12)  # Add proper spacing between messages
 
-        # Add stretch to push messages to top
-        self.container_layout.addStretch()
+        # HEIGHT FIX: Add spacer at the bottom to absorb extra vertical space
+        # This prevents message bubbles from expanding to fill available height
+        self.bottom_spacer = QSpacerItem(
+            20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding
+        )
+        self.container_layout.addItem(self.bottom_spacer)
 
         self.setWidget(self.container)
 
@@ -301,8 +279,11 @@ class SimplifiedMessageDisplayArea(QScrollArea):
 
         self._message_bubbles[message.message_id] = bubble
 
-        # Insert before the stretch
-        self.container_layout.insertWidget(self.container_layout.count() - 1, bubble)
+        # FULL WIDTH: Add bubble directly to layout without container wrapper
+        # This ensures messages span full width and size properly to content
+        # HEIGHT FIX: Insert before the bottom spacer to maintain proper spacing
+        spacer_index = self.container_layout.indexOf(self.bottom_spacer)
+        self.container_layout.insertWidget(spacer_index, bubble)
 
         # Auto-scroll to bottom
         QTimer.singleShot(10, self.scroll_to_bottom)
@@ -342,29 +323,38 @@ class SimplifiedMessageDisplayArea(QScrollArea):
     def show_typing_indicator(self, text: str = "AI is typing...") -> None:
         """Show typing indicator."""
         if self._typing_indicator is None:
-            self._typing_indicator = QLabel()
+            self._typing_indicator = QLabel(text)
+            self._typing_indicator.setObjectName("typing_indicator")
+            self._typing_indicator.setAlignment(Qt.AlignmentFlag.AlignLeft)
             self._typing_indicator.setWordWrap(True)
             self._typing_indicator.setStyleSheet(f"""
                 QLabel {{
                     color: {"#aaaaaa" if self._current_theme == "dark" else "#666666"};
                     font-style: italic;
                     padding: 8px;
-                    margin: 4px 0px;
+                    background-color: transparent;
+                    border: none;
                 }}
             """)
-            # Insert before the stretch
-            self.container_layout.insertWidget(
-                self.container_layout.count() - 1, self._typing_indicator
-            )
+            # HEIGHT FIX: Insert typing indicator before the bottom spacer
+            # This maintains proper layout with spacer at the bottom
+            spacer_index = self.container_layout.indexOf(self.bottom_spacer)
+            self.container_layout.insertWidget(spacer_index, self._typing_indicator)
 
         self._typing_indicator.setText(text)
         self._typing_indicator.show()
+
+        # Auto scroll after adding indicator
         QTimer.singleShot(10, self.scroll_to_bottom)
 
     def hide_typing_indicator(self) -> None:
         """Hide typing indicator."""
         if self._typing_indicator:
             self._typing_indicator.hide()
+            # Remove from layout to avoid layout issues
+            self.container_layout.removeWidget(self._typing_indicator)
+            self._typing_indicator.deleteLater()
+            self._typing_indicator = None
 
     def is_typing_indicator_visible(self) -> bool:
         """Check if typing indicator is visible."""
@@ -397,49 +387,17 @@ class SimplifiedMessageDisplayArea(QScrollArea):
 
         # Update all existing bubbles
         for bubble in self._message_bubbles.values():
-            bubble.apply_theme(theme)
+            bubble.apply_theme(self._current_theme)
 
-    def show_typing_indicator(self, text: str = "AI is typing...") -> None:
-        """Show typing indicator."""
-        if self._typing_indicator is None:
-            self._typing_indicator = QLabel()
-            self._typing_indicator.setWordWrap(True)
-            self._typing_indicator.setStyleSheet(f"""
-                QLabel {{
-                    color: {"#aaaaaa" if self._current_theme == "dark" else "#666666"};
-                    font-style: italic;
-                    padding: 8px;
-                    margin: 4px 0px;
-                }}
-            """)
-            # Insert before the stretch
-            self.container_layout.insertWidget(
-                self.container_layout.count() - 1, self._typing_indicator
-            )
+    def _on_app_theme_changed(self, theme: str) -> None:
+        """Handle theme change."""
+        self.apply_theme(theme)
 
-        self._typing_indicator.setText(text)
-        self._typing_indicator.show()
-        QTimer.singleShot(10, self.scroll_to_bottom)
-
-    def hide_typing_indicator(self) -> None:
-        """Hide typing indicator."""
-        if self._typing_indicator:
-            self._typing_indicator.hide()
-
-    def is_typing_indicator_visible(self) -> bool:
-        """Check if typing indicator is visible."""
-        return self._typing_indicator is not None and self._typing_indicator.isVisible()
-
-        # Update typing indicator style
-        if self._typing_indicator:
-            self._typing_indicator.setStyleSheet(f"""
-                QLabel {{
-                    color: {"#aaaaaa" if theme == "dark" else "#666666"};
-                    font-style: italic;
-                    padding: 8px;
-                    margin: 4px 0px;
-                }}
-            """)
+    def deleteLater(self) -> None:
+        """Clean up theme manager connection when widget is deleted."""
+        if self._auto_adapt_theme and self.theme_manager:
+            self.theme_manager.unregister_widget(self)
+        super().deleteLater()
 
 
 class SimplifiedChatWidget(QWidget):
@@ -484,11 +442,11 @@ class SimplifiedChatWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # Message display area
+        # Message display area - give it stretch to fill available space
         self.display_area = SimplifiedMessageDisplayArea(self.message_model)
-        layout.addWidget(self.display_area)
+        layout.addWidget(self.display_area, 1)  # stretch factor 1 to fill space
 
-        # Input area
+        # Input area - fixed size at bottom
         self.setup_input_area(layout)
 
     def setup_input_area(self, main_layout: QVBoxLayout) -> None:
@@ -501,7 +459,9 @@ class SimplifiedChatWidget(QWidget):
 
         # Create text input - full width
         self.input_text = EnhancedTextEdit()
-        self.input_text.setPlaceholderText("Type your message... (Enter to send, Shift+Enter for new line)")
+        self.input_text.setPlaceholderText(
+            "Type your message... (Enter to send, Shift+Enter for new line)"
+        )
         self.input_text.setMinimumHeight(40)
         self.input_text.setMaximumHeight(120)
 
@@ -528,7 +488,7 @@ class SimplifiedChatWidget(QWidget):
 
     def _update_send_icon_position(self) -> None:
         """Update send icon position to stay in bottom right of input text."""
-        if hasattr(self, 'send_icon') and hasattr(self, 'input_text'):
+        if hasattr(self, "send_icon") and hasattr(self, "input_text"):
             new_x = self.input_text.width() - 40
             new_y = self.input_text.height() - 32
             self.send_icon.move(new_x, new_y)
@@ -592,8 +552,13 @@ class SimplifiedChatWidget(QWidget):
         """Send the current message."""
         text = self.input_text.toPlainText().strip()
         if text:
-            self.message_sent.emit(text)
+            # Add user message first and wait for it to be fully processed
             self.add_user_message(text)
+
+            # Use a short delay to ensure message is rendered before emitting signal
+            QTimer.singleShot(50, lambda: self.message_sent.emit(text))
+
+            # Clear input immediately
             self.input_text.clear()
 
     def add_user_message(
@@ -661,9 +626,6 @@ class SimplifiedChatWidget(QWidget):
         self._streaming_content_buffer = ""
 
         # Show typing indicator
-        indicator_text = "AI is responding..."
-        if retry_count > 0:
-            indicator_text = f"AI is responding... (attempt {retry_count + 1})"
         self.show_ai_thinking()
 
         return assistant_msg_id
@@ -701,100 +663,6 @@ class SimplifiedChatWidget(QWidget):
     def handle_streaming_error(self, error: Exception) -> None:
         """Handle an error during streaming."""
         if not self.is_streaming() or not getattr(self, "_streaming_message_id", None):
-            return
-
-        # Set error on the message
-        message = self.message_model.get_message_by_id(self._streaming_message_id)
-        if message:
-            message.error_message = str(error)
-            bubble = self.display_area._message_bubbles.get(self._streaming_message_id)
-            if bubble:
-                bubble.set_error(str(error))
-
-        # Clear streaming state
-        self._is_streaming = False
-        self._current_stream_id = None
-        self._streaming_message_id = None
-        self._streaming_content_buffer = ""
-
-        # Hide typing indicator
-        self.hide_typing_indicator()
-
-    def show_ai_thinking(self, animated: bool = False) -> None:
-        """Show AI thinking indicator."""
-        self.display_area.show_typing_indicator("AI is thinking...")
-
-    def hide_typing_indicator(self) -> None:
-        """Hide typing indicator."""
-        self.display_area.hide_typing_indicator()
-
-    def scroll_to_bottom(self) -> None:
-        """Scroll to the bottom."""
-        self.display_area.scroll_to_bottom()
-
-    def is_streaming(self) -> bool:
-        """Check if currently streaming a response."""
-        return self._is_streaming
-
-    def start_streaming_response(self, stream_id: str, retry_count: int = 0) -> str:
-        """Start a new streaming response."""
-        if self.is_streaming():
-            raise RuntimeError(
-                "Stream already active. Stop current stream before starting new one."
-            )
-
-        # Create new assistant message for streaming
-        assistant_msg_id = self.add_assistant_message(
-            "", metadata={"stream_id": stream_id}
-        )
-
-        # Update streaming state
-        self._is_streaming = True
-        self._current_stream_id = stream_id
-        self._streaming_message_id = assistant_msg_id
-        self._streaming_content_buffer = ""
-
-        # Show typing indicator
-        indicator_text = "AI is responding..."
-        if retry_count > 0:
-            indicator_text = f"AI is responding... (attempt {retry_count + 1})"
-        self.show_ai_thinking()
-
-        return assistant_msg_id
-
-    def append_streaming_chunk(self, chunk: str) -> None:
-        """Append a chunk of content to the streaming message."""
-        if not self.is_streaming() or not self._streaming_message_id:
-            return
-
-        # Update content buffer (AI sends cumulative chunks)
-        self._streaming_content_buffer = chunk
-
-        # Update the message content
-        self.update_message_content(
-            self._streaming_message_id, self._streaming_content_buffer
-        )
-
-        # Auto-scroll to show new content
-        self.scroll_to_bottom()
-
-    def complete_streaming_response(self) -> None:
-        """Complete the current streaming response."""
-        if not self.is_streaming():
-            return
-
-        # Clear streaming state
-        self._is_streaming = False
-        self._current_stream_id = None
-        self._streaming_message_id = None
-        self._streaming_content_buffer = ""
-
-        # Hide typing indicator
-        self.hide_typing_indicator()
-
-    def handle_streaming_error(self, error: Exception) -> None:
-        """Handle an error during streaming."""
-        if not self.is_streaming() or not self._streaming_message_id:
             return
 
         # Set error on the message

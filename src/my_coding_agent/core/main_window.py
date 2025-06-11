@@ -9,6 +9,7 @@ and will later host the file tree and code viewer components.
 from __future__ import annotations
 
 import asyncio
+import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -18,8 +19,9 @@ if TYPE_CHECKING:
 
 from PyQt6.QtCore import QSize, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QCloseEvent, QKeySequence
-from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QWidget
+from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout
 
+from ..gui.chat_widget_v2 import SimplifiedChatWidget
 from .ai_agent import AIAgent, AIAgentConfig
 from .theme_manager import ThemeManager
 
@@ -63,35 +65,45 @@ class MainWindow(QMainWindow):
     complete_streaming_signal = pyqtSignal()  # no args
     streaming_error_signal = pyqtSignal(Exception)  # error
 
-    def __init__(self, parent: QWidget | None = None) -> None:
-        """
-        Initialize the MainWindow.
+    def __init__(self, directory_path: str) -> None:
+        """Initialize the main window.
 
         Args:
-            parent (QWidget, optional): Parent widget. Defaults to None.
+            directory_path: Path to the directory to open
         """
-        super().__init__(parent)
+        super().__init__()
+        self.directory_path = directory_path
 
-        # Initialize theme manager
+        # Initialize memory handler - moved to lazy initialization in _handle_chat_message
+        # self._memory_handler will be created when first needed
+
+        # Generate or restore session ID for conversation persistence
+        self.current_session_id = self._get_or_create_session_id()
+
+        # Initialize components
         app = QApplication.instance()
         if app is not None and isinstance(app, QApplication):
             self._theme_manager = ThemeManager(app)
+        else:
+            self._theme_manager = None
+
+        self._ai_agent: AIAgent | None = None
+        self._chat_widget: SimplifiedChatWidget | None = None
 
         # Set up the user interface
         self._setup_ui()
 
-        # Apply initial theme and window settings
-        self._setup_window()
-
         # Set up persistent settings
         self._setup_settings()
 
-        # Restore previous window state if available
-        self.restore_window_state()
+        # Apply initial theme and window settings
+        self._setup_window()
 
-        # Apply theme after UI setup to ensure consistent styling
-        if hasattr(self, "_theme_manager"):
-            self._theme_manager.refresh_theme()
+        # Set up AI integration
+        self._setup_ai_integration()
+
+        # Load conversation history if available
+        self._load_conversation_history()
 
     def get_theme_manager(self) -> ThemeManager | None:
         """Get the theme manager instance.
@@ -160,7 +172,6 @@ class MainWindow(QMainWindow):
         left_panel.setLineWidth(1)
 
         # Add file tree widget to left panel
-        from PyQt6.QtWidgets import QVBoxLayout
 
         from .file_tree import FileTreeWidget
 
@@ -215,9 +226,6 @@ class MainWindow(QMainWindow):
         if hasattr(self, "_theme_manager"):
             current_theme = self._theme_manager.get_current_theme()
             self._chat_widget.apply_theme(current_theme)
-
-        # Initialize AI agent and connect chat widget
-        self._setup_ai_integration()
 
         # Add panels to splitter
         splitter.addWidget(left_panel)
@@ -617,14 +625,29 @@ class MainWindow(QMainWindow):
             )
             return
 
+        # Initialize memory handler if not already done
+        if not hasattr(self, "_memory_handler"):
+            from .memory_integration import ConversationMemoryHandler
+
+            self._memory_handler = ConversationMemoryHandler()
+
+        # Store the user message in memory
+        try:
+            self._memory_handler.store_user_message(message)
+            print(f"💾 Stored user message in memory: '{message[:50]}...'")
+        except Exception as e:
+            print(f"⚠️ Failed to store user message in memory: {e}")
+
         # Show thinking indicator
         self._chat_widget.show_ai_thinking(animated=True)
 
-        # Start streaming AI response asynchronously
-        QTimer.singleShot(10, lambda: self._start_streaming_response(message))
+        # Start streaming AI response asynchronously with conversation context
+        QTimer.singleShot(
+            10, lambda: self._start_streaming_response_with_context(message)
+        )
 
-    def _start_streaming_response(self, message: str) -> None:
-        """Start the streaming AI response in an async context."""
+    def _start_streaming_response_with_context(self, message: str) -> None:
+        """Start the streaming AI response with conversation context."""
         import threading
 
         # Create a new thread for the async operation
@@ -634,8 +657,8 @@ class MainWindow(QMainWindow):
             asyncio.set_event_loop(loop)
 
             try:
-                # Run the streaming response
-                loop.run_until_complete(self._stream_ai_response(message))
+                # Run the streaming response with context
+                loop.run_until_complete(self._stream_ai_response_with_context(message))
             except Exception as error:
                 # Handle any errors - capture exception variable properly
                 self.streaming_error_signal.emit(error)
@@ -646,9 +669,9 @@ class MainWindow(QMainWindow):
         thread = threading.Thread(target=run_async_response, daemon=True)
         thread.start()
 
-    async def _stream_ai_response(self, message: str) -> None:
-        """Generate streaming AI response."""
-        print(f"🚀 Starting stream for message: '{message}'")
+    async def _stream_ai_response_with_context(self, message: str) -> None:
+        """Generate streaming AI response with conversation context."""
+        print(f"🚀 Starting stream with context for message: '{message}'")
 
         # Add None check for AI agent
         if not self._ai_agent:
@@ -661,9 +684,20 @@ class MainWindow(QMainWindow):
             # Hide thinking indicator and start streaming response
             QTimer.singleShot(0, lambda: self._chat_widget.hide_typing_indicator())
 
-            # Generate a unique stream ID
-            import uuid
+            # Get conversation context from memory
+            conversation_context = []
+            if hasattr(self, "_memory_handler"):
+                try:
+                    conversation_context = (
+                        self._memory_handler.get_conversation_context(limit=10)
+                    )
+                    print(
+                        f"📚 Retrieved {len(conversation_context)} messages from conversation history"
+                    )
+                except Exception as e:
+                    print(f"⚠️ Failed to retrieve conversation context: {e}")
 
+            # Generate a unique stream ID
             stream_id = str(uuid.uuid4())
             print(f"📝 Stream ID: {stream_id}")
 
@@ -672,10 +706,17 @@ class MainWindow(QMainWindow):
             self.start_streaming_signal.emit(stream_id)
             print("🎯 MainWindow: Emitted start_streaming_signal")
 
+            # Track assistant response content for memory storage
+            assistant_response_content = ""
+
             # Define streaming callbacks
             def on_chunk(chunk: str, is_final: bool) -> None:
                 """Handle streaming chunks from AI response."""
+                nonlocal assistant_response_content
                 print(f"🔍 MainWindow callback: chunk='{chunk}', is_final={is_final}")
+
+                # Update assistant response content
+                assistant_response_content = chunk
 
                 # Only append non-empty chunks to avoid empty content
                 if chunk:
@@ -685,6 +726,21 @@ class MainWindow(QMainWindow):
 
                 if is_final:
                     print("🏁 MainWindow: Completing streaming response")
+
+                    # Store assistant response in memory
+                    if hasattr(self, "_memory_handler") and assistant_response_content:
+                        try:
+                            self._memory_handler.store_assistant_message(
+                                assistant_response_content
+                            )
+                            print(
+                                f"💾 Stored assistant response in memory: '{assistant_response_content[:50]}...'"
+                            )
+                        except Exception as e:
+                            print(
+                                f"⚠️ Failed to store assistant response in memory: {e}"
+                            )
+
                     # Complete the streaming response
                     print("🎯 MainWindow: About to emit complete_streaming_signal")
                     self.complete_streaming_signal.emit()
@@ -695,10 +751,26 @@ class MainWindow(QMainWindow):
                 print(f"❌ MainWindow callback: error={error}")
                 self.streaming_error_signal.emit(error)
 
+            # Prepare context string for AI agent
+            context_str = ""
+            if conversation_context:
+                context_lines = []
+                for ctx_msg in conversation_context[-5:]:  # Last 5 messages for context
+                    role = ctx_msg["role"].upper()
+                    content = ctx_msg["content"]
+                    context_lines.append(f"{role}: {content}")
+                context_str = "\n".join(context_lines)
+                context_str = f"\n\nRecent conversation context:\n{context_str}\n\nCurrent message:\n"
+
+            # Create message with context
+            message_with_context = f"{context_str}{message}" if context_str else message
+
             # Send message with streaming support
-            print(f"📡 Calling AI agent streaming with message: '{message}'")
+            print(
+                f"📡 Calling AI agent streaming with context. Message length: {len(message_with_context)}"
+            )
             response = await self._ai_agent.send_message_with_tools_stream(
-                message=message,
+                message=message_with_context,
                 on_chunk=on_chunk,
                 on_error=on_error,
                 enable_filesystem=True,
@@ -741,6 +813,17 @@ class MainWindow(QMainWindow):
             if hasattr(self._chat_widget, "_is_streaming"):
                 self._chat_widget._is_streaming = False
 
+            # Start new memory session if memory handler exists
+            if hasattr(self, "_memory_handler"):
+                try:
+                    old_session = self._memory_handler.current_session_id
+                    new_session = self._memory_handler.start_new_session()
+                    print(
+                        f"💾 Started new memory session: {new_session[:8]}... (was: {old_session[:8]}...)"
+                    )
+                except Exception as e:
+                    print(f"⚠️ Failed to start new memory session: {e}")
+
             # Clear the conversation
             self._chat_widget.clear_conversation()
 
@@ -754,3 +837,15 @@ class MainWindow(QMainWindow):
                 status_bar.showMessage(
                     "New chat conversation started", 3000
                 )  # Show for 3 seconds
+
+    def _get_or_create_session_id(self) -> str:
+        """Generate or restore session ID for conversation persistence."""
+        # Implement logic to get or create a session ID
+        # This is a placeholder and should be replaced with actual implementation
+        return str(uuid.uuid4())
+
+    def _load_conversation_history(self) -> None:
+        """Load conversation history if available."""
+        # Implement logic to load conversation history
+        # This is a placeholder and should be replaced with actual implementation
+        pass

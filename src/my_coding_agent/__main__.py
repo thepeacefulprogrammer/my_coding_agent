@@ -263,7 +263,7 @@ def main(argv: list[str] | None = None) -> None:
     print("Starting GUI...")
 
     # Create and show the main window
-    main_window = MainWindow()
+    main_window = MainWindow(str(directory))
 
     # Apply settings to window
     if hasattr(settings, "window_width") and hasattr(settings, "window_height"):
