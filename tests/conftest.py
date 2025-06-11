@@ -15,8 +15,9 @@ from pathlib import Path
 import pytest
 from PyQt6.QtWidgets import QApplication
 
-# Configure pytest for GUI testing
-pytest_plugins = ["tests.unit.fixtures.gui_fixtures"]
+# Import GUI fixtures directly to avoid module import issues in CI
+# GUI fixtures are defined in tests/unit/fixtures/gui_fixtures.py
+# but we import them here to make them available across all tests
 
 
 @pytest.fixture(scope="session")
