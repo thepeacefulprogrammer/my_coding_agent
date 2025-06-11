@@ -140,9 +140,7 @@ class MessageBubble(QWidget):
 
         # CRITICAL FIX: Set the MessageBubble itself to size to content
         # This prevents the entire bubble from stretching to fill available space
-        self.setSizePolicy(
-            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum
-        )
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum)
 
         # FULL WIDTH: All messages should span the full width of the window
         # Remove width constraints to allow full window width

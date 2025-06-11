@@ -60,28 +60,38 @@ class DebugWindow(QMainWindow):
         )
         print(f"Added system message: {sys_id}")
 
+        # Add messages with different lengths to test sizing
+        self.chat_widget.add_user_message("Short message")
+        self.chat_widget.add_assistant_message(
+            "This is a much longer message that should wrap to multiple lines and demonstrate "
+            "that the bubble height adjusts properly to the content height without stretching "
+            "to fill the entire available space in the container widget."
+        )
+
     def print_widget_info(self):
         """Print information about the widget structure."""
         print("\n=== Widget Debug Info ===")
         print(f"Chat widget type: {type(self.chat_widget)}")
 
         # Handle different widget types for input field
-        if hasattr(self.chat_widget, 'input_text'):
+        if hasattr(self.chat_widget, "input_text"):
             print(f"Input text type: {type(self.chat_widget.input_text)}")  # type: ignore
-        elif hasattr(self.chat_widget, 'input_field'):
+        elif hasattr(self.chat_widget, "input_field"):
             print(f"Input field type: {type(self.chat_widget.input_field)}")  # type: ignore
         else:
             print("Input field: Not found")
 
         # Handle different widget types for send button
-        if hasattr(self.chat_widget, 'send_button'):
+        if hasattr(self.chat_widget, "send_button"):
             print(f"Send button size: {self.chat_widget.send_button.size()}")  # type: ignore
-            print(f"Send button fixed size: {self.chat_widget.send_button.maximumSize()}")  # type: ignore
+            print(
+                f"Send button fixed size: {self.chat_widget.send_button.maximumSize()}"
+            )  # type: ignore
         else:
             print("Send button: Not found (simplified widget)")
 
         # Check message bubbles - handle different display area types
-        if hasattr(self.chat_widget, 'display_area'):
+        if hasattr(self.chat_widget, "display_area"):
             bubbles = self.chat_widget.display_area._message_bubbles
         else:
             print("No display area found")
@@ -96,21 +106,25 @@ class DebugWindow(QMainWindow):
 
             # NEW: Print size policy and size information
             size_policy = bubble.sizePolicy()
-            print(f"  Size policy: H={size_policy.horizontalPolicy()}, V={size_policy.verticalPolicy()}")
+            print(
+                f"  Size policy: H={size_policy.horizontalPolicy()}, V={size_policy.verticalPolicy()}"
+            )
             print(f"  Current size: {bubble.size()}")
             print(f"  Size hint: {bubble.sizeHint()}")
             print(f"  Minimum size hint: {bubble.minimumSizeHint()}")
 
             # Check content label size policy - handle different attribute names
             content_widget = None
-            if hasattr(bubble, 'content_text'):
+            if hasattr(bubble, "content_text"):
                 content_widget = bubble.content_text  # type: ignore
-            elif hasattr(bubble, 'content_display'):
+            elif hasattr(bubble, "content_display"):
                 content_widget = bubble.content_display  # type: ignore
 
             if content_widget:
                 content_policy = content_widget.sizePolicy()
-                print(f"  Content label size policy: H={content_policy.horizontalPolicy()}, V={content_policy.verticalPolicy()}")
+                print(
+                    f"  Content label size policy: H={content_policy.horizontalPolicy()}, V={content_policy.verticalPolicy()}"
+                )
                 print(f"  Content label size: {content_widget.size()}")
                 print(f"  Content label size hint: {content_widget.sizeHint()}")
 
@@ -124,21 +138,12 @@ class DebugWindow(QMainWindow):
         """Test that message bubbles properly size to content height."""
         print("\n=== Testing Bubble Height Fix ===")
 
-        # Add messages with different lengths to test sizing
-        short_msg = self.chat_widget.add_user_message("Short message")
-        long_msg = self.chat_widget.add_assistant_message(
-            "This is a much longer message that should wrap to multiple lines and demonstrate "
-            "that the bubble height adjusts properly to the content height without stretching "
-            "to fill the entire available space in the chat area. The bubble should only be "
-            "as tall as needed to display this text content properly."
-        )
-
         # Force layout update
         self.chat_widget.repaint()
         QApplication.processEvents()
 
         # Check bubble sizes
-        if hasattr(self.chat_widget, 'display_area'):
+        if hasattr(self.chat_widget, "display_area"):
             bubbles = self.chat_widget.display_area._message_bubbles
         else:
             print("No display area found")
@@ -149,18 +154,22 @@ class DebugWindow(QMainWindow):
         for msg_id, bubble in bubbles.items():
             # Get content widget - handle different attribute names
             content_widget = None
-            if hasattr(bubble, 'content_text'):
+            if hasattr(bubble, "content_text"):
                 content_widget = bubble.content_text  # type: ignore
-            elif hasattr(bubble, 'content_display'):
+            elif hasattr(bubble, "content_display"):
                 content_widget = bubble.content_display  # type: ignore
 
             if content_widget:
                 content_height = content_widget.heightForWidth(content_widget.width())
                 actual_height = bubble.height()
-                print(f"Message {msg_id[:8]}... - Content height needed: {content_height}, Actual height: {actual_height}")
+                print(
+                    f"Message {msg_id[:8]}... - Content height needed: {content_height}, Actual height: {actual_height}"
+                )
 
                 # Check if height is reasonable (not stretched to fill screen)
-                if actual_height > content_height * 3:  # Allow some padding but not excessive
+                if (
+                    actual_height > content_height * 3
+                ):  # Allow some padding but not excessive
                     print("  WARNING: Bubble may be stretching too much!")
                 else:
                     print("  ✓ Bubble height looks appropriate")

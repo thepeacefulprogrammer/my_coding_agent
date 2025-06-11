@@ -152,7 +152,6 @@ class TestMetadataRemoval:
         bubble.apply_theme("light")
 
         # Check that styling doesn't reference metadata elements
-        style = bubble.styleSheet()
         # Should not have any styling for non-existent metadata elements
         assert True  # If no errors occur during theme application, test passes
 
@@ -162,7 +161,6 @@ class TestMetadataRemoval:
         bubble.apply_theme("dark")
 
         # Check that styling doesn't reference metadata elements
-        style = bubble.styleSheet()
         # Should not have any styling for non-existent metadata elements
         assert True  # If no errors occur during theme application, test passes
 
@@ -204,7 +202,8 @@ class TestMetadataRemoval:
 
     def test_message_data_preserved(self, app, sample_message):
         """Test that underlying message data is preserved."""
-        bubble = MessageBubble(sample_message)
+        # Create bubble to verify it works with preserved data
+        MessageBubble(sample_message)
 
         # The underlying message should still have timestamp and status data
         assert sample_message.timestamp is not None, (

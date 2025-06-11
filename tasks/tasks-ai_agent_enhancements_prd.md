@@ -51,13 +51,14 @@ Based on the [AI Agent Chat Enhancements PRD](ai_agent_enhancements_prd.md)
 - `tests/unit/test_new_chat_functionality.py` - 17 comprehensive tests for "New Chat" feature ✅ Created
 - `tests/unit/test_chat_input_improvements.py` - 8 comprehensive tests for Enter key and layout improvements ✅ Created
 - `tests/unit/test_message_styling_verification.py` - 8 comprehensive tests for message styling verification ✅ Created
+- `tests/unit/test_responsive_design.py` - 12 comprehensive tests for responsive design across different window sizes including minimum size constraints, mobile/tablet/desktop/ultrawide layouts, text wrapping, input area responsiveness, layout stability during resize, and aspect ratio adaptability ✅ Created (Task 3.9)
 
 ## Theme-Aware Styling (Task 3.5) ✅ COMPLETED
 
 - `src/my_coding_agent/core/theme_manager.py` - Enhanced ThemeManager with pyqtSignal support for automatic theme change notifications, widget registration/unregistration, and signal emission on theme changes ✅ Enhanced (Task 3.5)
 - `src/my_coding_agent/gui/components/theme_aware_widget.py` - ThemeAwareWidget base class providing automatic theme adaptation functionality with signal connection, error handling, and cleanup ✅ Created (Task 3.5)
 - `src/my_coding_agent/gui/components/message_display.py` - Enhanced MessageDisplay with auto_adapt_theme parameter and theme_manager integration for automatic theme synchronization ✅ Enhanced (Task 3.5)
-- `src/my_coding_agent/gui/chat_widget_v2.py` - Enhanced SimplifiedChatWidget with auto_adapt_theme parameter and theme_manager integration for automatic theme synchronization ✅ Enhanced (Task 3.5)
+- `src/my_coding_agent/gui/chat_widget_v2.py` - Enhanced SimplifiedChatWidget with auto_adapt_theme parameter and theme_manager integration for automatic theme synchronization, responsive design improvements including minimum size constraints (320x240), adaptive input height based on available space, responsive margins for different screen sizes, and intelligent padding adjustments for message bubbles ✅ Enhanced (Task 3.5, Task 3.9)
 - `tests/unit/test_theme_aware_styling.py` - Comprehensive test suite for automatic theme adaptation functionality including signal emission, widget synchronization, performance testing, error handling, and backward compatibility ✅ Created (Task 3.5)
 
 ## New Chat Functionality (Task 3.6) ✅ COMPLETED
@@ -106,7 +107,7 @@ Based on the [AI Agent Chat Enhancements PRD](ai_agent_enhancements_prd.md)
   - [x] 3.6 Add "New Chat" button to main window for starting fresh conversations
   - [x] 3.7 Add Enter key support to send messages in chat input
   - [x] 3.8 Improve chat input layout: compact send button and full-width input area
-  - [ ] 3.9 Ensure responsive design for different window sizes
+  - [x] 3.9 Ensure responsive design for different window sizes
   - [ ] 3.10 Add visual feedback for streaming status (subtle indicator)
   - [ ] 3.11 Add unit tests for UI components and theme integration
 

@@ -161,15 +161,15 @@ def fix_union_syntax(content: str) -> str:
 def fix_duplicate_imports(content: str) -> str:
     """Fix duplicate imports, especially from typing and collections.abc."""
     lines = content.split("\n")
-    imports_seen = {}
 
     for i, line in enumerate(lines):
         # Check for typing imports with Generator that conflicts with collections.abc
         if line.strip().startswith("from typing import") and "Generator" in line:
             # Check if we already have Generator from collections.abc
             has_collections_generator = any(
-                "from collections.abc import" in l and "Generator" in l
-                for l in lines[:i]
+                "from collections.abc import" in line_content
+                and "Generator" in line_content
+                for line_content in lines[:i]
             )
             if has_collections_generator:
                 # Remove Generator from typing import

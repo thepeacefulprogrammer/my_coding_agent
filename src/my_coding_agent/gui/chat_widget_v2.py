@@ -78,7 +78,13 @@ class SimplifiedMessageBubble(QWidget):
         # Single layout, no nested containers
         layout = QVBoxLayout(self)
         # PADDING FIX: Restore proper padding inside bubbles for text spacing
-        layout.setContentsMargins(12, 8, 12, 8)
+        self._base_padding = (
+            12,
+            8,
+            12,
+            8,
+        )  # Store base padding for responsive adjustments
+        layout.setContentsMargins(*self._base_padding)
         layout.setSpacing(4)
 
         # Content display - use QLabel for better sizing behavior
@@ -227,6 +233,38 @@ class SimplifiedMessageBubble(QWidget):
         # Call parent paint event to handle text and other elements
         super().paintEvent(a0)
 
+    def resizeEvent(self, a0) -> None:
+        """Handle resize events for responsive padding adjustments."""
+        super().resizeEvent(a0)
+
+        # RESPONSIVE DESIGN: Adjust padding based on available width
+        if hasattr(self, "_base_padding"):
+            width = self.width()
+
+            # Reduce padding on narrow screens
+            if width < 400:
+                # Smaller padding for narrow screens
+                padding_factor = 0.5
+            elif width < 600:
+                # Medium padding for medium screens
+                padding_factor = 0.75
+            else:
+                # Full padding for wide screens
+                padding_factor = 1.0
+
+            # Apply adaptive padding
+            base_left, base_top, base_right, base_bottom = self._base_padding
+            adaptive_padding = (
+                int(base_left * padding_factor),
+                int(base_top * padding_factor),
+                int(base_right * padding_factor),
+                int(base_bottom * padding_factor),
+            )
+
+            layout = self.layout()
+            if layout:
+                layout.setContentsMargins(*adaptive_padding)
+
 
 class SimplifiedMessageDisplayArea(QScrollArea):
     """Clean message display area with proper layout."""
@@ -237,6 +275,7 @@ class SimplifiedMessageDisplayArea(QScrollArea):
         self._message_bubbles: dict[str, SimplifiedMessageBubble] = {}
         self._current_theme = "dark"
         self._typing_indicator: QLabel | None = None
+        self._base_margin = 16
         self.setup_ui()
         self.connect_signals()
 
@@ -250,7 +289,11 @@ class SimplifiedMessageDisplayArea(QScrollArea):
         # Create container widget
         self.container = QWidget()
         self.container_layout = QVBoxLayout(self.container)
-        self.container_layout.setContentsMargins(16, 16, 16, 16)
+
+        # RESPONSIVE DESIGN: Adaptive margins based on available space
+        self.container_layout.setContentsMargins(
+            self._base_margin, self._base_margin, self._base_margin, self._base_margin
+        )
         self.container_layout.setSpacing(12)  # Add proper spacing between messages
 
         # HEIGHT FIX: Add spacer at the bottom to absorb extra vertical space
@@ -399,6 +442,24 @@ class SimplifiedMessageDisplayArea(QScrollArea):
             self.theme_manager.unregister_widget(self)
         super().deleteLater()
 
+    def resizeEvent(self, a0) -> None:
+        """Handle resize events for responsive layout adjustments."""
+        super().resizeEvent(a0)
+
+        # RESPONSIVE DESIGN: Adjust margins based on container width
+        if hasattr(self, "container_layout"):
+            container_width = self.width()
+
+            # Reduce margins on narrow screens
+            if container_width < 500:
+                adaptive_margin = max(8, self._base_margin // 2)
+            else:
+                adaptive_margin = self._base_margin
+
+            self.container_layout.setContentsMargins(
+                adaptive_margin, adaptive_margin, adaptive_margin, adaptive_margin
+            )
+
 
 class SimplifiedChatWidget(QWidget):
     """Clean, simplified chat widget."""
@@ -442,6 +503,9 @@ class SimplifiedChatWidget(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        # RESPONSIVE DESIGN: Set minimum size for usability
+        self.setMinimumSize(320, 240)  # Minimum usable size
+
         # Message display area - give it stretch to fill available space
         self.display_area = SimplifiedMessageDisplayArea(self.message_model)
         layout.addWidget(self.display_area, 1)  # stretch factor 1 to fill space
@@ -454,7 +518,12 @@ class SimplifiedChatWidget(QWidget):
         # Create container for input area
         input_container = QWidget()
         input_layout = QVBoxLayout(input_container)
-        input_layout.setContentsMargins(8, 8, 8, 8)
+
+        # RESPONSIVE DESIGN: Adaptive margins based on window size
+        base_margin = 8
+        input_layout.setContentsMargins(
+            base_margin, base_margin, base_margin, base_margin
+        )
         input_layout.setSpacing(0)
 
         # Create text input - full width
@@ -462,15 +531,19 @@ class SimplifiedChatWidget(QWidget):
         self.input_text.setPlaceholderText(
             "Type your message... (Enter to send, Shift+Enter for new line)"
         )
-        self.input_text.setMinimumHeight(40)
-        self.input_text.setMaximumHeight(120)
+
+        # RESPONSIVE DESIGN: Adaptive input height based on available space
+        self.input_text.setMinimumHeight(32)  # Reduced minimum for small screens
+        self.input_text.setMaximumHeight(100)  # Reduced maximum to save space
 
         # Connect enter key to send message
         self.input_text.enter_pressed.connect(self.send_message)
 
         # Create send icon button positioned inside the text box
         self.send_icon = QPushButton("→")
-        self.send_icon.setFixedSize(32, 24)
+        self.send_icon.setFixedSize(
+            28, 20
+        )  # Slightly smaller for better responsiveness
         self.send_icon.clicked.connect(self.send_message)
         self.send_icon.setParent(self.input_text)
 
@@ -481,6 +554,12 @@ class SimplifiedChatWidget(QWidget):
         self._position_timer.start(100)  # Update every 100ms
 
         input_layout.addWidget(self.input_text)
+
+        # RESPONSIVE DESIGN: Set size policy for input container
+        input_container.setSizePolicy(
+            QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Minimum
+        )
+
         main_layout.addWidget(input_container)
 
         # Apply initial theme
@@ -489,8 +568,10 @@ class SimplifiedChatWidget(QWidget):
     def _update_send_icon_position(self) -> None:
         """Update send icon position to stay in bottom right of input text."""
         if hasattr(self, "send_icon") and hasattr(self, "input_text"):
-            new_x = self.input_text.width() - 40
-            new_y = self.input_text.height() - 32
+            # RESPONSIVE DESIGN: Adaptive positioning based on input size
+            padding = 6  # Consistent padding from edges
+            new_x = max(0, self.input_text.width() - self.send_icon.width() - padding)
+            new_y = max(0, self.input_text.height() - self.send_icon.height() - padding)
             self.send_icon.move(new_x, new_y)
 
     def apply_input_theme(self, theme: str) -> None:
@@ -703,3 +784,29 @@ class SimplifiedChatWidget(QWidget):
         if self._auto_adapt_theme and self.theme_manager:
             self.theme_manager.unregister_widget(self)
         super().deleteLater()
+
+    def resizeEvent(self, a0) -> None:
+        """Handle resize events for responsive behavior."""
+        super().resizeEvent(a0)
+
+        # RESPONSIVE DESIGN: Adjust layout based on window size
+        if hasattr(self, "display_area") and hasattr(self, "input_text"):
+            window_width = self.width()
+            window_height = self.height()
+
+            # Adjust input area margins for very small screens
+            if window_width < 400:
+                # Reduce margins on small screens
+                container = self.input_text.parent()
+                if container and hasattr(container, "layout"):
+                    layout = container.layout()
+                    if layout:
+                        layout.setContentsMargins(4, 4, 4, 4)
+
+            # Adjust maximum input height based on available space
+            available_height = window_height
+            max_input_height = min(100, max(32, available_height // 6))
+            self.input_text.setMaximumHeight(max_input_height)
+
+            # Update send icon position immediately
+            self._update_send_icon_position()
