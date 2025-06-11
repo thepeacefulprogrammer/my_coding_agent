@@ -52,10 +52,33 @@ class MessageBubble(QWidget):
         self._metadata_visible = False
         self._current_status = message.status  # Initialize with message status
         self._current_error = message.error_message  # Initialize with message error
-        self._current_theme = "light"  # Default theme
+
+        # Try to detect current theme from parent or use light as fallback
+        self._current_theme = self._detect_initial_theme()
 
         self._setup_ui()
         self._apply_styling()
+
+    def _detect_initial_theme(self) -> str:
+        """Detect the current theme from the application context."""
+        try:
+            # Try to get theme from QApplication if available
+            from PyQt6.QtWidgets import QApplication
+
+            app = QApplication.instance()
+            if app and hasattr(app, "property"):
+                theme = app.property("theme")
+                if theme in ["light", "dark"]:
+                    return theme
+        except Exception:
+            pass
+
+        # Check if parent has theme information
+        if self.parent() and hasattr(self.parent(), "_current_theme"):
+            return getattr(self.parent(), "_current_theme", "light")
+
+        # Default to light theme
+        return "light"
 
     def _setup_ui(self) -> None:
         """Set up the user interface."""
@@ -140,6 +163,10 @@ class MessageBubble(QWidget):
         # Align based on role
         if self.role == MessageRole.USER:
             main_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
+        elif self.role == MessageRole.ASSISTANT:
+            # Natural text flow - fill the width for better readability
+            main_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+            self.setMaximumWidth(16777215)  # Remove width constraint for natural flow
         else:
             main_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
@@ -150,13 +177,32 @@ class MessageBubble(QWidget):
         else:
             self._apply_light_theme_styling()
 
+        # Ensure text color is properly set on the actual QLabel widgets
+        self._apply_direct_text_colors()
+
+    def _apply_direct_text_colors(self) -> None:
+        """Apply text colors directly to QLabel widgets for better visibility."""
+        from PyQt6.QtGui import QColor, QPalette
+
+        if self.role == MessageRole.ASSISTANT and hasattr(self, "content_text"):
+            # Set text color directly on the content label
+            palette = self.content_text.palette()
+            if self._current_theme == "dark":
+                # Ensure white text in dark mode
+                palette.setColor(QPalette.ColorRole.WindowText, QColor(255, 255, 255))
+            else:
+                # Dark text in light mode
+                palette.setColor(QPalette.ColorRole.WindowText, QColor(51, 51, 51))
+            self.content_text.setPalette(palette)
+
     def _apply_light_theme_styling(self) -> None:
-        """Apply light theme styling (current implementation)."""
+        """Apply light theme styling with natural text flow for AI messages."""
         # Timestamp styling for light theme
         self.timestamp_label.setStyleSheet("color: #666;")
         self.error_label.setStyleSheet("color: red; font-weight: bold;")
 
         if self.role == MessageRole.USER:
+            # Keep user messages as bubbles
             self.setStyleSheet("""
                 MessageBubble {
                     background-color: #2196F3;
@@ -174,20 +220,22 @@ class MessageBubble(QWidget):
                 }
             """)
         elif self.role == MessageRole.ASSISTANT:
+            # Natural text flow for AI messages - remove bubble styling
             self.setStyleSheet("""
                 MessageBubble {
-                    background-color: #f0f0f0;
-                    border-radius: 18px;
-                    margin-right: 50px;
+                    background-color: transparent;
+                    border: none;
+                    margin: 8px 0px;
+                    padding: 0px;
                 }
                 QLabel {
                     color: #333;
                     background-color: transparent;
                 }
                 QFrame {
-                    background-color: #f0f0f0;
-                    border-radius: 18px;
-                    border: 1px solid #ddd;
+                    background-color: transparent;
+                    border: none;
+                    border-radius: 0px;
                 }
             """)
         else:  # SYSTEM
@@ -233,21 +281,22 @@ class MessageBubble(QWidget):
                 }
             """)
         elif self.role == MessageRole.ASSISTANT:
-            # Assistant messages: Use dark theme colors from dark.qss
+            # Natural text flow for AI messages in dark theme - remove bubble styling
             self.setStyleSheet("""
                 MessageBubble {
-                    background-color: #383838;
-                    border-radius: 18px;
-                    margin-right: 50px;
+                    background-color: transparent;
+                    border: none;
+                    margin: 8px 0px;
+                    padding: 0px;
                 }
                 QLabel {
-                    color: #ffffff;
+                    color: #ffffff !important;
                     background-color: transparent;
                 }
                 QFrame {
-                    background-color: #383838;
-                    border-radius: 18px;
-                    border: 1px solid #555555;
+                    background-color: transparent;
+                    border: none;
+                    border-radius: 0px;
                 }
             """)
         else:  # SYSTEM
@@ -392,6 +441,9 @@ class MessageDisplayArea(QWidget):
         self._animation_dots = 0  # For animated dots (0-3)
         self._base_message = ""  # Base message without animation
 
+        # Theme tracking for new message bubbles
+        self._current_theme = "light"
+
         self._setup_ui()
         self._connect_signals()
 
@@ -450,6 +502,9 @@ class MessageDisplayArea(QWidget):
         """Handle message added to model."""
         bubble = MessageBubble(message)
         self._message_bubbles[message.message_id] = bubble
+
+        # Apply current theme to the new bubble
+        bubble.apply_theme(self._current_theme)
 
         # Insert before the spacer (last item)
         self.content_layout.insertWidget(self.content_layout.count() - 1, bubble)
@@ -803,6 +858,9 @@ class MessageDisplayArea(QWidget):
 
     def apply_theme(self, theme: str) -> None:
         """Apply theme to the display area."""
+        # Track current theme for new message bubbles
+        self._current_theme = theme
+
         if theme == "dark":
             self.setStyleSheet("""
                 QScrollArea {
