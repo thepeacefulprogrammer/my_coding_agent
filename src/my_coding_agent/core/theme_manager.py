@@ -6,14 +6,17 @@ including dark mode styling and theme persistence.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QSettings
+from PyQt6.QtCore import QObject, QSettings, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from my_coding_agent.assets import get_theme_file
 
 
-class ThemeManager:
+class ThemeManager(QObject):
     """Manages application themes including dark mode styling."""
+
+    # Signal emitted when theme changes
+    theme_changed = pyqtSignal(str)
 
     def __init__(self, app: QApplication):
         """Initialize the ThemeManager.
@@ -21,8 +24,10 @@ class ThemeManager:
         Args:
             app: The QApplication instance to apply themes to
         """
+        super().__init__()
         self.app = app
         self._available_themes = ["light", "dark"]
+        self._connected_widgets = []  # Track widgets for automatic theme updates
 
         # Load saved theme or default to dark
         self._settings = QSettings("my_coding_agent", "Simple Code Viewer")
@@ -75,6 +80,9 @@ class ThemeManager:
 
             # Save to settings
             self._settings.setValue("theme/current", theme_name)
+
+            # Emit signal for automatic theme adaptation
+            self.theme_changed.emit(theme_name)
 
             return True
         except Exception:
@@ -151,3 +159,21 @@ class ThemeManager:
         """Refresh the current theme by reloading and reapplying it."""
         current = self._current_theme
         self.set_theme(current)
+
+    def register_widget(self, widget: QWidget) -> None:
+        """Register a widget for automatic theme updates.
+
+        Args:
+            widget: Widget to register for theme updates
+        """
+        if widget not in self._connected_widgets:
+            self._connected_widgets.append(widget)
+
+    def unregister_widget(self, widget: QWidget) -> None:
+        """Unregister a widget from automatic theme updates.
+
+        Args:
+            widget: Widget to unregister from theme updates
+        """
+        if widget in self._connected_widgets:
+            self._connected_widgets.remove(widget)

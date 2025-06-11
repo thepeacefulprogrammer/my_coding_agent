@@ -82,16 +82,18 @@ class MessageBubble(QWidget):
 
     def _setup_ui(self) -> None:
         """Set up the user interface."""
-        self.setMaximumWidth(600)
+        # Remove width constraint - let messages fill naturally
+        # self.setMaximumWidth(600)
 
         # Main layout
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(8, 6, 8, 6)
         main_layout.setSpacing(4)
 
-        # Content area
+        # Content area - remove frame styling since we'll style the MessageBubble itself
         content_frame = QFrame()
-        content_frame.setFrameStyle(QFrame.Shape.Box)
+        # Remove the frame border - we'll style the bubble itself
+        # content_frame.setFrameStyle(QFrame.Shape.Box)
         content_layout = QVBoxLayout(content_frame)
         content_layout.setContentsMargins(12, 8, 12, 8)
         content_layout.setSpacing(4)
@@ -122,53 +124,26 @@ class MessageBubble(QWidget):
         # Add spacing between content and bottom info
         content_layout.addSpacing(4)
 
-        # Bottom info layout
-        info_layout = QHBoxLayout()
-        info_layout.setContentsMargins(0, 0, 0, 0)
-        info_layout.setSpacing(6)  # Add spacing between timestamp and status
-
-        # Timestamp
-        self.timestamp_label = QLabel()
-        self.timestamp_label.setText(self.message.format_timestamp("%H:%M"))
-        self.timestamp_label.setFont(QFont("", 8))
-        self.timestamp_label.setSizePolicy(
-            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
-        )
-        info_layout.addWidget(self.timestamp_label)
-
-        # Status indicator
-        self.status_label = QLabel()
-        self._update_status_display()
-        self.status_label.setFont(QFont("", 8))
-        self.status_label.setSizePolicy(
-            QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
-        )
-        info_layout.addWidget(self.status_label)
-
-        # Add stretch to push timestamp/status to the right for user messages
-        if self.role == MessageRole.USER:
-            info_layout.insertStretch(0, 1)  # Add stretch at the beginning
-        else:
-            info_layout.addStretch(1)  # Add stretch at the end
+        # No bottom info layout - all metadata (timestamps and status) removed
 
         # Error message (hidden by default)
         self.error_label = QLabel()
         self.error_label.hide()
 
-        content_layout.addLayout(info_layout)
         content_layout.addWidget(self.error_label)
 
         main_layout.addWidget(content_frame)
 
-        # Align based on role
-        if self.role == MessageRole.USER:
-            main_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
-        elif self.role == MessageRole.ASSISTANT:
+        # All messages are left-aligned now for consistent layout
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        # Only AI messages get unlimited width for natural flow
+        if self.role == MessageRole.ASSISTANT:
             # Natural text flow - fill the width for better readability
-            main_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
             self.setMaximumWidth(16777215)  # Remove width constraint for natural flow
         else:
-            main_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
+            # User and system messages can have reasonable max width
+            self.setMaximumWidth(600)
 
     def _apply_styling(self) -> None:
         """Apply styling based on message role and current theme."""
@@ -197,35 +172,37 @@ class MessageBubble(QWidget):
 
     def _apply_light_theme_styling(self) -> None:
         """Apply light theme styling with natural text flow for AI messages."""
-        # Timestamp styling for light theme
-        self.timestamp_label.setStyleSheet("color: #666;")
+        # Error label styling for light theme
         self.error_label.setStyleSheet("color: red; font-weight: bold;")
 
         if self.role == MessageRole.USER:
-            # Keep user messages as bubbles
+            # User messages: left-aligned with subtle border for distinction
             self.setStyleSheet("""
                 MessageBubble {
-                    background-color: #2196F3;
-                    border-radius: 18px;
-                    margin-left: 50px;
+                    background-color: #f8f9fa;
+                    border: 2px solid #4285F4;
+                    border-radius: 8px;
+                    margin: 4px 0px;
+                    padding: 10px;
                 }
                 QLabel {
-                    color: white;
+                    color: #333;
                     background-color: transparent;
+                    border: none;
                 }
                 QFrame {
-                    background-color: #2196F3;
-                    border-radius: 18px;
+                    background-color: transparent;
                     border: none;
+                    border-radius: 0px;
                 }
             """)
         elif self.role == MessageRole.ASSISTANT:
-            # Natural text flow for AI messages - remove bubble styling
+            # AI messages: left-aligned, no border, transparent background
             self.setStyleSheet("""
                 MessageBubble {
                     background-color: transparent;
                     border: none;
-                    margin: 8px 0px;
+                    margin: 4px 0px;
                     padding: 0px;
                 }
                 QLabel {
@@ -242,51 +219,56 @@ class MessageBubble(QWidget):
             self.setStyleSheet("""
                 MessageBubble {
                     background-color: #fff3cd;
-                    border-radius: 12px;
-                    margin: 0px 20px;
+                    border-radius: 8px;
+                    margin: 4px 0px;
+                    padding: 10px;
+                    border: 1px solid #ffeaa7;
                 }
                 QLabel {
                     color: #856404;
                     background-color: transparent;
+                    border: none;
                 }
                 QFrame {
-                    background-color: #fff3cd;
-                    border-radius: 12px;
-                    border: 1px solid #ffeaa7;
+                    background-color: transparent;
+                    border: none;
+                    border-radius: 0px;
                 }
             """)
 
     def _apply_dark_theme_styling(self) -> None:
         """Apply dark theme styling consistent with main application."""
-        # Timestamp styling for dark theme (consistent with dark.qss)
-        self.timestamp_label.setStyleSheet("color: #888888;")
+        # Error label styling for dark theme (consistent with dark.qss)
         self.error_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
 
         if self.role == MessageRole.USER:
-            # User messages: Keep blue but adapt for dark theme
+            # User messages: left-aligned with subtle border for distinction (dark theme)
             self.setStyleSheet("""
                 MessageBubble {
-                    background-color: #1976D2;
-                    border-radius: 18px;
-                    margin-left: 50px;
+                    background-color: #2a2a2a;
+                    border: 2px solid #1E88E5;
+                    border-radius: 8px;
+                    margin: 4px 0px;
+                    padding: 10px;
                 }
                 QLabel {
                     color: white;
                     background-color: transparent;
+                    border: none;
                 }
                 QFrame {
-                    background-color: #1976D2;
-                    border-radius: 18px;
+                    background-color: transparent;
                     border: none;
+                    border-radius: 0px;
                 }
             """)
         elif self.role == MessageRole.ASSISTANT:
-            # Natural text flow for AI messages in dark theme - remove bubble styling
+            # AI messages: left-aligned, no border, transparent background (dark theme)
             self.setStyleSheet("""
                 MessageBubble {
                     background-color: transparent;
                     border: none;
-                    margin: 8px 0px;
+                    margin: 4px 0px;
                     padding: 0px;
                 }
                 QLabel {
@@ -304,54 +286,31 @@ class MessageBubble(QWidget):
             self.setStyleSheet("""
                 MessageBubble {
                     background-color: #353535;
-                    border-radius: 12px;
-                    margin: 0px 20px;
+                    border-radius: 8px;
+                    margin: 4px 0px;
+                    padding: 10px;
+                    border: 1px solid #555555;
                 }
                 QLabel {
                     color: #ffffff;
                     background-color: transparent;
+                    border: none;
                 }
                 QFrame {
-                    background-color: #353535;
-                    border-radius: 12px;
-                    border: 1px solid #555555;
+                    background-color: transparent;
+                    border: none;
+                    border-radius: 0px;
                 }
             """)
 
     def _update_status_display(self) -> None:
-        """Update the status display."""
-        # Get current status for display
-        current_status = getattr(self, "_current_status", self.message.status)
-
-        status_text = ""
-        if current_status == MessageStatus.PENDING:
-            status_text = "⏳"
-        elif current_status == MessageStatus.SENDING:
-            status_text = "📤"
-        elif current_status == MessageStatus.SENT:
-            status_text = "✓"
-        elif current_status == MessageStatus.DELIVERED:
-            status_text = "✓✓"
-        elif current_status == MessageStatus.ERROR:
-            status_text = "❌"
-        elif current_status == MessageStatus.TYPING:
-            status_text = "💭"
-
-        self.status_label.setText(status_text)
+        """Update the status display - no-op since status display was removed."""
+        # Status display removed in task 3.3 - keep method for compatibility
+        pass
 
     def get_displayed_content(self) -> str:
         """Get the displayed content."""
         return self.content_text.text()
-
-    def get_timestamp_text(self) -> str:
-        """Get the timestamp text."""
-        return self.timestamp_label.text()
-
-    def get_status_text(self) -> str:
-        """Get the status text."""
-        if hasattr(self, "_current_status"):
-            return self._current_status.value
-        return self.message.status.value
 
     def update_status(self, status: MessageStatus) -> None:
         """Update the message status and refresh display."""
@@ -442,7 +401,8 @@ class MessageDisplayArea(QWidget):
         self._base_message = ""  # Base message without animation
 
         # Theme tracking for new message bubbles
-        self._current_theme = "light"
+        # Default to dark theme to match ThemeManager default
+        self._current_theme = "dark"
 
         self._setup_ui()
         self._connect_signals()
@@ -480,14 +440,14 @@ class MessageDisplayArea(QWidget):
         self.scroll_area.setWidget(self.content_widget)
         main_layout.addWidget(self.scroll_area)
 
-        # Apply styling
+        # Apply dark theme styling by default
         self.setStyleSheet("""
             QScrollArea {
                 border: none;
-                background-color: white;
+                background-color: #2b2b2b;
             }
             QWidget {
-                background-color: white;
+                background-color: #2b2b2b;
             }
         """)
 

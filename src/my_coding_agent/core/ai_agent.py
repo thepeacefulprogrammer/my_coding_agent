@@ -565,103 +565,154 @@ class AIAgent:
             )
 
     def _categorize_error(self, exception: Exception) -> tuple[str, str]:
-        """Categorize the error and return error type and user-friendly message.
+        """
+        Categorize an error and return error type and user-friendly message.
+        Enhanced with comprehensive error handling for streaming scenarios.
 
         Args:
-            exception: The exception that occurred.
+            exception: The exception to categorize
 
         Returns:
-            Tuple of (error_type, error_message).
+            Tuple of (error_type, user_friendly_message)
         """
-        error_str = str(exception)
+        # File system errors (check these before OSError since they inherit from it)
+        if isinstance(exception, FileNotFoundError):
+            return "file_not_found", "Requested file was not found."
 
-        # Import Pydantic AI specific exceptions
-        try:
-            from pydantic_ai.exceptions import (
-                ModelHTTPError,
-                UnexpectedModelBehavior,
-                UsageLimitExceeded,
-            )
+        if isinstance(exception, FileExistsError):
+            return "file_exists", "File already exists."
 
-            # Handle specific Pydantic AI exceptions
-            if isinstance(exception, UnexpectedModelBehavior):
-                return "model_behavior", f"AI model behavior error: {error_str}"
-
-            if isinstance(exception, UsageLimitExceeded):
-                return "usage_limit", f"Usage limit exceeded: {error_str}"
-
-            if isinstance(exception, ModelHTTPError):
-                return "http_error", f"HTTP error from AI service: {error_str}"
-        except ImportError:
-            # Pydantic AI exceptions not available, continue with other error types
-            pass
-
-        # Handle timeout errors
-        if isinstance(exception, asyncio.TimeoutError):
+        if isinstance(exception, PermissionError):
             return (
-                "timeout",
-                f"Request timed out after {self.config.request_timeout} seconds",
+                "permission_error",
+                "Permission denied. Please check your access rights.",
             )
 
-        # Handle HTTP errors
-        try:
-            import httpx
-
-            if isinstance(exception, httpx.HTTPStatusError):
-                status_code = exception.response.status_code
-                if status_code == 401:
-                    return (
-                        "authentication",
-                        "Authentication failed - please check your API key",
-                    )
-                elif status_code == 403:
-                    return (
-                        "authorization",
-                        "Access forbidden - insufficient permissions",
-                    )
-                elif status_code == 429:
-                    return "rate_limit", "Rate limit exceeded - please try again later"
-                elif status_code >= 500:
-                    return (
-                        "server_error",
-                        f"Server error ({status_code}) - please try again later",
-                    )
-                else:
-                    return "http_error", f"HTTP error {status_code}: {error_str}"
-
-            if isinstance(exception, httpx.ConnectError):
-                return "connection", f"Connection failed: {error_str}"
-
-            if isinstance(exception, httpx.RequestError):
-                return "request", f"Request error: {error_str}"
-
-        except ImportError:
-            pass
-
-        # Handle general authentication/authorization errors
-        if any(
-            keyword in error_str.lower()
-            for keyword in ["auth", "api key", "unauthorized", "invalid key"]
+        # Network and connection errors
+        if isinstance(
+            exception, (ConnectionError, ConnectionRefusedError, ConnectionResetError)
         ):
             return (
-                "authentication",
-                "Authentication failed - please check your API key and endpoint",
+                "connection_error",
+                "Network connection failed. Please check your internet connection and try again.",
             )
 
-        if any(
-            keyword in error_str.lower()
-            for keyword in ["rate limit", "quota", "throttle"]
-        ):
-            return "rate_limit", "Rate limit exceeded - please try again later"
+        # Timeout errors
+        if isinstance(exception, (asyncio.TimeoutError, TimeoutError)):
+            return (
+                "timeout_error",
+                "Request timed out. The service may be experiencing high load. Please try again.",
+            )
 
-        if any(
-            keyword in error_str.lower()
-            for keyword in ["network", "connection", "dns", "resolve"]
-        ):
-            return "connection", f"Network connection error: {error_str}"
+        # Memory and resource errors
+        if isinstance(exception, MemoryError):
+            return (
+                "memory_error",
+                "Insufficient memory available. Try reducing the request size or closing other applications.",
+            )
 
-        # Default catch-all
-        return "unknown", f"Error communicating with AI: {error_str}"
+        if isinstance(exception, OSError):
+            if "Too many open files" in str(exception):
+                return (
+                    "resource_exhaustion",
+                    "System resource limit reached. Please try again in a moment.",
+                )
+            return "system_error", "System error occurred. Please try again."
+
+        # HTTP and API specific errors
+        if hasattr(exception, "status_code"):
+            status_code = exception.status_code
+            if status_code == 401:
+                return (
+                    "authentication_error",
+                    "Authentication failed. Please check your API credentials.",
+                )
+            elif status_code == 403:
+                return (
+                    "authorization_error",
+                    "Access forbidden. You don't have permission for this operation.",
+                )
+            elif status_code == 429:
+                return (
+                    "rate_limit_error",
+                    "Rate limit exceeded. Please wait before making another request.",
+                )
+            elif status_code >= 500:
+                return "server_error", "Server error occurred. Please try again later."
+            elif status_code >= 400:
+                return (
+                    "client_error",
+                    f"Request error (HTTP {status_code}). Please check your request.",
+                )
+
+        # AI model specific errors
+        if "token" in str(exception).lower():
+            if (
+                "limit" in str(exception).lower()
+                or "exceeded" in str(exception).lower()
+            ):
+                return (
+                    "token_limit_error",
+                    "Token limit exceeded. Please try with a shorter message.",
+                )
+            return "token_error", "Token-related error occurred."
+
+        # Streaming specific errors
+        if "stream" in str(exception).lower():
+            if (
+                "interrupted" in str(exception).lower()
+                or "cancelled" in str(exception).lower()
+            ):
+                return (
+                    "stream_interrupted",
+                    "Stream was interrupted. You can try sending the message again.",
+                )
+            if "corrupted" in str(exception).lower():
+                return (
+                    "stream_corruption",
+                    "Stream data was corrupted. Retrying automatically.",
+                )
+            return (
+                "streaming_error",
+                "Streaming error occurred. Falling back to standard response.",
+            )
+
+        # Validation and input errors
+        if isinstance(exception, (ValueError, TypeError)):
+            return (
+                "validation_error",
+                "Invalid input provided. Please check your request and try again.",
+            )
+
+        # Import and module errors
+        if isinstance(exception, (ImportError, ModuleNotFoundError)):
+            return (
+                "dependency_error",
+                "Required dependency is missing. Please check your installation.",
+            )
+
+        # Asyncio specific errors
+        if isinstance(exception, asyncio.CancelledError):
+            return "operation_cancelled", "Operation was cancelled."
+
+        # JSON and data parsing errors
+        if "json" in str(exception).lower() or isinstance(
+            exception, (KeyError, AttributeError)
+        ):
+            return (
+                "data_error",
+                "Data parsing error occurred. The response format may be unexpected.",
+            )
+
+        # SSL and security errors
+        if "ssl" in str(exception).lower() or "certificate" in str(exception).lower():
+            return (
+                "ssl_error",
+                "SSL/TLS error occurred. Please check your connection security settings.",
+            )
+
+        # Default fallback for unknown errors
+        return "unknown", f"An unexpected error occurred: {str(exception)}"
 
     async def send_message(self, message: str) -> AIResponse:
         """Send a message to the AI and get a response.

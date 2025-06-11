@@ -91,39 +91,50 @@ class TestMessageBubble:
         assert displayed_content == "Hello, AI assistant!"
 
     def test_message_bubble_timestamp_display(self, qtbot, qtbot_app, user_message):
-        """Test that timestamp is displayed."""
+        """Test that timestamp is NOT displayed (removed in task 3.3)."""
         bubble = MessageBubble(user_message)
         qtbot.addWidget(bubble)
 
-        # Should have timestamp display
-        assert hasattr(bubble, "timestamp_label")
-        timestamp_text = bubble.get_timestamp_text()
-        assert isinstance(timestamp_text, str)
-        assert len(timestamp_text) > 0
+        # Should NOT have timestamp display after task 3.3
+        assert not hasattr(bubble, "timestamp_label")
+        assert not hasattr(bubble, "get_timestamp_text")
+
+        # Verify that message data still has timestamp (for export purposes)
+        assert user_message.timestamp is not None
 
     def test_message_bubble_status_display(self, qtbot, qtbot_app, user_message):
-        """Test that message status is displayed."""
+        """Test that message status is NOT displayed (removed in task 3.3)."""
         bubble = MessageBubble(user_message)
         qtbot.addWidget(bubble)
 
-        # Should show status
-        status_text = bubble.get_status_text()
-        assert "pending" in status_text.lower() or "sent" in status_text.lower()
+        # Should NOT have status display after task 3.3
+        assert not hasattr(bubble, "status_label"), "Status label should not exist"
+        assert not hasattr(bubble, "get_status_text"), (
+            "get_status_text method should not exist"
+        )
+
+        # But internal status tracking should still work
+        assert hasattr(bubble, "update_status"), (
+            "update_status method should exist for internal tracking"
+        )
 
     def test_message_bubble_status_update(self, qtbot, qtbot_app, user_message):
-        """Test updating message status in bubble."""
+        """Test updating message status internally (no visual display)."""
         bubble = MessageBubble(user_message)
         qtbot.addWidget(bubble)
 
-        # Update status
+        # Update status - should work internally but not be displayed
         bubble.update_status(MessageStatus.SENT)
-        status_text = bubble.get_status_text()
-        assert "sent" in status_text.lower()
+
+        # Internal state should be updated
+        assert hasattr(bubble, "_current_status"), (
+            "Internal status state should be maintained"
+        )
+        assert bubble._current_status == MessageStatus.SENT
 
         # Update to error
         bubble.update_status(MessageStatus.ERROR)
-        status_text = bubble.get_status_text()
-        assert "error" in status_text.lower()
+        assert bubble._current_status == MessageStatus.ERROR
 
     def test_message_bubble_error_display(self, qtbot, qtbot_app, user_message):
         """Test displaying error messages."""
@@ -316,10 +327,15 @@ class TestMessageDisplayArea:
         # Process any pending events to ensure signal handling completes
         QApplication.processEvents()
 
-        # Display should reflect the update
+        # Display should reflect the update - but status no longer displayed (Task 3.3)
         bubble = display_area.get_message_bubble(message.message_id)
         assert bubble is not None
-        assert "sent" in bubble.get_status_text().lower()
+
+        # Verify internal status tracking still works
+        assert bubble.message.status == MessageStatus.SENT
+        # But no visual status display (removed in task 3.3)
+        assert not hasattr(bubble, "status_label")
+        assert not hasattr(bubble, "get_status_text")
 
     def test_display_area_message_removal(self, display_area, message_model):
         """Test removing messages from display."""

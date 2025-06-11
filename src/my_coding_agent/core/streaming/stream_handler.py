@@ -283,73 +283,156 @@ class StreamHandler:
         stream_id: str,
     ) -> None:
         """
-        Process chunks from the generator and call callback for each.
+        Process chunks from the generator and handle them with comprehensive error handling.
+
+        Enhanced with:
+        - Callback error isolation
+        - Circuit breaker pattern for repeated callback failures
+        - Graceful degradation on errors
+        - Memory pressure detection
+        - Progressive backoff on failures
 
         Args:
-            chunk_generator: The async generator to process
-            callback: Callback function for each chunk
+            chunk_generator: Generator producing text chunks
+            callback: Function to call for each chunk
             stream_id: Unique identifier for this stream
         """
         chunk_count = 0
+        callback_failure_count = 0
+        max_callback_failures = 3  # Circuit breaker threshold
+        last_callback_error = None
 
         try:
-            # Convert to iterator for peek-ahead capability
-            chunk_iter = chunk_generator.__aiter__()
-            current_chunk = None
-
-            # Get the first chunk
-            try:
-                current_chunk = await chunk_iter.__anext__()
-                chunk_count = 1
-                self.processed_chunks = chunk_count
-            except StopAsyncIteration:
-                # Empty generator
-                if not self._interrupt_event.is_set():
-                    self.total_chunks = 0
-                    self.state = StreamState.COMPLETED
+            # Check for interruption before starting
+            if self._interrupt_event.is_set():
+                logger.info(f"Stream {stream_id} interrupted before processing")
+                self.state = StreamState.INTERRUPTED
                 return
 
-            while current_chunk is not None:
-                # Check for interruption
+            async for current_chunk in chunk_generator:
+                # Check for interruption during processing
                 if self._interrupt_event.is_set():
-                    logger.info(
-                        f"Stream {stream_id} interrupted at chunk {chunk_count}"
-                    )
+                    logger.info(f"Stream {stream_id} interrupted during processing")
+                    self.state = StreamState.INTERRUPTED
                     return
 
-                # Try to peek at the next chunk to determine if current is final
+                chunk_count += 1
+                self.processed_chunks = chunk_count
+
+                # Circuit breaker: stop calling callback if too many failures
+                if callback_failure_count >= max_callback_failures:
+                    logger.warning(
+                        f"Stream {stream_id}: Circuit breaker open - too many callback failures ({callback_failure_count}). "
+                        f"Continuing stream without callbacks. Last error: {last_callback_error}"
+                    )
+                    continue
+
+                # Memory pressure detection
                 try:
-                    next_chunk = await chunk_iter.__anext__()
-                    # We have a next chunk, so current is not final
-                    callback(current_chunk, stream_id, chunk_count, False)
+                    import sys
 
-                    # Move to next chunk
-                    current_chunk = next_chunk
-                    chunk_count += 1
-                    self.processed_chunks = chunk_count
+                    if sys.getsizeof(current_chunk) > 1024 * 1024:  # 1MB chunk
+                        logger.warning(
+                            f"Stream {stream_id}: Large chunk detected ({len(current_chunk)} chars), may cause memory pressure"
+                        )
+                        # Could implement chunk splitting here for graceful degradation
 
-                except StopAsyncIteration:
-                    # No next chunk, so current is final
-                    callback(current_chunk, stream_id, chunk_count, True)
-                    current_chunk = None  # Exit the loop
-                except Exception as peek_error:
-                    # Error occurred while trying to get next chunk
-                    # Process current chunk as final since we can't continue
-                    callback(current_chunk, stream_id, chunk_count, True)
-                    # Re-raise the error to be handled by outer try-catch
-                    raise peek_error
+                except Exception as memory_check_error:
+                    logger.debug(f"Memory check failed: {memory_check_error}")
 
-                # Small delay to allow other tasks to run and interruption to be processed
-                await asyncio.sleep(0.001)
+                # Call callback with error isolation
+                try:
+                    # Handle both sync and async callbacks
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback(current_chunk, stream_id, chunk_count, False)
+                    else:
+                        callback(current_chunk, stream_id, chunk_count, False)
 
-            # Mark completed if we processed all chunks normally
-            if not self._interrupt_event.is_set():
-                self.total_chunks = chunk_count
-                self.state = StreamState.COMPLETED
-                logger.info(f"Stream {stream_id} completed with {chunk_count} chunks")
+                    # Reset failure count on successful callback
+                    if callback_failure_count > 0:
+                        logger.info(
+                            f"Stream {stream_id}: Callback recovered after {callback_failure_count} failures"
+                        )
+                        callback_failure_count = 0
+                        last_callback_error = None
+
+                except Exception as callback_error:
+                    callback_failure_count += 1
+                    last_callback_error = callback_error
+
+                    logger.error(
+                        f"Stream {stream_id}: Callback failed for chunk {chunk_count} "
+                        f"(failure {callback_failure_count}/{max_callback_failures}): {callback_error}"
+                    )
+
+                    # Implement progressive backoff for callback failures
+                    if callback_failure_count < max_callback_failures:
+                        backoff_time = min(
+                            0.1 * (2 ** (callback_failure_count - 1)), 1.0
+                        )  # Max 1 second
+                        logger.debug(
+                            f"Stream {stream_id}: Backing off {backoff_time}s after callback failure"
+                        )
+                        await asyncio.sleep(backoff_time)
+
+                    # Continue processing even if callback fails (error isolation)
+                    continue
+
+            # Final callback (only if circuit breaker is not open)
+            if callback_failure_count < max_callback_failures:
+                try:
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback("", stream_id, chunk_count, True)
+                    else:
+                        callback("", stream_id, chunk_count, True)
+                except Exception as final_callback_error:
+                    logger.error(
+                        f"Stream {stream_id}: Final callback failed: {final_callback_error}"
+                    )
+                    # Don't fail the stream for final callback errors
+
+            # Set completion state
+            self.state = StreamState.COMPLETED
+            self.total_chunks = chunk_count
+
+            logger.debug(
+                f"Stream {stream_id} completed successfully. "
+                f"Processed {chunk_count} chunks with {callback_failure_count} callback failures"
+            )
+
+        except asyncio.CancelledError:
+            logger.info(f"Stream {stream_id} was cancelled")
+            self.state = StreamState.INTERRUPTED
+            raise
 
         except Exception as e:
-            self.last_error = e
+            # Handle stream-level errors with graceful degradation
+            logger.error(f"Stream {stream_id} failed: {e}")
             self.state = StreamState.ERROR
-            logger.error(f"Error in stream {stream_id}: {e}", exc_info=True)
-            raise
+            self.last_error = e
+
+            # Attempt graceful cleanup
+            try:
+                # Try to notify about the error (but don't fail if this fails too)
+                if callback_failure_count < max_callback_failures:
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback(
+                            f"[Stream Error: {str(e)}]",
+                            stream_id,
+                            chunk_count + 1,
+                            True,
+                        )
+                    else:
+                        callback(
+                            f"[Stream Error: {str(e)}]",
+                            stream_id,
+                            chunk_count + 1,
+                            True,
+                        )
+            except Exception as cleanup_error:
+                logger.debug(
+                    f"Stream {stream_id}: Error cleanup callback failed: {cleanup_error}"
+                )
+
+            # Don't re-raise to prevent cascading errors in the calling code
+            # The error state and last_error are available for inspection

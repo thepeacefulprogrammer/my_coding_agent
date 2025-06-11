@@ -203,7 +203,7 @@ class MainWindow(QMainWindow):
         right_panel.setLineWidth(1)
 
         # Add chat widget to right panel
-        from ..gui.chat_widget import ChatWidget
+        from ..gui.chat_widget_v2 import SimplifiedChatWidget as ChatWidget
 
         right_layout = QVBoxLayout(right_panel)
         right_layout.setContentsMargins(5, 5, 5, 5)  # Small margins
@@ -260,6 +260,18 @@ class MainWindow(QMainWindow):
         if file_menu is None:
             return
 
+        # Create New Chat action
+        new_chat_action = QAction("&New Chat", self)
+        new_chat_action.setObjectName("new_chat_action")
+        new_chat_action.setShortcut(QKeySequence.StandardKey.New)  # Ctrl+N
+        new_chat_action.setStatusTip("Start a new chat conversation")
+        new_chat_action.setToolTip("Start a new chat conversation (Ctrl+N)")
+        new_chat_action.triggered.connect(self._new_chat)
+        file_menu.addAction(new_chat_action)
+
+        # Add separator after New Chat
+        file_menu.addSeparator()
+
         # Create Open action
         open_action = QAction("&Open", self)
         open_action.setObjectName("open_action")
@@ -299,6 +311,7 @@ class MainWindow(QMainWindow):
             self._toggle_theme_action = toggle_theme_action
 
         # Store references for testing
+        self._new_chat_action = new_chat_action
         self._open_action = open_action
         self._exit_action = exit_action
 
@@ -720,3 +733,24 @@ class MainWindow(QMainWindow):
         # This method is kept for compatibility but should not be used
         # with the new streaming implementation
         pass
+
+    def _new_chat(self) -> None:
+        """Start a new chat conversation by clearing the current conversation."""
+        if hasattr(self, "_chat_widget") and self._chat_widget is not None:
+            # Reset streaming state if widget supports it
+            if hasattr(self._chat_widget, "_is_streaming"):
+                self._chat_widget._is_streaming = False
+
+            # Clear the conversation
+            self._chat_widget.clear_conversation()
+
+            # Provide status feedback
+            if hasattr(self, "_file_info_label"):
+                self._file_info_label.setText("New chat started")
+
+            # Also update the status bar with a temporary message
+            status_bar = self.statusBar()
+            if status_bar is not None:
+                status_bar.showMessage(
+                    "New chat conversation started", 3000
+                )  # Show for 3 seconds
