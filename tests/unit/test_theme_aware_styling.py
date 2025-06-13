@@ -319,7 +319,6 @@ class TestThemeAwareStylingSuite:
         )
 
         # Mock theme adaptation to raise exception
-        original_method = message_display._on_theme_changed
 
         def failing_adaptation(*args):
             raise Exception("Theme adaptation failed")

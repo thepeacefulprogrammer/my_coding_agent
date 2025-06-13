@@ -173,7 +173,7 @@ class TestNewChatFunctionalitySuite:
         chat_widget.add_user_message("Hello")
         chat_widget.add_assistant_message("Hi there!")
 
-        initial_message_count = chat_widget.message_model.rowCount()
+        chat_widget.message_model.rowCount()
 
         # Trigger new chat
         main_window._new_chat_action.trigger()
@@ -239,7 +239,7 @@ class TestNewChatFunctionalitySuite:
         chat_widget = main_window.chat_widget
         chat_widget.add_user_message("Important message")
 
-        initial_count = chat_widget.message_model.rowCount()
+        chat_widget.message_model.rowCount()
 
         # Trigger new chat - should clear immediately without confirmation
         main_window._new_chat_action.trigger()

@@ -113,7 +113,6 @@ class TestMessageDisplayComponent:
         """Test that message content can be updated."""
         display = MessageDisplay(sample_user_message)
 
-        original_content = "Original message"
         new_content = "Updated message content"
 
         # Update content
@@ -144,7 +143,7 @@ class TestMessageDisplayComponent:
         # Short content
         short_content = "Short"
         display.update_content(short_content)
-        short_height = display.height()
+        display.height()
 
         # Long content
         long_content = (

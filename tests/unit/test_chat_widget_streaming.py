@@ -49,7 +49,7 @@ class TestChatWidgetStreamingState:
     def test_start_streaming_response(self, chat_widget):
         """Test starting a streaming response creates proper state."""
         # Add a user message first
-        user_msg_id = chat_widget.add_user_message("Test question")
+        chat_widget.add_user_message("Test question")
 
         # Start streaming response
         stream_id = "test-stream-123"
@@ -171,7 +171,7 @@ class TestChatWidgetStreamingState:
         """Test prevention of multiple concurrent streaming responses."""
         # Start first stream
         stream_id1 = "test-stream-1"
-        msg_id1 = chat_widget.start_streaming_response(stream_id1)
+        chat_widget.start_streaming_response(stream_id1)
 
         # Try to start second stream - should raise error
         with pytest.raises(RuntimeError, match="Stream already active"):
@@ -184,7 +184,7 @@ class TestChatWidgetStreamingState:
         """Test streaming indicator shows retry information."""
         # Start streaming with retry count
         stream_id = "test-stream-retry"
-        msg_id = chat_widget.start_streaming_response(stream_id, retry_count=1)
+        chat_widget.start_streaming_response(stream_id, retry_count=1)
 
         # Should show retry information in indicator
         assert chat_widget.is_streaming_indicator_visible()
@@ -214,10 +214,10 @@ class TestChatWidgetStreamingState:
         """Test streaming state is properly maintained across operations."""
         # Start streaming
         stream_id = "test-stream-123"
-        msg_id = chat_widget.start_streaming_response(stream_id)
+        chat_widget.start_streaming_response(stream_id)
 
         # Add user message while streaming (should be allowed)
-        user_msg_id = chat_widget.add_user_message("Another question")
+        chat_widget.add_user_message("Another question")
 
         # Streaming state should be preserved
         assert chat_widget.is_streaming()
@@ -236,7 +236,7 @@ class TestChatWidgetStreamingState:
         """Test clearing conversation while streaming."""
         # Start streaming
         stream_id = "test-stream-123"
-        msg_id = chat_widget.start_streaming_response(stream_id)
+        chat_widget.start_streaming_response(stream_id)
         chat_widget.append_streaming_chunk("Some content")
 
         # Clear conversation

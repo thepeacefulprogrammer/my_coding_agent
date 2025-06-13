@@ -120,7 +120,7 @@ class TestNaturalTextFlow:
         bubble = MessageBubble(message)
 
         # Assistant messages should be left-aligned with full width
-        layout = bubble.layout()
+        bubble.layout()
         # The alignment is handled at the layout level, so we verify the width constraint removal
         assert bubble.maximumWidth() == 16777215
 
