@@ -18,6 +18,8 @@ from PyQt6.QtWidgets import QApplication
 # Import GUI fixtures directly to avoid module import issues in CI
 # GUI fixtures are defined in tests/unit/fixtures/gui_fixtures.py
 # but we import them here to make them available across all tests
+# Import the fixtures to make them available
+from tests.unit.fixtures.gui_fixtures import qapp_instance, qwidget  # noqa: F401
 
 
 @pytest.fixture(scope="session")
