@@ -8,17 +8,17 @@ import logging
 import sys
 from pathlib import Path
 
+# Add src to path before other imports (required for debug script)
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
 # Setup logging to see what's happening
 logging.basicConfig(
     level=logging.DEBUG, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from my_coding_agent.core.ai_agent import AIAgent, AIAgentConfig
-from my_coding_agent.core.mcp_file_server import MCPFileConfig
+from my_coding_agent.core.ai_agent import AIAgent, AIAgentConfig  # noqa: E402
+from my_coding_agent.core.mcp_file_server import MCPFileConfig  # noqa: E402
 
 
 async def test_streaming_functionality():
