@@ -37,13 +37,13 @@ class TestWorkspaceAwareOperations:
         with patch.dict(
             os.environ,
             {
-                "AZURE_OPENAI_API_KEY": "test_key",
-                "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com/",
-                "AZURE_OPENAI_DEPLOYMENT_NAME": "test_deployment",
+                "ENDPOINT": "https://test.openai.azure.com/",
+                "API_KEY": "test_key",
+                "MODEL": "test_deployment",
             },
         ):
             config = AIAgentConfig.from_env()
-            mcp_config = MCPFileConfig(base_directory=str(temp_workspace))
+            mcp_config = MCPFileConfig(base_directory=temp_workspace)
             agent = AIAgent(
                 config, mcp_config, enable_filesystem_tools=False
             )  # Don't need MCP for workspace tests
@@ -58,13 +58,13 @@ class TestWorkspaceAwareOperations:
         with patch.dict(
             os.environ,
             {
-                "AZURE_OPENAI_API_KEY": "test_key",
-                "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com/",
-                "AZURE_OPENAI_DEPLOYMENT_NAME": "test_deployment",
+                "API_KEY": "test_key",
+                "ENDPOINT": "https://test.openai.azure.com/",
+                "MODEL": "test_deployment",
             },
         ):
             config = AIAgentConfig.from_env()
-            mcp_config = MCPFileConfig(base_directory=str(temp_workspace))
+            mcp_config = MCPFileConfig(base_directory=temp_workspace)
             agent = AIAgent(config, mcp_config, enable_filesystem_tools=False)
             agent.set_workspace_root(temp_workspace)
             assert agent.workspace_root == temp_workspace
@@ -179,13 +179,13 @@ class TestWorkspaceAwareOperations:
         with patch.dict(
             os.environ,
             {
-                "AZURE_OPENAI_API_KEY": "test_key",
-                "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com/",
-                "AZURE_OPENAI_DEPLOYMENT_NAME": "test_deployment",
+                "API_KEY": "test_key",
+                "ENDPOINT": "https://test.openai.azure.com/",
+                "MODEL": "test_deployment",
             },
         ):
             config = AIAgentConfig.from_env()
-            mcp_config = MCPFileConfig(base_directory="/tmp")
+            mcp_config = MCPFileConfig(base_directory=Path("/tmp"))
             agent = AIAgent(config, mcp_config, enable_filesystem_tools=False)
 
             with pytest.raises(ValueError, match="Workspace root not set"):

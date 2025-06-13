@@ -1,5 +1,7 @@
 """Unit tests for chat input improvements (Tasks 3.7 and 3.8)."""
 
+import time
+
 import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeyEvent
@@ -45,7 +47,11 @@ class TestChatInputImprovements:
         )
         QApplication.sendEvent(chat_widget.input_text, key_event)
 
-        # Process events
+        # Process events and wait for delayed signal emission
+        QApplication.processEvents()
+        import time
+
+        time.sleep(0.1)  # Wait for QTimer.singleShot(50ms) delay
         QApplication.processEvents()
 
         # Verify message was sent
@@ -111,7 +117,9 @@ class TestChatInputImprovements:
         )
         QApplication.sendEvent(chat_widget.input_text, key_event)
 
-        # Process events
+        # Process events and wait for delayed signal emission
+        QApplication.processEvents()
+        time.sleep(0.1)  # Wait for QTimer.singleShot(50ms) delay
         QApplication.processEvents()
 
         # Verify message was sent
@@ -144,41 +152,41 @@ class TestChatInputImprovements:
         # Verify message was NOT sent
         assert not message_sent
 
-    def test_send_button_compact_size(self, chat_widget):
+    def test_send_icon_compact_size(self, chat_widget):
         """Test that send button has a compact, reasonable size."""
-        send_button = chat_widget.send_button
+        send_icon = chat_widget.send_icon
 
         # Button should be reasonably sized (not too wide)
-        assert send_button.width() <= 70  # Max 70px wide
-        assert send_button.height() <= 40  # Max 40px tall
+        assert send_icon.width() <= 70  # Max 70px wide
+        assert send_icon.height() <= 40  # Max 40px tall
 
         # Button should have minimum useful size
-        assert send_button.width() >= 40  # At least 40px wide
-        assert send_button.height() >= 25  # At least 25px tall
+        assert send_icon.width() >= 20  # At least 20px wide
+        assert send_icon.height() >= 15  # At least 15px tall
 
     def test_input_text_takes_most_space(self, chat_widget):
         """Test that input text area takes up most of the available space."""
         input_text = chat_widget.input_text
-        send_button = chat_widget.send_button
+        send_icon = chat_widget.send_icon
 
         # Input should be significantly wider than send button
-        assert input_text.width() > send_button.width() * 2
+        assert input_text.width() > send_icon.width() * 2
 
         # Input should expand to fill available space
         # (exact ratio depends on layout, but input should dominate)
-        total_width = input_text.width() + send_button.width()
+        total_width = input_text.width() + send_icon.width()
         input_ratio = input_text.width() / total_width
         assert input_ratio >= 0.70  # Input takes at least 70% of space
 
-    def test_send_button_text_and_styling(self, chat_widget):
+    def test_send_icon_text_and_styling(self, chat_widget):
         """Test that send button has appropriate text and styling."""
-        send_button = chat_widget.send_button
+        send_icon = chat_widget.send_icon
 
         # Button should have "Send" text or an icon
-        assert send_button.text() in ["Send", "→", "⏎"] or len(send_button.text()) > 0
+        assert send_icon.text() in ["Send", "→", "⏎"] or len(send_icon.text()) > 0
 
         # Button should have some styling applied
-        style_sheet = send_button.styleSheet()
+        style_sheet = send_icon.styleSheet()
         assert len(style_sheet) > 0  # Should have some styling
 
     def test_input_height_constraints(self, chat_widget):

@@ -15,8 +15,8 @@ repos:
         types: [python]
         exclude: ^src/my_coding_agent/_version\.py$
 
-      # Temporarily disabled pytest hook due to failing tests needing environment variables
-      # TODO: Re-enable after fixing test environment issues
+      # Temporarily disabled pytest hook while fixing remaining test failures
+      # TODO: Re-enable after fixing all test failures
       # - id: pytest
       #   name: pytest
       #   entry: python -m pytest tests/unit/ -q --tb=line

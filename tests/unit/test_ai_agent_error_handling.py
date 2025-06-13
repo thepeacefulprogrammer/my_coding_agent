@@ -43,13 +43,13 @@ class TestFileOperationErrorHandling:
         with patch.dict(
             os.environ,
             {
-                "AZURE_OPENAI_API_KEY": "test_key",
-                "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com/",
-                "AZURE_OPENAI_DEPLOYMENT_NAME": "test_deployment",
+                "ENDPOINT": "https://test.openai.azure.com/",
+                "API_KEY": "test_key",
+                "MODEL": "test_deployment",
             },
         ):
             config = AIAgentConfig.from_env()
-            mcp_config = MCPFileConfig(base_directory=str(temp_workspace))
+            mcp_config = MCPFileConfig(base_directory=temp_workspace)
             agent = AIAgent(config, mcp_config, enable_filesystem_tools=True)
             agent.set_workspace_root(temp_workspace)
 

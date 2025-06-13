@@ -11,6 +11,7 @@ import sys
 import tempfile
 from collections.abc import Generator
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from PyQt6.QtWidgets import QApplication
@@ -20,6 +21,23 @@ from PyQt6.QtWidgets import QApplication
 # but we import them here to make them available across all tests
 # Import the fixtures to make them available
 from tests.unit.fixtures.gui_fixtures import qapp_instance, qwidget  # noqa: F401
+
+
+# Global environment variable mocking for AI agent tests
+@pytest.fixture(autouse=True)
+def mock_ai_agent_env_vars():
+    """Mock AI agent environment variables for all tests."""
+    with patch.dict(
+        os.environ,
+        {
+            "ENDPOINT": "https://test.openai.azure.com/",
+            "API_KEY": "test_key",
+            "MODEL": "test_deployment",
+            "API_VERSION": "2024-02-15-preview",
+        },
+        clear=False,  # Don't clear existing environment variables
+    ):
+        yield
 
 
 @pytest.fixture(scope="session")

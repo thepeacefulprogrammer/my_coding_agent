@@ -620,8 +620,15 @@ class AIAgent:
             return "system_error", "System error occurred. Please try again."
 
         # HTTP and API specific errors
+        status_code = None
         if hasattr(exception, "status_code"):
             status_code = exception.status_code
+        elif hasattr(exception, "response") and hasattr(
+            exception.response, "status_code"
+        ):
+            status_code = exception.response.status_code
+
+        if status_code:
             if status_code == 401:
                 return (
                     "authentication_error",

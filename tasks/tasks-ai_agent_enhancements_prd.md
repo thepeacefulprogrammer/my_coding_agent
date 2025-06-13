@@ -129,9 +129,8 @@ Based on the [AI Agent Chat Enhancements PRD](ai_agent_enhancements_prd.md)
   - [ ] 5.4 Extend support for secondary languages (Bash, SQL, Markdown, XML)
   - [ ] 5.5 Ensure code highlighting matches application theme
   - [ ] 5.6 Implement proper code formatting with preserved indentation
-  - [ ] 5.7 Make code blocks read-only (no copying or editing from chat)
-  - [ ] 5.8 Integrate code blocks seamlessly into chat message flow
-  - [ ] 5.9 Add unit tests for code highlighting and language detection
+  - [ ] 5.7 Integrate code blocks seamlessly into chat message flow
+  - [ ] 5.8 Add unit tests for code highlighting and language detection
 
 - [ ] 6.0 Implement Memory Intelligence and RAG Integration
   - [ ] 6.1 Implement RAG engine with embedding generation for semantic search

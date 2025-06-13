@@ -196,15 +196,15 @@ class TestMainWindow:
         right_ratio = sizes[2] / total_width
 
         # Test 25%/45%/30% split with some tolerance for integer division and state restoration
-        assert (
-            abs(left_ratio - 0.25) < 0.20
-        ), f"Left panel ratio {left_ratio:.3f} should be ~25% (±20%)"
-        assert (
-            abs(center_ratio - 0.45) < 0.20
-        ), f"Center panel ratio {center_ratio:.3f} should be ~45% (±20%)"
-        assert (
-            abs(right_ratio - 0.30) < 0.30
-        ), f"Right panel ratio {right_ratio:.3f} should be ~30% (±30%)"
+        assert abs(left_ratio - 0.25) < 0.20, (
+            f"Left panel ratio {left_ratio:.3f} should be ~25% (±20%)"
+        )
+        assert abs(center_ratio - 0.45) < 0.20, (
+            f"Center panel ratio {center_ratio:.3f} should be ~45% (±20%)"
+        )
+        assert abs(right_ratio - 0.30) < 0.30, (
+            f"Right panel ratio {right_ratio:.3f} should be ~30% (±30%)"
+        )
 
         # Clean up
         window.close()
@@ -902,9 +902,15 @@ class TestMainWindowThreePanelLayout:
         right_ratio = sizes[2] / total_width
 
         # Test 25%/45%/30% split with some tolerance
-        assert abs(left_ratio - 0.25) < 0.20  # Within 20% tolerance for settings restoration
-        assert abs(center_ratio - 0.45) < 0.20  # Within 20% tolerance for settings restoration
-        assert abs(right_ratio - 0.30) < 0.30  # Within 30% tolerance for settings restoration
+        assert (
+            abs(left_ratio - 0.25) < 0.20
+        )  # Within 20% tolerance for settings restoration
+        assert (
+            abs(center_ratio - 0.45) < 0.20
+        )  # Within 20% tolerance for settings restoration
+        assert (
+            abs(right_ratio - 0.30) < 0.30
+        )  # Within 30% tolerance for settings restoration
 
         # Clean up
         window.close()
