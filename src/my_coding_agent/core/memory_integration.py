@@ -31,7 +31,7 @@ class ConversationMemoryHandler:
     def _get_or_create_session_id(self) -> str:
         """Generate or restore session ID for conversation persistence."""
         # Try to get the last session ID from memory
-        last_session_id = self.memory_manager.get_last_session_id()
+        self.memory_manager.get_last_session_id()
 
         # For now, always create a new session ID when the app starts
         # This can be modified later to restore sessions

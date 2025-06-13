@@ -7,7 +7,7 @@ import logging
 import os
 import re
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any
 
@@ -590,7 +590,7 @@ class AIAgent:
 
         # Network and connection errors
         if isinstance(
-            exception, (ConnectionError, ConnectionRefusedError, ConnectionResetError)
+            exception, ConnectionError | ConnectionRefusedError | ConnectionResetError
         ):
             return (
                 "connection_error",
@@ -598,7 +598,7 @@ class AIAgent:
             )
 
         # Timeout errors
-        if isinstance(exception, (asyncio.TimeoutError, TimeoutError)):
+        if isinstance(exception, asyncio.TimeoutError | TimeoutError):
             return (
                 "timeout_error",
                 "Request timed out. The service may be experiencing high load. Please try again.",
@@ -678,14 +678,14 @@ class AIAgent:
             )
 
         # Validation and input errors
-        if isinstance(exception, (ValueError, TypeError)):
+        if isinstance(exception, ValueError | TypeError):
             return (
                 "validation_error",
                 "Invalid input provided. Please check your request and try again.",
             )
 
         # Import and module errors
-        if isinstance(exception, (ImportError, ModuleNotFoundError)):
+        if isinstance(exception, ImportError | ModuleNotFoundError):
             return (
                 "dependency_error",
                 "Required dependency is missing. Please check your installation.",
@@ -697,7 +697,7 @@ class AIAgent:
 
         # JSON and data parsing errors
         if "json" in str(exception).lower() or isinstance(
-            exception, (KeyError, AttributeError)
+            exception, KeyError | AttributeError
         ):
             return (
                 "data_error",
@@ -1772,10 +1772,8 @@ User message: {message}
                                     f"Error in streaming callback: {callback_error}"
                                 )
                                 if on_error:
-                                    try:
+                                    with suppress(Exception):
                                         on_error(callback_error)
-                                    except Exception:
-                                        pass  # Ignore callback errors
 
                         # After all chunks are streamed, send a final empty chunk to mark completion
                         try:

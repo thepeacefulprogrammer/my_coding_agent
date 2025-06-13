@@ -11,6 +11,7 @@ Provides:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import uuid
 from collections.abc import AsyncGenerator, Callable
@@ -217,10 +218,8 @@ class StreamHandler:
                         "Stream task did not complete within timeout, cancelling"
                     )
                     self._stream_task.cancel()
-                    try:
+                    with contextlib.suppress(asyncio.CancelledError):
                         await self._stream_task
-                    except asyncio.CancelledError:
-                        pass
 
             self.state = StreamState.INTERRUPTED
         else:
