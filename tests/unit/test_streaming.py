@@ -109,7 +109,7 @@ class TestStreamHandler:
             yield "Good chunk"
             raise ValueError("Stream error")
 
-        stream_id = await stream_handler.start_stream(error_generator(), mock_callback)
+        await stream_handler.start_stream(error_generator(), mock_callback)
 
         # Wait for processing
         await asyncio.sleep(0.1)
@@ -133,7 +133,7 @@ class TestStreamHandler:
                 await asyncio.sleep(0.01)
 
         # Start first stream
-        stream_id1 = await stream_handler.start_stream(long_generator(), mock_callback)
+        await stream_handler.start_stream(long_generator(), mock_callback)
 
         # Try to start second stream
         with pytest.raises(RuntimeError, match="Stream already active"):
@@ -342,7 +342,7 @@ async def test_ai_agent_streaming_integration():
     agent = AIAgent(config, mcp_config=None, enable_filesystem_tools=False)
 
     # Create stream handler
-    stream_handler = StreamHandler()
+    StreamHandler()
 
     # Test that the agent has the new streaming method
     assert hasattr(agent, "send_message_with_tools_stream")
@@ -393,7 +393,7 @@ async def test_ai_agent_stream_message_processing():
     agent._agent.run_stream = mock_run_stream
 
     # Test streaming with the handler
-    stream_id = await stream_handler.start_stream(on_chunk)
+    await stream_handler.start_stream(on_chunk)
 
     # Verify stream handler has the method we need
     assert hasattr(agent, "send_message_with_tools_stream")
@@ -411,7 +411,7 @@ async def test_ai_agent_streaming_error_handling():
         deployment_name="test-model",
     )
 
-    agent = AIAgent(config, mcp_config=None, enable_filesystem_tools=False)
+    AIAgent(config, mcp_config=None, enable_filesystem_tools=False)
     stream_handler = StreamHandler()
 
     # Test error handling during streaming
@@ -448,7 +448,7 @@ async def test_ai_agent_streaming_interruption():
         deployment_name="test-model",
     )
 
-    agent = AIAgent(config, mcp_config=None, enable_filesystem_tools=False)
+    AIAgent(config, mcp_config=None, enable_filesystem_tools=False)
     stream_handler = StreamHandler()
 
     # Test stream interruption
@@ -493,7 +493,7 @@ async def test_ai_agent_filesystem_tools_streaming():
     )
 
     agent = AIAgent(config, mcp_config=mcp_config, enable_filesystem_tools=True)
-    stream_handler = StreamHandler()
+    StreamHandler()
 
     # Test that filesystem tools are enabled
     assert agent.filesystem_tools_enabled
@@ -515,7 +515,7 @@ async def test_ai_agent_concurrent_streaming():
         deployment_name="test-model",
     )
 
-    agent = AIAgent(config, mcp_config=None, enable_filesystem_tools=False)
+    AIAgent(config, mcp_config=None, enable_filesystem_tools=False)
     stream_handler = StreamHandler()
 
     # Test concurrent streams
@@ -559,7 +559,7 @@ async def test_stream_interruption_cleanup_resources():
         deployment_name="test-model",
     )
 
-    agent = AIAgent(config, mcp_config=None, enable_filesystem_tools=False)
+    AIAgent(config, mcp_config=None, enable_filesystem_tools=False)
     stream_handler = StreamHandler()
 
     # Track resource states
@@ -634,7 +634,7 @@ async def test_ai_agent_stream_interruption_integration():
                 pass
 
             async def stream_text(self):
-                for i, chunk in enumerate(["Hello", " ", "world", "!"]):
+                for _i, chunk in enumerate(["Hello", " ", "world", "!"]):
                     if self._interrupted:
                         raise asyncio.CancelledError("Stream interrupted")
                     yield chunk
@@ -868,7 +868,7 @@ async def test_ai_agent_streaming_retry_logic():
         final_errors.append(error)
 
     # Mock the Pydantic AI agent to fail twice, then succeed
-    with patch("my_coding_agent.core.ai_agent.Agent") as MockAgent:
+    with patch("my_coding_agent.core.ai_agent.Agent"):
         # Create agent instance
         agent = AIAgent(config)
 
@@ -954,7 +954,7 @@ async def test_ai_agent_streaming_retry_exhaustion():
         final_errors.append(error)
 
     # Mock the Pydantic AI agent to always fail
-    with patch("my_coding_agent.core.ai_agent.Agent") as MockAgent:
+    with patch("my_coding_agent.core.ai_agent.Agent"):
         # Create agent instance
         agent = AIAgent(config)
 
@@ -1031,7 +1031,7 @@ async def test_ai_agent_streaming_partial_success_retry():
         final_errors.append(error)
 
     # Mock the Pydantic AI agent to fail during streaming on first attempt
-    with patch("my_coding_agent.core.ai_agent.Agent") as MockAgent:
+    with patch("my_coding_agent.core.ai_agent.Agent"):
         # Create agent instance
         agent = AIAgent(config)
 
@@ -1121,54 +1121,56 @@ async def test_ai_agent_streaming_retry_backoff():
         pass
 
     # Mock the Pydantic AI agent
-    with patch("my_coding_agent.core.ai_agent.Agent") as MockAgent:
-        with patch("asyncio.sleep") as mock_sleep:
-            # Create agent instance
-            agent = AIAgent(config)
+    with (
+        patch("my_coding_agent.core.ai_agent.Agent"),
+        patch("asyncio.sleep") as mock_sleep,
+    ):
+        # Create agent instance
+        agent = AIAgent(config)
 
-            # Track call count and timing
-            call_count = 0
+        # Track call count and timing
+        call_count = 0
 
-            async def mock_run_stream(message):
-                nonlocal call_count
-                call_count += 1
-                attempt_times.append(time.time())
+        async def mock_run_stream(message):
+            nonlocal call_count
+            call_count += 1
+            attempt_times.append(time.time())
 
-                class MockStreamResult:
-                    async def __aenter__(self):
-                        if call_count <= 2:  # Fail first two attempts
-                            raise ConnectionError(f"Failure {call_count}")
-                        return self
+            class MockStreamResult:
+                async def __aenter__(self):
+                    if call_count <= 2:  # Fail first two attempts
+                        raise ConnectionError(f"Failure {call_count}")
+                    return self
 
-                    async def __aexit__(self, *args):
-                        pass
+                async def __aexit__(self, *args):
+                    pass
 
-                    async def stream_text(self):
-                        yield "Success!"
+                async def stream_text(self):
+                    yield "Success!"
 
-                    async def get_output(self):
-                        return "Success!"
+                async def get_output(self):
+                    return "Success!"
 
-                return MockStreamResult()
+            return MockStreamResult()
 
-            # Mock the agent's run_stream method
-            agent._agent.run_stream = mock_run_stream
+        # Mock the agent's run_stream method
+        agent._agent.run_stream = mock_run_stream
 
-            # Attempt streaming
-            response = await agent.send_message_with_tools_stream(
-                "test message", on_chunk, on_error
-            )
+        # Attempt streaming
+        response = await agent.send_message_with_tools_stream(
+            "test message", on_chunk, on_error
+        )
 
-            # Verify exponential backoff was used
-            assert mock_sleep.call_count == 2  # Should sleep between retries
+        # Verify exponential backoff was used
+        assert mock_sleep.call_count == 2  # Should sleep between retries
 
-            # Check backoff intervals: 1s, then 2s
-            sleep_calls = [call.args[0] for call in mock_sleep.call_args_list]
-            assert sleep_calls == [1.0, 2.0]  # Exponential backoff: 2^0, 2^1
+        # Check backoff intervals: 1s, then 2s
+        sleep_calls = [call.args[0] for call in mock_sleep.call_args_list]
+        assert sleep_calls == [1.0, 2.0]  # Exponential backoff: 2^0, 2^1
 
-            # Verify final success
-            assert response.success is True
-            assert response.retry_count == 2
+        # Verify final success
+        assert response.success is True
+        assert response.retry_count == 2
 
 
 @pytest.mark.asyncio
@@ -1198,66 +1200,68 @@ async def test_ai_agent_interruption_during_retry():
         final_errors.append(error)
 
     # Mock the Pydantic AI agent
-    with patch("my_coding_agent.core.ai_agent.Agent") as MockAgent:
-        with patch("asyncio.sleep") as mock_sleep:
-            # Create agent instance
-            agent = AIAgent(config)
+    with (
+        patch("my_coding_agent.core.ai_agent.Agent"),
+        patch("asyncio.sleep") as mock_sleep,
+    ):
+        # Create agent instance
+        agent = AIAgent(config)
 
-            call_count = 0
-            interrupted = False
+        call_count = 0
+        interrupted = False
 
-            async def mock_run_stream(message):
-                nonlocal call_count, interrupted
-                call_count += 1
-                retry_attempts.append(call_count)
+        async def mock_run_stream(message):
+            nonlocal call_count, interrupted
+            call_count += 1
+            retry_attempts.append(call_count)
 
-                class MockStreamResult:
-                    async def __aenter__(self):
-                        if call_count == 1:
-                            raise ConnectionError("Initial failure")
-                        return self
+            class MockStreamResult:
+                async def __aenter__(self):
+                    if call_count == 1:
+                        raise ConnectionError("Initial failure")
+                    return self
 
-                    async def __aexit__(self, *args):
-                        pass
+                async def __aexit__(self, *args):
+                    pass
 
-                    async def stream_text(self):
-                        # Simulate interruption during retry
-                        if interrupted:
-                            raise asyncio.CancelledError("Stream interrupted")
-                        yield "Should not reach here"
+                async def stream_text(self):
+                    # Simulate interruption during retry
+                    if interrupted:
+                        raise asyncio.CancelledError("Stream interrupted")
+                    yield "Should not reach here"
 
-                    async def get_output(self):
-                        return "Should not complete"
+                async def get_output(self):
+                    return "Should not complete"
 
-                return MockStreamResult()
+            return MockStreamResult()
 
-            # Mock sleep to trigger interruption during backoff
-            async def mock_sleep_with_interrupt(seconds):
-                nonlocal interrupted
-                if call_count == 1:  # During first retry backoff
-                    interrupted = True
-                    # Simulate interruption call
-                    await agent.interrupt_current_stream()
+        # Mock sleep to trigger interruption during backoff
+        async def mock_sleep_with_interrupt(seconds):
+            nonlocal interrupted
+            if call_count == 1:  # During first retry backoff
+                interrupted = True
+                # Simulate interruption call
+                await agent.interrupt_current_stream()
 
-            mock_sleep.side_effect = mock_sleep_with_interrupt
+        mock_sleep.side_effect = mock_sleep_with_interrupt
 
-            # Mock the agent's run_stream method
-            agent._agent.run_stream = mock_run_stream
+        # Mock the agent's run_stream method
+        agent._agent.run_stream = mock_run_stream
 
-            # Start streaming (will be interrupted during retry)
-            response = await agent.send_message_with_tools_stream(
-                "test message", on_chunk, on_error
-            )
+        # Start streaming (will be interrupted during retry)
+        response = await agent.send_message_with_tools_stream(
+            "test message", on_chunk, on_error
+        )
 
-            # Verify only initial attempt was made before interruption
-            assert len(retry_attempts) == 1
+        # Verify only initial attempt was made before interruption
+        assert len(retry_attempts) == 1
 
-            # Response should indicate failure due to interruption
-            assert response.success is False
-            assert response.error is not None and (
-                "interrupted" in response.error.lower()
-                or "cancelled" in response.error.lower()
-            )
+        # Response should indicate failure due to interruption
+        assert response.success is False
+        assert response.error is not None and (
+            "interrupted" in response.error.lower()
+            or "cancelled" in response.error.lower()
+        )
 
-            # Should not have received any successful chunks
-            assert len(final_chunks) == 0
+        # Should not have received any successful chunks
+        assert len(final_chunks) == 0
