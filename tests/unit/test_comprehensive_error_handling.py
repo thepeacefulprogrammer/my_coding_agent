@@ -14,6 +14,7 @@ Tests cover:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from unittest.mock import patch
 
 import pytest
@@ -198,11 +199,8 @@ class TestMemoryPressureHandling:
         large_chunk = "x" * 6000  # Exceeds memory limit
 
         # Should handle memory error gracefully
-        try:
+        with contextlib.suppress(MemoryError):
             response_buffer.add_chunk(large_chunk)
-        except MemoryError:
-            # Buffer should implement fallback mechanism
-            pass
 
         # Verify some form of graceful handling occurred
         assert len(display_calls) <= 1  # Either handled or failed gracefully
@@ -258,9 +256,7 @@ class TestCallbackFailureIsolation:
                 yield "ERROR chunk"  # This should cause callback to fail
                 yield "Another good chunk"
 
-            stream_id = await stream_handler.start_stream(
-                test_generator(), flaky_callback
-            )
+            await stream_handler.start_stream(test_generator(), flaky_callback)
             await asyncio.sleep(0.2)  # Give more time for processing
 
             # Stream should continue despite callback failure and complete successfully
@@ -274,7 +270,6 @@ class TestCallbackFailureIsolation:
     @pytest.mark.asyncio
     async def test_circuit_breaker_for_callbacks(self, stream_handler):
         """Test circuit breaker opens after too many callback failures."""
-        chunks_received = []
         failure_count = 0
 
         def always_failing_callback(
@@ -288,9 +283,7 @@ class TestCallbackFailureIsolation:
             for i in range(10):
                 yield f"Chunk {i}"
 
-        stream_id = await stream_handler.start_stream(
-            test_generator(), always_failing_callback
-        )
+        await stream_handler.start_stream(test_generator(), always_failing_callback)
         await asyncio.sleep(0.5)  # Give more time for processing
 
         # Stream should complete despite callback failures
@@ -376,7 +369,7 @@ class TestResponseBufferRobustness:
         response_buffer.set_display_callback(failing_display)
 
         # Add chunks that trigger multiple flush attempts
-        for i in range(10):
+        for _i in range(10):
             response_buffer.add_chunk("x" * 150)  # Each chunk triggers flush
 
         # Circuit breaker should have opened after max failures
