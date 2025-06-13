@@ -143,3 +143,7 @@ Based on the [AI Agent Chat Enhancements PRD](ai_agent_enhancements_prd.md)
   - [ ] 6.7 Create memory optimization system to manage database size and performance
   - [ ] 6.8 Implement memory export/import functionality for backup and sharing
   - [ ] 6.9 Add comprehensive unit tests for RAG engine and memory intelligence
+
+
+- [ ] 7.0 Address SNAGs
+  - [ ] 7.1 SNAG: Line numbers are not aligning correctly with the text file - line numbers are closer together.

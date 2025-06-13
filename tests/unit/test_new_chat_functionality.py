@@ -1,5 +1,8 @@
 """Unit tests for "New Chat" button functionality (Task 3.6)."""
 
+import tempfile
+from pathlib import Path
+
 import pytest
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import QApplication
@@ -13,9 +16,16 @@ def app():
 
 
 @pytest.fixture
-def main_window(app):
+def temp_directory():
+    """Create a temporary directory for testing."""
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield Path(temp_dir)
+
+
+@pytest.fixture
+def main_window(app, temp_directory):
     """Create MainWindow instance for testing."""
-    window = MainWindow()
+    window = MainWindow(directory_path=temp_directory)
     return window
 
 

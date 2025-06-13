@@ -59,14 +59,15 @@ class TestMCPIntegrationComprehensive:
         with patch.dict(
             os.environ,
             {
-                "AZURE_OPENAI_API_KEY": "test_key",
-                "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com/",
-                "AZURE_OPENAI_DEPLOYMENT_NAME": "test_deployment",
+                "ENDPOINT": "https://test.openai.azure.com/",
+                "API_KEY": "test_key",
+                "MODEL": "test_deployment",
+                "API_VERSION": "2024-02-15-preview",
             },
         ):
             config = AIAgentConfig.from_env()
             mcp_config = MCPFileConfig(
-                base_directory=str(temp_workspace),
+                base_directory=temp_workspace,
                 allowed_extensions=[".py", ".json", ".md", ".txt", ".sh"],
                 max_file_size=2 * 1024 * 1024,  # 2MB
                 enable_write_operations=True,
