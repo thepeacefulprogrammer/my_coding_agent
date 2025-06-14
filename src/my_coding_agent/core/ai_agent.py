@@ -17,6 +17,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 
 from .mcp_file_server import FileOperationError, MCPFileConfig, MCPFileServer
+from .memory_integration import ConversationMemoryHandler
 from .streaming import StreamHandler
 
 # Load environment variables
@@ -123,7 +124,7 @@ class AIAgent:
 
         # Memory awareness configuration
         self.memory_aware_enabled = enable_memory_awareness
-        self._memory_system = None  # Memory system placeholder
+        self._memory_system: ConversationMemoryHandler | None = None
 
         # Auto-detect filesystem tools enablement
         if enable_filesystem_tools is None:
@@ -144,12 +145,10 @@ class AIAgent:
         # Initialize memory system if enabled
         if self.memory_aware_enabled:
             try:
-                # For now, create a simple mock memory system for basic functionality
-                self._memory_system = (
-                    None  # Will be implemented when memory components are available
-                )
+                # Initialize the proper memory system
+                self._memory_system = ConversationMemoryHandler()
                 logger.info(
-                    "AI Agent initialized with memory-aware capabilities (basic implementation)"
+                    "AI Agent initialized with memory-aware capabilities using ChromaDB"
                 )
             except Exception as e:
                 logger.warning(f"Failed to initialize memory system: {e}")
@@ -658,13 +657,11 @@ class AIAgent:
             return "system_error", "System error occurred. Please try again."
 
         # HTTP and API specific errors
-        status_code = None
-        if hasattr(exception, "status_code"):
-            status_code = exception.status_code
-        elif hasattr(exception, "response") and hasattr(
-            exception.response, "status_code"
-        ):
-            status_code = exception.response.status_code
+        status_code = getattr(exception, "status_code", None)
+        if status_code is None:
+            response = getattr(exception, "response", None)
+            if response is not None:
+                status_code = getattr(response, "status_code", None)
 
         if status_code:
             if status_code == 401:
@@ -1956,12 +1953,36 @@ User message: {message}
             )
 
         try:
-            # For now, just add memory-enhanced system prompt and use regular streaming
-            # Full memory integration will be implemented in future iterations
-            logger.info("Using memory-aware AI agent with enhanced system prompt")
-            return await self.send_message_with_tools_stream(
-                message, on_chunk, on_error, enable_filesystem
+            # Store the user message in memory
+            self._memory_system.store_user_message(message)
+
+            # Get conversation context for enhanced prompt
+            context = self._memory_system.get_conversation_context(limit=10)
+
+            # Enhance message with context if available
+            if context:
+                context_text = "\n".join(
+                    [
+                        f"{msg['role']}: {msg['content']}"
+                        for msg in context[-5:]  # Last 5 messages for context
+                    ]
+                )
+                enhanced_message = f"Recent conversation context:\n{context_text}\n\nCurrent message: {message}"
+            else:
+                enhanced_message = message
+
+            logger.info("Using memory-aware AI agent with conversation context")
+
+            # Send the enhanced message
+            response = await self.send_message_with_tools_stream(
+                enhanced_message, on_chunk, on_error, enable_filesystem
             )
+
+            # Store the assistant response in memory if successful
+            if response.success and response.content:
+                self._memory_system.store_assistant_message(response.content)
+
+            return response
 
         except Exception as e:
             logger.warning(
@@ -1982,7 +2003,7 @@ User message: {message}
             return {"memory_enabled": False, "error": "Memory system not enabled"}
 
         try:
-            stats = self._memory_system.get_usage_statistics()
+            stats = self._memory_system.get_memory_stats()
             stats["memory_enabled"] = True
             return stats
         except Exception as e:

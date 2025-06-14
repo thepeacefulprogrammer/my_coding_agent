@@ -20,6 +20,11 @@ Done through Library
 - File System
 
 
+-- CONSIDERATIONS
+-> we need to generate series of questions when creating and reviewing tasks (we seem to forget to actually hook things up together, like we made a memory system but didn't give it to the agent)
+-> maybe some sort of sprint planning session between agents.
+
+
 ## Manager
 
 You are a Program Manager. You are well respected and knowledgeable lead within your organization that has many decades of experience. You started out as a software developer and worked your way up through the ranks. You got your masters degree in computer science in Big Data Analytics and Visualizations.

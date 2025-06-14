@@ -565,11 +565,12 @@ class MainWindow(QMainWindow):
                 max_file_size=5 * 1024 * 1024,  # 5MB limit
             )
 
-            # Initialize AI agent with MCP support
+            # Initialize AI agent with MCP support and memory awareness
             self._ai_agent = AIAgent(
                 config=self._ai_config,
                 mcp_config=mcp_config,
                 enable_filesystem_tools=True,
+                enable_memory_awareness=True,
             )
 
             # Connect chat widget message_sent signal to our handler
