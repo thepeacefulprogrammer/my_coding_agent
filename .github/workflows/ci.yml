@@ -56,7 +56,7 @@ jobs:
     #   run: mypy .
 
     - name: Run tests
-      run: xvfb-run -a pytest --cov=my_coding_agent --cov-report=xml
+      run: xvfb-run -a pytest tests/ --cov=my_coding_agent --cov-report=xml --ignore=tests/integration/
       env:
         QT_QPA_PLATFORM: offscreen
 

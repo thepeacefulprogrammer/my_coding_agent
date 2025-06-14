@@ -130,7 +130,7 @@ class TestUtils(unittest.TestCase):
     @pytest.fixture
     def main_window(self, qtbot, sample_project):
         """Create MainWindow instance for testing."""
-        window = MainWindow()
+        window = MainWindow(str(sample_project))
         qtbot.addWidget(window)
 
         # Set the sample project as root directory
@@ -138,10 +138,10 @@ class TestUtils(unittest.TestCase):
 
         return window
 
-    def test_application_startup_and_initialization(self, qtbot):
+    def test_application_startup_and_initialization(self, qtbot, tmp_path):
         """Test complete application startup sequence."""
         # Test that MainWindow can be created and initialized
-        window = MainWindow()
+        window = MainWindow(str(tmp_path))
         qtbot.addWidget(window)
 
         # Verify main components are initialized
@@ -457,9 +457,9 @@ class TestUtils(unittest.TestCase):
             main_window.splitter.setSizes([200, 600])
             assert main_window.splitter.sizes() != initial_sizes
 
-    def test_component_cleanup_on_exit(self, qtbot):
+    def test_component_cleanup_on_exit(self, qtbot, tmp_path):
         """Test proper cleanup when application exits."""
-        window = MainWindow()
+        window = MainWindow(str(tmp_path))
         qtbot.addWidget(window)
 
         # Show window

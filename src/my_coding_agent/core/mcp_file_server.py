@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +69,8 @@ class MCPFileConfig(BaseModel):
         description="List of blocked path patterns",
     )
 
-    @validator("base_directory")
+    @field_validator("base_directory")
+    @classmethod
     def validate_base_directory(cls, v):
         """Validate base directory exists and is accessible."""
         # Check for empty or None values before creating Path
@@ -94,14 +95,16 @@ class MCPFileConfig(BaseModel):
             raise ValueError(f"Base directory is not a directory: {path}")
         return path
 
-    @validator("allowed_extensions")
+    @field_validator("allowed_extensions")
+    @classmethod
     def validate_allowed_extensions(cls, v):
         """Validate allowed extensions."""
         if v is not None and len(v) == 0:
             raise ValueError("At least one file extension must be allowed")
         return v
 
-    @validator("max_file_size")
+    @field_validator("max_file_size")
+    @classmethod
     def validate_max_file_size(cls, v):
         """Validate max file size."""
         if v <= 0:
@@ -130,8 +133,7 @@ class MCPFileConfig(BaseModel):
             blocked_paths=["secrets/*", ".env", "*.key", "private/*", "production.*"],
         )
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class MCPFileServer:
