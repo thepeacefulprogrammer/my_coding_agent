@@ -34,12 +34,12 @@ def get_azure_embedding_function(
     Returns:
         Azure OpenAI embedding function
     """
-    # Use environment variables as defaults
-    azure_endpoint = azure_endpoint or os.getenv("AZURE_OPENAI_ENDPOINT")
-    api_key = api_key or os.getenv("AZURE_OPENAI_API_KEY")
-    api_version = api_version or os.getenv("EMBEDDINGS_API_VERSION", "2024-02-01")
+    # Use environment variables as defaults (same as AI agent)
+    azure_endpoint = azure_endpoint or os.getenv("ENDPOINT")
+    api_key = api_key or os.getenv("API_KEY")
+    api_version = api_version or os.getenv("API_VERSION", "2024-02-01")
     deployment_name = deployment_name or os.getenv(
-        "EMBEDDINGS_MODEL", "text-embedding-ada-002"
+        "EMBEDDINGS_MODEL", "text-embedding-3-large"
     )
 
     if not azure_endpoint or not api_key:
@@ -256,9 +256,8 @@ def validate_azure_environment() -> dict[str, Any]:
         Dictionary with validation results and environment info
     """
     required_vars = [
-        "AZURE_OPENAI_ENDPOINT",
-        "AZURE_OPENAI_API_KEY",
-        "EMBEDDINGS_API_VERSION",
+        "ENDPOINT",
+        "API_KEY",
         "EMBEDDINGS_MODEL",
     ]
     results = {"all_set": True, "missing_vars": [], "env_info": {}}
