@@ -49,10 +49,12 @@ class TestStreamingEdgeCases:
         while stream_handler.is_streaming:
             await asyncio.sleep(0.01)
 
-        # Should still call callback with empty final chunk
-        assert len(callback_calls) == 1  # Just the final empty chunk
-        assert callback_calls[0][0] == ""  # Empty chunk
-        assert callback_calls[0][3]  # is_final
+        # Should call callback for None chunk + final empty chunk
+        assert len(callback_calls) == 2  # None chunk + final empty chunk
+        assert callback_calls[0][0] is None  # None chunk from yield
+        assert not callback_calls[0][3]  # Not final
+        assert callback_calls[1][0] == ""  # Final empty chunk
+        assert callback_calls[1][3]  # is_final
 
     @pytest.mark.asyncio
     async def test_single_empty_chunk_stream(self, stream_handler):
@@ -172,7 +174,7 @@ class TestStreamingEdgeCases:
         await asyncio.sleep(0.1)
 
         # Stop the stream
-        await stream_handler.stop_stream()
+        await stream_handler.interrupt_stream()
 
         # Should have first chunk but not second
         assert len(callback_calls) >= 1

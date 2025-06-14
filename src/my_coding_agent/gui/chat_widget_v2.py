@@ -563,7 +563,7 @@ class SimplifiedChatWidget(QWidget):
         main_layout.addWidget(input_container)
 
         # Apply initial theme
-        self.apply_input_theme("dark")
+        self.apply_input_theme(self._current_theme)
 
     def _update_send_icon_position(self) -> None:
         """Update send icon position to stay in bottom right of input text."""

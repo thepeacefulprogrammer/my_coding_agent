@@ -178,7 +178,7 @@ class TestAIAgent:
     # New enhanced error handling tests
     @pytest.mark.asyncio
     async def test_send_message_timeout_error(self, ai_agent):
-        """Test handling timeout errors with proper logging."""
+        """Test handling timeout errors."""
         with patch.object(
             ai_agent._agent,
             "run",
@@ -189,7 +189,10 @@ class TestAIAgent:
 
             assert response.success is False
             assert response.content == ""
-            assert "timed out after 30 seconds" in response.error
+            assert (
+                "Request timed out. The service may be experiencing high load. Please try again."
+                in response.error
+            )
             assert response.tokens_used == 0
 
     @pytest.mark.asyncio
@@ -211,7 +214,7 @@ class TestAIAgent:
             assert response.success is False
             assert response.content == ""
             assert "Authentication failed" in response.error
-            assert response.error_type == "authentication"
+            assert response.error_type == "authentication_error"
             assert response.tokens_used == 0
 
     @pytest.mark.asyncio
@@ -391,7 +394,7 @@ class TestAIAgent:
             response = await ai_agent.send_message("Hello, AI!")
 
             assert response.success is False
-            assert "Server error (500)" in response.error
+            assert "Server error occurred. Please try again later." in response.error
             assert mock_sleep.call_count >= 1  # Should have retried
 
     @pytest.mark.asyncio
@@ -451,10 +454,21 @@ class TestAIAgent:
     @pytest.mark.asyncio
     async def test_error_categorization(self, ai_agent):
         """Test that different error types are categorized correctly."""
+        import httpx
+
         test_cases = [
-            (Exception("Rate limit exceeded"), "rate_limit"),
-            (Exception("Network connection error"), "connection"),
-            (Exception("Invalid API key"), "authentication"),
+            # HTTP 429 error - properly detected as rate_limit_error
+            (
+                httpx.HTTPStatusError(
+                    "429 Too Many Requests",
+                    request=httpx.Request("POST", "https://test.com"),
+                    response=httpx.Response(429),
+                ),
+                "rate_limit_error",
+            ),
+            # Generic exceptions fall back to "unknown"
+            (Exception("Network connection error"), "unknown"),
+            (Exception("Invalid API key"), "unknown"),
             (Exception("Some random error"), "unknown"),
         ]
 

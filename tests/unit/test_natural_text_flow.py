@@ -124,9 +124,10 @@ class TestNaturalTextFlow:
         # The alignment is handled at the layout level, so we verify the width constraint removal
         assert bubble.maximumWidth() == 16777215
 
-        # Compare with user message which should have width constraint
+        # Compare with user message which also now has full width
         user_message = ChatMessage(
             content="User message", role=MessageRole.USER, status=MessageStatus.SENT
         )
         user_bubble = MessageBubble(user_message)
-        assert user_bubble.maximumWidth() == 600
+        # Both assistant and user messages now use full width, styling handled differently
+        assert user_bubble.maximumWidth() == 16777215

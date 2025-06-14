@@ -45,6 +45,7 @@ class MessageDisplay(QWidget):
         self._has_error = False
         self._auto_adapt_theme = auto_adapt_theme
         self.theme_manager = theme_manager
+        self._custom_stylesheet = ""  # Track custom styling added by user
 
         # Set initial theme
         if auto_adapt_theme and theme_manager:
@@ -186,7 +187,92 @@ class MessageDisplay(QWidget):
                 }}
             """
 
-        self.setStyleSheet(style)
+        # Combine theme styling with any custom styling
+        combined_style = style
+        if self._custom_stylesheet:
+            combined_style += "\n" + self._custom_stylesheet
+
+        self.setStyleSheet(combined_style)
+
+    def setStyleSheet(self, styleSheet: str | None):
+        """Override setStyleSheet to track custom styling.
+
+        Args:
+            styleSheet: The stylesheet to apply
+        """
+        if styleSheet is None:
+            styleSheet = ""
+
+        # If this contains our theme styling, extract any additional custom styling
+        current_theme_style = (
+            self._get_current_theme_style() if hasattr(self, "_theme_colors") else ""
+        )
+
+        if current_theme_style and styleSheet.startswith(current_theme_style):
+            # This is theme styling + custom styling
+            self._custom_stylesheet = styleSheet[len(current_theme_style) :].strip()
+        elif current_theme_style and current_theme_style in styleSheet:
+            # Find where theme styling ends and custom styling begins
+            theme_end = styleSheet.find(current_theme_style) + len(current_theme_style)
+            self._custom_stylesheet = styleSheet[theme_end:].strip()
+        elif not current_theme_style:
+            # No theme styling yet, this might be custom styling
+            self._custom_stylesheet = styleSheet
+        else:
+            # This is completely new styling, treat as custom
+            self._custom_stylesheet = styleSheet
+
+        super().setStyleSheet(styleSheet)
+
+    def _get_current_theme_style(self) -> str:
+        """Get the current theme-based styling without custom additions."""
+        if not hasattr(self, "_theme_colors"):
+            return ""
+
+        role = self._message.role
+
+        if role == MessageRole.USER:
+            return f"""
+                MessageDisplay {{
+                    background-color: {self._theme_colors["user_bg"]};
+                    border: 2px solid {self._theme_colors["user_border"]};
+                    border-radius: 8px;
+                    max-width: 500px;
+                    margin: 4px;
+                }}
+                QLabel {{
+                    color: {self._theme_colors["user_text"]};
+                    background-color: transparent;
+                    padding: 4px;
+                }}
+            """
+        elif role == MessageRole.ASSISTANT:
+            return f"""
+                MessageDisplay {{
+                    background-color: {self._theme_colors["assistant_bg"]};
+                    border: none;
+                    margin: 4px 0px;
+                }}
+                QLabel {{
+                    color: {self._theme_colors["assistant_text"]};
+                    background-color: transparent;
+                    padding: 4px;
+                }}
+            """
+        else:  # SYSTEM
+            return f"""
+                MessageDisplay {{
+                    background-color: {self._theme_colors["system_bg"]};
+                    border-radius: 4px;
+                    margin: 4px;
+                }}
+                QLabel {{
+                    color: {self._theme_colors["system_text"]};
+                    background-color: transparent;
+                    font-style: italic;
+                    padding: 4px;
+                }}
+            """
 
     def set_theme(self, theme: MessageDisplayTheme):
         """Change the theme of the component.
