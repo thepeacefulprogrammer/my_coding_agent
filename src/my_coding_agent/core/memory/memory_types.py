@@ -4,10 +4,19 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+
+class SearchStrategy(str, Enum):
+    """Search strategy enumeration for memory retrieval."""
+
+    TEXT_SEARCH = "text_search"
+    SEMANTIC_SEARCH = "semantic_search"
+    HYBRID = "hybrid"
 
 
 class ConversationMessage(BaseModel):
@@ -152,3 +161,73 @@ class MemorySearchResult(BaseModel):
     content: str
     relevance_score: float = Field(ge=0.0, le=1.0)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SemanticSearchResult(BaseModel):
+    """Model for semantic search results with similarity scoring."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    id: int
+    content: str
+    memory_type: str
+    importance_score: float
+    tags: list[str]
+    similarity_score: float = Field(
+        ge=0.0, le=1.0, description="Cosine similarity score"
+    )
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    created_at: str
+    last_accessed: str
+
+
+class MemoryRetrievalResult(BaseModel):
+    """Model for unified memory retrieval results."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    memory_id: int
+    source_type: str = Field(
+        ..., description="Source type: conversation, longterm, or project"
+    )
+    content: str
+    search_score: float = Field(
+        ge=0.0, le=1.0, description="Combined search relevance score"
+    )
+    importance_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    recency_score: float = Field(default=0.5, ge=0.0, le=1.0)
+    tags: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    timestamp: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    memory_type: str | None = Field(
+        None, description="Memory type for long-term memories"
+    )
+    event_type: str | None = Field(None, description="Event type for project history")
+
+
+class MemoryFilter(BaseModel):
+    """Model for filtering memory search results."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    memory_types: list[str] | None = Field(None, description="Filter by memory types")
+    source_types: list[str] | None = Field(None, description="Filter by source types")
+    min_importance: float | None = Field(None, ge=0.0, le=1.0)
+    max_importance: float | None = Field(None, ge=0.0, le=1.0)
+    min_recency: float | None = Field(None, ge=0.0, le=1.0)
+    date_range: tuple[datetime, datetime] | None = Field(
+        None, description="Date range filter"
+    )
+    tags: list[str] | None = Field(None, description="Filter by tags")
+    event_types: list[str] | None = Field(
+        None, description="Filter by project event types"
+    )
+    exclude_tags: list[str] | None = Field(
+        None, description="Exclude memories with these tags"
+    )
+    session_id: str | None = Field(None, description="Filter by conversation session")
+    file_path: str | None = Field(
+        None, description="Filter by file path for project history"
+    )

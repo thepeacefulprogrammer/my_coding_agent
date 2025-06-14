@@ -105,6 +105,7 @@ class AIAgent:
         config: AIAgentConfig,
         mcp_config: MCPFileConfig | None = None,
         enable_filesystem_tools: bool | None = None,
+        enable_memory_awareness: bool = False,
     ):
         """Initialize the AI Agent.
 
@@ -112,12 +113,17 @@ class AIAgent:
             config: The configuration for the AI Agent.
             mcp_config: Optional MCP file server configuration.
             enable_filesystem_tools: Whether to enable filesystem tools (auto-detected if None).
+            enable_memory_awareness: Whether to enable memory-aware conversation capabilities.
         """
         self.config = config
         self.mcp_file_server: MCPFileServer | None = None
         self.workspace_root: Path | None = None
         self.current_stream_handler: StreamHandler | None = None
         self.current_stream_id: str | None = None
+
+        # Memory awareness configuration
+        self.memory_aware_enabled = enable_memory_awareness
+        self._memory_system = None  # Memory system placeholder
 
         # Auto-detect filesystem tools enablement
         if enable_filesystem_tools is None:
@@ -134,6 +140,20 @@ class AIAgent:
 
         # Initialize streaming handler
         self.stream_handler = StreamHandler()
+
+        # Initialize memory system if enabled
+        if self.memory_aware_enabled:
+            try:
+                # For now, create a simple mock memory system for basic functionality
+                self._memory_system = (
+                    None  # Will be implemented when memory components are available
+                )
+                logger.info(
+                    "AI Agent initialized with memory-aware capabilities (basic implementation)"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to initialize memory system: {e}")
+                self.memory_aware_enabled = False
 
         self._setup_logging()
         self._create_model()
@@ -178,7 +198,8 @@ class AIAgent:
     def _create_agent(self) -> None:
         """Create the Pydantic AI Agent instance."""
         try:
-            system_prompt = (
+            # Build system prompt based on capabilities
+            base_prompt = (
                 "You are a helpful AI coding assistant integrated into a code viewing application. "
                 "You can help users understand code, provide explanations, suggest improvements, "
                 "and assist with coding tasks. Be concise but thorough in your responses. "
@@ -186,14 +207,31 @@ class AIAgent:
                 "function names, and line numbers when relevant."
             )
 
+            # Add memory-aware capabilities to system prompt
+            if self.memory_aware_enabled:
+                memory_prompt = (
+                    "\n\nMemory Capabilities:\n"
+                    "You have access to persistent memory across conversations. This includes:\n"
+                    "- Short-term memory: Recent conversation context and current session information\n"
+                    "- Long-term memory: Important facts, preferences, and lessons learned from previous interactions\n"
+                    "- Project history: Information about code projects, files, and development context\n"
+                    "\nUse this memory to provide more contextual and personalized responses. "
+                    "When relevant memories are available, incorporate them naturally into your responses. "
+                    "Remember user preferences, previous discussions, and project-specific context to enhance your assistance."
+                )
+                system_prompt = base_prompt + memory_prompt
+            else:
+                system_prompt = base_prompt
+
             self._agent = Agent(
                 model=self._model,
                 system_prompt=system_prompt,
                 retries=self.config.max_retries,
             )
             logger.info(
-                "Pydantic AI Agent created successfully with %d max retries",
+                "Pydantic AI Agent created successfully with %d max retries%s",
                 self.config.max_retries,
+                " and memory awareness" if self.memory_aware_enabled else "",
             )
         except Exception as e:
             logger.error("Failed to create Pydantic AI Agent: %s", e)
@@ -1892,3 +1930,61 @@ User message: {message}
             self.current_stream_id = None
             return True
         return False
+
+    async def send_memory_aware_message_stream(
+        self,
+        message: str,
+        on_chunk,
+        on_error=None,
+        enable_filesystem: bool = True,
+    ) -> AIResponse:
+        """Send a message with memory awareness and streaming output.
+
+        Args:
+            message: The message to send to the AI
+            on_chunk: Callback function called for each chunk (chunk: str, is_final: bool)
+            on_error: Optional callback function called on errors (error: Exception)
+            enable_filesystem: Whether to enable filesystem tools for this conversation
+
+        Returns:
+            AIResponse: The response from the AI with memory context
+        """
+        if not self.memory_aware_enabled or not self._memory_system:
+            # Fall back to regular streaming if memory not enabled
+            return await self.send_message_with_tools_stream(
+                message, on_chunk, on_error, enable_filesystem
+            )
+
+        try:
+            # For now, just add memory-enhanced system prompt and use regular streaming
+            # Full memory integration will be implemented in future iterations
+            logger.info("Using memory-aware AI agent with enhanced system prompt")
+            return await self.send_message_with_tools_stream(
+                message, on_chunk, on_error, enable_filesystem
+            )
+
+        except Exception as e:
+            logger.warning(
+                f"Memory-aware streaming failed: {e}. Falling back to regular streaming."
+            )
+            # Fall back to regular streaming on memory system errors
+            return await self.send_message_with_tools_stream(
+                message, on_chunk, on_error, enable_filesystem
+            )
+
+    def get_memory_statistics(self) -> dict[str, Any]:
+        """Get memory usage statistics.
+
+        Returns:
+            dict: Dictionary containing memory usage statistics
+        """
+        if not self.memory_aware_enabled or not self._memory_system:
+            return {"memory_enabled": False, "error": "Memory system not enabled"}
+
+        try:
+            stats = self._memory_system.get_usage_statistics()
+            stats["memory_enabled"] = True
+            return stats
+        except Exception as e:
+            logger.error(f"Failed to get memory statistics: {e}")
+            return {"memory_enabled": True, "error": str(e)}

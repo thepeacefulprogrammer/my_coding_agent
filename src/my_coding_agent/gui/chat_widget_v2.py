@@ -12,6 +12,7 @@ from PyQt6.QtGui import (
     QPen,
 )
 from PyQt6.QtWidgets import (
+    QHBoxLayout,
     QLabel,
     QPushButton,
     QScrollArea,
@@ -26,6 +27,7 @@ from .chat_message_model import (
     ChatMessage,
     ChatMessageModel,
     MessageRole,
+    MessageStatus,
 )
 
 
@@ -476,26 +478,34 @@ class SimplifiedChatWidget(QWidget):
             theme_manager: ThemeManager instance for automatic theme updates
         """
         super().__init__(parent)
-
+        self._current_theme = "dark"
         self._auto_adapt_theme = auto_adapt_theme
         self.theme_manager = theme_manager
 
-        # Connect to theme changes if auto adaptation is enabled
-        if auto_adapt_theme and theme_manager:
-            theme_manager.theme_changed.connect(self._on_app_theme_changed)
-            theme_manager.register_widget(self)
-            # Apply current theme immediately
-            current_theme = theme_manager.get_current_theme()
-            self._current_theme = current_theme
-        else:
-            self._current_theme = "dark"  # Default theme
-
+        # Initialize message model
         self.message_model = ChatMessageModel()
+
+        # Streaming state
         self._is_streaming = False
-        self._current_stream_id = None
-        self._streaming_message_id = None
-        self._streaming_content_buffer = ""
+        self._current_stream_id: str | None = None
+        self._streaming_message_id: str | None = None
+        self._retry_count = 0
+
+        # Visual indicator components
+        self._streaming_indicator: QLabel | None = None
+        self._interrupt_button: QPushButton | None = None
+        self._streaming_container: QWidget | None = None
+        self._animation_timer: QTimer | None = None
+        self._animation_dots = 0
+
+        # Initialize UI and connections
         self.setup_ui()
+
+        # Apply theme if auto-adaptation is enabled
+        if self._auto_adapt_theme and self.theme_manager:
+            self.theme_manager.theme_changed.connect(self._on_app_theme_changed)
+            current_theme = self.theme_manager.get_current_theme()
+            self.apply_theme(current_theme)
 
     def setup_ui(self) -> None:
         """Set up the widget UI."""
@@ -675,6 +685,10 @@ class SimplifiedChatWidget(QWidget):
         self.display_area.apply_theme(theme)
         self.apply_input_theme(theme)
 
+        # Apply theme to streaming indicators if they exist
+        if self._streaming_container:
+            self._apply_streaming_indicator_theme()
+
     def update_message_content(self, message_id: str, content: str) -> None:
         """Update message content (for streaming)."""
         message = self.message_model.get_message_by_id(message_id)
@@ -690,90 +704,298 @@ class SimplifiedChatWidget(QWidget):
 
     def start_streaming_response(self, stream_id: str, retry_count: int = 0) -> str:
         """Start a new streaming response."""
-        if self.is_streaming():
-            raise RuntimeError(
-                "Stream already active. Stop current stream before starting new one."
-            )
+        if self._is_streaming:
+            raise RuntimeError("Stream already active")
 
-        # Create new assistant message for streaming
-        assistant_msg_id = self.add_assistant_message(
-            "", metadata={"stream_id": stream_id}
-        )
+        # Create assistant message
+        assistant_msg_id = self.add_assistant_message("", {"stream_id": stream_id})
 
         # Update streaming state
         self._is_streaming = True
         self._current_stream_id = stream_id
         self._streaming_message_id = assistant_msg_id
-        self._streaming_content_buffer = ""
+        self._retry_count = retry_count
+
+        # Show streaming indicators
+        self._show_streaming_indicators()
 
         # Show typing indicator
-        self.show_ai_thinking()
+        self.display_area.show_typing_indicator("AI is responding...")
 
         return assistant_msg_id
 
-    def append_streaming_chunk(self, chunk: str) -> None:
-        """Append a chunk of content to the streaming message."""
-        if not self.is_streaming() or not getattr(self, "_streaming_message_id", None):
-            return
-
-        # Update content buffer (AI sends cumulative chunks)
-        self._streaming_content_buffer = chunk
-
-        # Update the message content
-        self.update_message_content(
-            self._streaming_message_id, self._streaming_content_buffer
-        )
-
-        # Auto-scroll to show new content
-        self.scroll_to_bottom()
-
     def complete_streaming_response(self) -> None:
         """Complete the current streaming response."""
-        if not self.is_streaming():
+        if not self._is_streaming:
             return
+
+        # Update message status to delivered
+        if self._streaming_message_id:
+            message = self.message_model.get_message_by_id(self._streaming_message_id)
+            if message:
+                self.message_model.update_message_status(
+                    self._streaming_message_id, MessageStatus.DELIVERED
+                )
 
         # Clear streaming state
         self._is_streaming = False
         self._current_stream_id = None
         self._streaming_message_id = None
-        self._streaming_content_buffer = ""
+        self._retry_count = 0
+
+        # Hide streaming indicators
+        self._hide_streaming_indicators()
 
         # Hide typing indicator
-        self.hide_typing_indicator()
-
-    def handle_streaming_error(self, error: Exception) -> None:
-        """Handle an error during streaming."""
-        if not self.is_streaming() or not getattr(self, "_streaming_message_id", None):
-            return
-
-        # Set error on the message
-        message = self.message_model.get_message_by_id(self._streaming_message_id)
-        if message:
-            message.error_message = str(error)
-            bubble = self.display_area._message_bubbles.get(self._streaming_message_id)
-            if bubble:
-                bubble.set_error(str(error))
-
-        # Clear streaming state
-        self._is_streaming = False
-        self._current_stream_id = None
-        self._streaming_message_id = None
-        self._streaming_content_buffer = ""
-
-        # Hide typing indicator
-        self.hide_typing_indicator()
-
-    def show_ai_thinking(self, animated: bool = False) -> None:
-        """Show AI thinking indicator."""
-        self.display_area.show_typing_indicator("AI is thinking...")
-
-    def hide_typing_indicator(self) -> None:
-        """Hide typing indicator."""
         self.display_area.hide_typing_indicator()
 
-    def scroll_to_bottom(self) -> None:
-        """Scroll to the bottom."""
-        self.display_area.scroll_to_bottom()
+    def handle_streaming_error(self, error: Exception) -> None:
+        """Handle streaming error."""
+        if not self._is_streaming:
+            return
+
+        # Update message with error
+        if self._streaming_message_id:
+            message = self.message_model.get_message_by_id(self._streaming_message_id)
+            if message:
+                self.message_model.update_message_status(
+                    self._streaming_message_id, MessageStatus.ERROR
+                )
+                # Note: ChatMessageModel doesn't have error_message field, so we'll handle this differently
+
+        # Clear streaming state
+        self._is_streaming = False
+        self._current_stream_id = None
+        self._streaming_message_id = None
+        self._retry_count = 0
+
+        # Hide streaming indicators
+        self._hide_streaming_indicators()
+
+        # Hide typing indicator
+        self.display_area.hide_typing_indicator()
+
+    def _show_streaming_indicators(self) -> None:
+        """Show streaming visual indicators."""
+        if self._streaming_container is None:
+            self._create_streaming_indicators()
+
+        # Update indicator text based on retry count
+        if self._retry_count > 0:
+            indicator_text = f"AI is responding... (attempt {self._retry_count + 1})"
+        else:
+            indicator_text = "AI is responding..."
+
+        if self._streaming_indicator:
+            self._streaming_indicator.setText(indicator_text)
+
+        # Ensure container is visible - use both methods for reliability
+        if self._streaming_container:
+            self._streaming_container.show()
+            self._streaming_container.setVisible(True)
+
+        # Start subtle animation
+        self._start_streaming_animation()
+
+    def _hide_streaming_indicators(self) -> None:
+        """Hide streaming visual indicators."""
+        if self._streaming_container:
+            self._streaming_container.hide()
+
+        # Stop animation
+        self._stop_streaming_animation()
+
+    def _create_streaming_indicators(self) -> None:
+        """Create streaming indicator UI components."""
+        # Create container for streaming indicators
+        self._streaming_container = QWidget()
+        self._streaming_container.setObjectName("streaming_container")
+
+        # Create horizontal layout for indicators
+        layout = QHBoxLayout(self._streaming_container)
+        layout.setContentsMargins(8, 4, 8, 4)
+        layout.setSpacing(8)
+
+        # Create streaming indicator label
+        self._streaming_indicator = QLabel("AI is responding...")
+        self._streaming_indicator.setObjectName("streaming_indicator")
+        self._streaming_indicator.setAccessibleName(
+            "AI is currently responding to your message"
+        )
+
+        # Create interrupt button
+        self._interrupt_button = QPushButton("Stop")
+        self._interrupt_button.setObjectName("interrupt_button")
+        self._interrupt_button.setAccessibleName("Stop AI response")
+        self._interrupt_button.clicked.connect(self._on_interrupt_clicked)
+        self._interrupt_button.setMaximumWidth(60)
+        self._interrupt_button.setMaximumHeight(24)
+
+        # Add to layout
+        layout.addWidget(self._streaming_indicator)
+        layout.addStretch()  # Push button to the right
+        layout.addWidget(self._interrupt_button)
+
+        # Apply theme styling
+        self._apply_streaming_indicator_theme()
+
+        # Add to main layout (insert before input area)
+        main_layout = self.layout()
+
+        if main_layout and isinstance(main_layout, QVBoxLayout):
+            # Insert before the last widget (input area)
+            main_layout.insertWidget(main_layout.count() - 1, self._streaming_container)
+
+        # Start hidden - will be shown when needed
+        self._streaming_container.hide()
+
+    def _apply_streaming_indicator_theme(self) -> None:
+        """Apply theme styling to streaming indicators."""
+        if not self._streaming_container:
+            return
+
+        if self._current_theme == "dark":
+            bg_color = "#2a2a2a"
+            text_color = "#cccccc"
+            border_color = "#444444"
+            button_bg = "#3a3a3a"
+            button_hover = "#4a4a4a"
+        else:  # light theme
+            bg_color = "#f8f8f8"
+            text_color = "#666666"
+            border_color = "#e0e0e0"
+            button_bg = "#ffffff"
+            button_hover = "#f0f0f0"
+
+        # Style the container
+        if self._streaming_container:
+            self._streaming_container.setStyleSheet(f"""
+                QWidget#streaming_container {{
+                    background-color: {bg_color};
+                    border: 1px solid {border_color};
+                    border-radius: 4px;
+                    margin: 2px 0px;
+                }}
+            """)
+
+        # Style the indicator label
+        if self._streaming_indicator:
+            self._streaming_indicator.setStyleSheet(f"""
+                QLabel#streaming_indicator {{
+                    color: {text_color};
+                    background-color: transparent;
+                    border: none;
+                    font-size: 12px;
+                    padding: 2px 4px;
+                }}
+            """)
+
+        # Style the interrupt button
+        if self._interrupt_button:
+            self._interrupt_button.setStyleSheet(f"""
+                QPushButton#interrupt_button {{
+                    background-color: {button_bg};
+                    border: 1px solid {border_color};
+                    border-radius: 3px;
+                    color: {text_color};
+                    font-size: 11px;
+                    padding: 2px 8px;
+                }}
+                QPushButton#interrupt_button:hover {{
+                    background-color: {button_hover};
+                }}
+                QPushButton#interrupt_button:pressed {{
+                    background-color: {border_color};
+                }}
+            """)
+
+    def _start_streaming_animation(self) -> None:
+        """Start subtle animation for streaming indicator."""
+        if self._animation_timer is None:
+            self._animation_timer = QTimer()
+            self._animation_timer.timeout.connect(self._update_animation)
+
+        self._animation_dots = 0
+        self._animation_timer.start(500)  # Update every 500ms
+
+    def _stop_streaming_animation(self) -> None:
+        """Stop streaming animation."""
+        if self._animation_timer:
+            self._animation_timer.stop()
+
+    def _update_animation(self) -> None:
+        """Update animation dots."""
+        if not self._streaming_indicator:
+            return
+
+        # Cycle through 0, 1, 2, 3 dots
+        self._animation_dots = (self._animation_dots + 1) % 4
+        dots = "." * self._animation_dots
+
+        # Update text with animated dots
+        base_text = "AI is responding"
+        if self._retry_count > 0:
+            base_text = f"AI is responding (attempt {self._retry_count + 1})"
+
+        self._streaming_indicator.setText(f"{base_text}{dots}")
+
+    def _on_interrupt_clicked(self) -> None:
+        """Handle interrupt button click."""
+        if self._is_streaming and self._current_stream_id:
+            # Emit interrupt signal
+            self.stream_interrupted.emit(self._current_stream_id)
+
+            # Update streaming message to show interruption
+            if self._streaming_message_id:
+                message = self.message_model.get_message_by_id(
+                    self._streaming_message_id
+                )
+                if message:
+                    self.message_model.update_message_status(
+                        self._streaming_message_id, MessageStatus.ERROR
+                    )
+
+            # Clear streaming state
+            self._is_streaming = False
+            self._current_stream_id = None
+            self._streaming_message_id = None
+            self._retry_count = 0
+
+            # Hide indicators
+            self._hide_streaming_indicators()
+            self.display_area.hide_typing_indicator()
+
+    # Public API methods for testing and external access
+
+    def is_streaming_indicator_visible(self) -> bool:
+        """Check if streaming indicator is visible."""
+        return (
+            self._streaming_container is not None
+            and self._streaming_container.isVisible()
+        )
+
+    def is_interrupt_button_visible(self) -> bool:
+        """Check if interrupt button is visible."""
+        return self._interrupt_button is not None and self._interrupt_button.isVisible()
+
+    def get_streaming_indicator_text(self) -> str:
+        """Get current streaming indicator text."""
+        if self._streaming_indicator:
+            return self._streaming_indicator.text()
+        return ""
+
+    def get_streaming_indicator_widget(self) -> QWidget | None:
+        """Get the streaming indicator widget for testing."""
+        return self._streaming_container
+
+    def trigger_interrupt_button(self) -> None:
+        """Programmatically trigger interrupt button (for testing)."""
+        if self._interrupt_button and self._interrupt_button.isVisible():
+            self._interrupt_button.click()
+
+    def is_streaming_animation_active(self) -> bool:
+        """Check if streaming animation is currently active."""
+        return self._animation_timer is not None and self._animation_timer.isActive()
 
     def _on_app_theme_changed(self, theme: str) -> None:
         """Handle theme change."""
@@ -810,3 +1032,26 @@ class SimplifiedChatWidget(QWidget):
 
             # Update send icon position immediately
             self._update_send_icon_position()
+
+    def append_streaming_chunk(self, chunk: str) -> None:
+        """Append a chunk of content to the streaming message."""
+        if not self.is_streaming() or not self._streaming_message_id:
+            return
+
+        # Update the message content
+        self.update_message_content(self._streaming_message_id, chunk)
+
+        # Auto-scroll to show new content
+        self.scroll_to_bottom()
+
+    def scroll_to_bottom(self) -> None:
+        """Scroll to the bottom."""
+        self.display_area.scroll_to_bottom()
+
+    def show_ai_thinking(self, animated: bool = False) -> None:
+        """Show AI thinking indicator."""
+        self.display_area.show_typing_indicator("AI is thinking...")
+
+    def hide_typing_indicator(self) -> None:
+        """Hide typing indicator."""
+        self.display_area.hide_typing_indicator()
