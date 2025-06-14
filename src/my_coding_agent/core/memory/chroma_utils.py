@@ -109,18 +109,11 @@ def get_or_create_collection(
     """
     # Create embedding function based on configuration
     if use_azure and embedding_model_name == "azure":
-        try:
-            embedding_func = get_azure_embedding_function()
-            logger.info("Using Azure OpenAI embeddings for ChromaDB collection")
-        except ValueError as e:
-            logger.warning(
-                f"Azure configuration missing ({e}), falling back to SentenceTransformer"
-            )
-            embedding_func = get_sentence_transformer_embedding_function(
-                "all-MiniLM-L6-v2"
-            )
+        # Always require Azure configuration - no fallback to prevent embedding incompatibility
+        embedding_func = get_azure_embedding_function()
+        logger.info("Using Azure OpenAI embeddings for ChromaDB collection")
     else:
-        # Use SentenceTransformer for backward compatibility
+        # Use SentenceTransformer only when explicitly requested (not for production)
         embedding_func = get_sentence_transformer_embedding_function(
             embedding_model_name
         )
@@ -225,7 +218,7 @@ def format_results_as_context(query_results: dict[str, Any]) -> str:
         return ""
 
     context_parts = []
-    for doc, metadata, distance in zip(
+    for doc, _metadata, distance in zip(
         query_results["documents"][0],
         query_results["metadatas"][0],
         query_results["distances"][0],

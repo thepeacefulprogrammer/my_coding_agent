@@ -52,18 +52,9 @@ class ChromaDBMemoryExample:
 
     def _get_or_create_collection(self) -> chromadb.Collection:
         """Get or create the memories collection."""
-        try:
-            # Try Azure embeddings first
-            embedding_func = self._get_azure_embedding_function()
-            logger.info("Using Azure OpenAI embeddings")
-        except Exception as e:
-            # Fallback to sentence transformers
-            logger.warning(
-                f"Azure configuration missing, using SentenceTransformer: {e}"
-            )
-            embedding_func = embedding_functions.SentenceTransformerEmbeddingFunction(
-                model_name="all-MiniLM-L6-v2"
-            )
+        # Always require Azure embeddings - no fallback to prevent embedding incompatibility
+        embedding_func = self._get_azure_embedding_function()
+        logger.info("Using Azure OpenAI embeddings")
 
         try:
             return self.client.get_collection(
@@ -326,7 +317,7 @@ def show_legal_project_implementation():
     print("   • Integration with crawl4ai for web content")
 
     print("\n3. Key Features:")
-    print("   • Azure OpenAI embeddings with fallback to SentenceTransformers")
+    print("   • Azure OpenAI embeddings (required - no fallback)")
     print("   • Batch processing for large datasets")
     print("   • Metadata filtering for precise searches")
     print("   • crawl4ai integration for web content extraction")
