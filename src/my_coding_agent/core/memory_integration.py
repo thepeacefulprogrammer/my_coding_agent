@@ -88,30 +88,28 @@ class ConversationMemoryHandler:
             List of message dictionaries formatted for AI agent
         """
         # Use semantic search to get conversation history
-        # Search for all messages in the current session
+        # Search for all conversation messages (not just current session for cross-session memory)
         results = self.rag_engine.semantic_search(
-            query="",  # Empty query to get all results
-            limit=limit,
+            query="conversation history",  # Use a query to get relevant conversations
+            limit=limit * 2,  # Get more results to filter
             memory_types=["conversation"],
         )
 
         # Convert to format expected by AI agent
         context = []
         for result in results:
-            # Filter by session ID
-            if result.metadata.get("session_id") == self.current_session_id:
-                context.append(
-                    {
-                        "role": result.metadata.get("role", "unknown"),
-                        "content": result.content,
-                        "timestamp": result.metadata.get("timestamp"),
-                        "metadata": result.metadata,
-                    }
-                )
+            context.append(
+                {
+                    "role": result.metadata.get("role", "unknown"),
+                    "content": result.content,
+                    "timestamp": result.metadata.get("timestamp", 0),
+                    "metadata": result.metadata,
+                }
+            )
 
-        # Sort by timestamp if available
-        context.sort(key=lambda x: x.get("timestamp", 0))
-        return context
+        # Sort by timestamp (most recent first) and limit
+        context.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+        return context[:limit]
 
     def start_new_session(self) -> str:
         """Start a new conversation session.
@@ -149,6 +147,72 @@ class ConversationMemoryHandler:
             Dictionary with memory statistics
         """
         return self.rag_engine.get_memory_statistics()
+
+    def store_long_term_memory(
+        self,
+        content: str,
+        memory_type: str = "user_info",
+        importance_score: float = 0.8,
+    ) -> str:
+        """Store a long-term memory that persists across sessions.
+
+        Args:
+            content: The memory content
+            memory_type: Type of memory (user_info, preference, fact, etc.)
+            importance_score: Importance score from 0.0 to 1.0
+
+        Returns:
+            The ID of the stored memory
+        """
+        from .memory.memory_types import LongTermMemory
+
+        # Create a long-term memory object
+        memory = LongTermMemory(
+            content=content,
+            memory_type=memory_type,
+            importance_score=importance_score,
+            tags=[memory_type, "persistent"],
+            embedding=None,  # ChromaDB will generate the embedding
+        )
+
+        # Store using the RAG engine
+        memory_id = self.rag_engine.store_memory_with_embedding(memory)
+        return memory_id
+
+    def get_long_term_memories(
+        self, query: str = "", limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """Get long-term memories that match a query.
+
+        Args:
+            query: Search query (empty string gets all memories)
+            limit: Maximum number of memories to retrieve
+
+        Returns:
+            List of memory dictionaries
+        """
+        # Search for long-term memories
+        results = self.rag_engine.semantic_search(
+            query=query or "user information preferences facts",
+            limit=limit,
+            memory_types=["user_info", "preference", "fact", "instruction"],
+        )
+
+        # Convert to format expected by AI agent
+        memories = []
+        for result in results:
+            memories.append(
+                {
+                    "content": result.content,
+                    "memory_type": result.memory_type,
+                    "importance_score": result.importance_score,
+                    "tags": result.tags,
+                    "created_at": result.created_at,
+                    "metadata": result.metadata,
+                }
+            )
+
+        return memories
 
     async def close(self) -> None:
         """Close the memory handler and cleanup resources."""

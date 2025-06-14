@@ -1956,18 +1956,44 @@ User message: {message}
             # Store the user message in memory
             self._memory_system.store_user_message(message)
 
-            # Get conversation context for enhanced prompt
-            context = self._memory_system.get_conversation_context(limit=10)
+            # Check if this message contains information to remember long-term
+            if any(
+                keyword in message.lower()
+                for keyword in ["my name is", "i am", "call me", "remember that"]
+            ):
+                # Extract and store long-term memory
+                self._memory_system.store_long_term_memory(
+                    content=message, memory_type="user_info", importance_score=0.9
+                )
+
+            # Get conversation context and long-term memories for enhanced prompt
+            context = self._memory_system.get_conversation_context(limit=5)
+            long_term_memories = self._memory_system.get_long_term_memories(
+                query=message, limit=3
+            )
 
             # Enhance message with context if available
+            enhanced_parts = []
+
+            if long_term_memories:
+                memory_text = "\n".join(
+                    [f"- {mem['content']}" for mem in long_term_memories]
+                )
+                enhanced_parts.append(f"Relevant long-term memories:\n{memory_text}")
+
             if context:
                 context_text = "\n".join(
                     [
                         f"{msg['role']}: {msg['content']}"
-                        for msg in context[-5:]  # Last 5 messages for context
+                        for msg in context[-3:]  # Last 3 messages for context
                     ]
                 )
-                enhanced_message = f"Recent conversation context:\n{context_text}\n\nCurrent message: {message}"
+                enhanced_parts.append(f"Recent conversation:\n{context_text}")
+
+            if enhanced_parts:
+                enhanced_message = (
+                    f"{chr(10).join(enhanced_parts)}\n\nCurrent message: {message}"
+                )
             else:
                 enhanced_message = message
 

@@ -360,7 +360,7 @@ class ChromaRAGEngine:
 
                     # Create SemanticSearchResult
                     result = SemanticSearchResult(
-                        memory_id=metadata.get("memory_id", 0),
+                        id=metadata.get("memory_id", 0),
                         content=doc,
                         similarity_score=similarity,
                         memory_type=metadata.get("memory_type", "unknown"),
@@ -369,6 +369,9 @@ class ChromaRAGEngine:
                         if metadata.get("tags")
                         else [],
                         created_at=metadata.get("created_at", ""),
+                        last_accessed=metadata.get(
+                            "last_accessed", metadata.get("created_at", "")
+                        ),
                         metadata=metadata,
                     )
                     results.append(result)

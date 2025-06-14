@@ -22,9 +22,8 @@ Done through Library
 
 -- CONSIDERATIONS
 -> we need to generate series of questions when creating and reviewing tasks (we seem to forget to actually hook things up together, like we made a memory system but didn't give it to the agent)
--> maybe some sort of sprint planning session between agents.
-
-
+-> maybe some sort of sprint planning session between agents when we are breaking out tasks (could also use this to populate the tasks with descriptions and use GitHub Project Manager MCP to track)
+-> Cursor agent seems to stop every so often, maybe we could have some sort of monitor - maybe the agent waiting for a response could subscribe to some sort of listen event, so it would know that the agents have stopped working and look into the issue
 ## Manager
 
 You are a Program Manager. You are well respected and knowledgeable lead within your organization that has many decades of experience. You started out as a software developer and worked your way up through the ranks. You got your masters degree in computer science in Big Data Analytics and Visualizations.
