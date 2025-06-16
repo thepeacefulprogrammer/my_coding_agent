@@ -104,7 +104,7 @@ class TestStreamingVisualIndicators:
         """Test interrupt button actually interrupts streaming."""
         # Start streaming
         stream_id = "test-stream-123"
-        msg_id = chat_widget.start_streaming_response(stream_id)
+        _msg_id = chat_widget.start_streaming_response(stream_id)
 
         # Add some content
         chat_widget.append_streaming_chunk("Partial content")

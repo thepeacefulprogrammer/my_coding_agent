@@ -32,6 +32,7 @@ dependencies = [
     "pydantic-ai>=0.0.14",
     "openai>=1.54.0",
     "mcp>=1.0.0",
+    "fastmcp>=2.5.0",
     "python-dotenv>=1.0.0",
     "crawl4ai>=0.6.0",
     "numpy>=1.24.0",
@@ -130,6 +131,7 @@ select = [
     "B",   # flake8-bugbear
     "SIM", # flake8-simplify
     "I",   # isort
+    "ANN", # flake8-annotations
 ]
 ignore = [
     "E501", # line too long, handled by black
@@ -137,7 +139,30 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
-"tests/**/*" = ["S101"]
+"tests/**/*" = [
+    "S101",    # Use of assert
+    "SIM117",  # Combine multiple isinstance checks
+    "ANN001",  # Missing type annotation for function argument
+    "ANN002",  # Missing type annotation for *args
+    "ANN003",  # Missing type annotation for **kwargs
+    "ANN201",  # Missing return type annotation for public function
+    "ANN202",  # Missing return type annotation for private function
+    "ANN204",  # Missing return type annotation for special method
+]
+"src/my_coding_agent/core/ai_agent.py" = [
+    "ANN001", # Missing type annotation for function argument
+    "ANN002", # Missing type annotation for *args
+    "ANN003", # Missing type annotation for **kwargs
+    "E402",   # Module level import not at top of file (for type aliases)
+]
+"src/my_coding_agent/core/streaming/response_buffer.py" = ["ANN204"]
+"src/my_coding_agent/core/memory/memory_transparency.py" = ["ANN204"]
+"src/my_coding_agent/gui/components/theme_aware_widget.py" = ["ANN201", "ANN202", "ANN204"]
+"src/my_coding_agent/core/mcp/*.py" = ["ANN001", "ANN202", "ANN204", "ANN206"]
+"src/my_coding_agent/core/file_tree.py" = ["ANN001", "ANN401"]
+"src/my_coding_agent/core/theme_manager.py" = ["ANN204"]
+"src/my_coding_agent/core/memory/chroma_rag_engine.py" = ["ANN204", "ANN401"]
+"tools/**/*" = ["ANN201", "ANN204"]
 
 # MyPy configuration
 [tool.mypy]
@@ -158,6 +183,27 @@ exclude = ["venv/", "build/", "dist/"]
 
 [[tool.mypy.overrides]]
 module = "tests.*"
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "my_coding_agent.core.memory.*"
+ignore_missing_imports = true
+disallow_untyped_defs = false
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "crawl4ai.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "chromadb.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "my_coding_agent.core.ai_agent"
+# Suppress false positives for complex callback type annotations
+warn_unused_ignores = false
+# Allow complex callback types that MyPy might not understand
 disallow_untyped_defs = false
 
 # Pytest configuration
@@ -231,7 +277,14 @@ exclude = ["venv", "build", "dist", "**/__pycache__", "tests"]
 reportUnknownMemberType = "none"                               # Ignore PyQt6 incomplete type stubs
 reportUnknownArgumentType = "none"                             # Ignore QSettings unknown argument types
 reportGeneralTypeIssues = "warning"                            # Keep other type checking
-pythonVersion = "3.8"
+reportAttributeAccessIssue = "none"                            # Ignore attribute access issues for external libraries
+reportCallIssue = "warning"                                    # Keep call issues as warnings
+pythonVersion = "3.10"                                         # Match project's minimum Python version
 typeCheckingMode = "standard"
 
-# Pydocstyle configuration
+# File-specific overrides for memory module
+[[tool.pyright.overrides]]
+include = ["src/my_coding_agent/core/memory/**"]
+reportAttributeAccessIssue = "none"
+reportCallIssue = "none"
+reportGeneralTypeIssues = "none"

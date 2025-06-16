@@ -25,6 +25,12 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
+# Type aliases for callback functions (defined after imports to avoid import order issues)
+from collections.abc import Callable
+
+ChunkCallback = Callable[[str, bool], Any]
+ErrorCallback = Any
+
 
 class AIAgentConfig(BaseModel):
     """Configuration for the AI Agent."""
@@ -107,7 +113,7 @@ class AIAgent:
         mcp_config: MCPFileConfig | None = None,
         enable_filesystem_tools: bool | None = None,
         enable_memory_awareness: bool = False,
-    ):
+    ) -> None:
         """Initialize the AI Agent.
 
         Args:
@@ -1748,8 +1754,8 @@ User message: {message}
     async def send_message_with_tools_stream(
         self,
         message: str,
-        on_chunk,
-        on_error=None,
+        on_chunk: ChunkCallback,
+        on_error: ErrorCallback = None,
         enable_filesystem: bool = True,
     ) -> AIResponse:
         """Send a message with tool support and streaming output.
@@ -1931,8 +1937,8 @@ User message: {message}
     async def send_memory_aware_message_stream(
         self,
         message: str,
-        on_chunk,
-        on_error=None,
+        on_chunk: ChunkCallback,
+        on_error: ErrorCallback = None,
         enable_filesystem: bool = True,
     ) -> AIResponse:
         """Send a message with memory awareness and streaming output.

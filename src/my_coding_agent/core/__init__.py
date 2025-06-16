@@ -33,7 +33,7 @@ __email__ = "randy.herritt@gmail.com"
 # from .syntax_highlighter import SyntaxHighlighter
 # from .theme_manager import ThemeManager
 
-__all__ = [
+__all__: list[str] = [
     # Main components (to be uncommented as implemented)
     # "MainWindow",
     # "FileTreeWidget",

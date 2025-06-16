@@ -30,7 +30,7 @@ __email__ = "randy.herritt@gmail.com"
 # from . import widgets
 # from . import styles
 
-__all__ = [
+__all__: list[str] = [
     # GUI components (to be uncommented as implemented)
     # "widgets",
     # "styles",

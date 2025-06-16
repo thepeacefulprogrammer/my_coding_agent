@@ -59,8 +59,8 @@ class FileTreeModel(QFileSystemModel):
         self._lazy_loading_enabled = True
 
         # Set up caching
-        self._icon_cache = {}
-        self._file_info_cache = {}
+        self._icon_cache: dict[str, QIcon] = {}
+        self._file_info_cache: dict[str, dict[str, Any]] = {}
         self._max_cache_size = 500  # Reasonable limit for memory management
 
         # Enable background scanning

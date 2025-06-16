@@ -27,7 +27,9 @@ class ThemeManager(QObject):
         super().__init__()
         self.app = app
         self._available_themes = ["light", "dark"]
-        self._connected_widgets = []  # Track widgets for automatic theme updates
+        self._connected_widgets: list[
+            QWidget
+        ] = []  # Track widgets for automatic theme updates
 
         # Load saved theme or default to dark
         self._settings = QSettings("my_coding_agent", "Simple Code Viewer")

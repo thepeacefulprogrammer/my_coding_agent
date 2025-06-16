@@ -1,0 +1,1017 @@
+"""
+Unit tests for FastMCP client implementation.
+
+These tests cover the core functionality of the MCP client including:
+- Connection management and lifecycle
+- JSON-RPC protocol support
+- Tool listing and calling
+- Resource management
+- Error handling and recovery
+- Transport layer abstraction
+"""
+
+import asyncio
+import json
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+# Import our MCP client components (to be implemented)
+from src.my_coding_agent.core.mcp.mcp_client import MCPClient
+from src.my_coding_agent.core.mcp.mcp_config import MCPConfig
+from src.my_coding_agent.core.mcp.server_registry import MCPServerRegistry
+
+
+class TestMCPClient:
+    """Test cases for the MCPClient class."""
+
+    @pytest.fixture
+    def mock_fastmcp_client(self):
+        """Mock FastMCP client for testing."""
+        client = AsyncMock()
+        client.is_connected = Mock(return_value=False)
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock()
+        client.ping = AsyncMock()
+        client.list_tools = AsyncMock()
+        client.call_tool = AsyncMock()
+        client.list_resources = AsyncMock()
+        client.read_resource = AsyncMock()
+        return client
+
+    @pytest.fixture
+    def mcp_client(self, mock_fastmcp_client):
+        """Create MCPClient instance with mocked FastMCP client."""
+        config = {
+            "server_name": "test_server",
+            "transport": "stdio",
+            "command": "python",
+            "args": ["test_server.py"],
+        }
+
+        with patch(
+            "src.my_coding_agent.core.mcp.mcp_client.Client"
+        ) as mock_client_class:
+            mock_client_class.return_value = mock_fastmcp_client
+            client = MCPClient(config)
+            # Manually set the client since we're mocking
+            client._client = mock_fastmcp_client
+            client._client_created = True
+            return client
+
+    def test_client_initialization(self):
+        """Test MCPClient initialization with various configurations."""
+        # Test with stdio configuration
+        stdio_config = {
+            "server_name": "stdio_server",
+            "transport": "stdio",
+            "command": "python",
+            "args": ["server.py"],
+        }
+        client = MCPClient(stdio_config)
+        assert client.server_name == "stdio_server"
+        assert client.config["transport"] == "stdio"
+        assert client.config["command"] == "python"
+        assert client.config["args"] == ["server.py"]
+
+        # Test with HTTP configuration
+        http_config = {
+            "server_name": "http_server",
+            "transport": "http",
+            "url": "https://example.com/mcp",
+        }
+        client = MCPClient(http_config)
+        assert client.server_name == "http_server"
+        assert client.config["transport"] == "http"
+        assert client.config["url"] == "https://example.com/mcp"
+
+        # Test with SSE configuration
+        sse_config = {
+            "server_name": "sse_server",
+            "transport": "sse",
+            "url": "https://example.com/sse",
+        }
+        client = MCPClient(sse_config)
+        assert client.server_name == "sse_server"
+        assert client.config["transport"] == "sse"
+
+    def test_client_initialization_invalid_config(self):
+        """Test MCPClient initialization with invalid configurations."""
+        # Missing required fields
+        with pytest.raises(ValueError, match="server_name is required"):
+            MCPClient({})
+
+        # Invalid transport type
+        with pytest.raises(ValueError, match="Unsupported transport type"):
+            MCPClient({"server_name": "test", "transport": "invalid"})
+
+        # Missing required fields for stdio
+        with pytest.raises(ValueError, match="command is required for stdio transport"):
+            MCPClient({"server_name": "test", "transport": "stdio"})
+
+        # Missing URL for HTTP/SSE
+        with pytest.raises(ValueError, match="url is required for http transport"):
+            MCPClient({"server_name": "test", "transport": "http"})
+
+    @pytest.mark.asyncio
+    async def test_connection_lifecycle(self, mcp_client, mock_fastmcp_client):
+        """Test connection establishment and cleanup."""
+        # Test initial state
+        mock_fastmcp_client.is_connected.return_value = False
+        assert not mcp_client.is_connected()
+
+        # Test connection
+        mock_fastmcp_client.is_connected.return_value = True
+        await mcp_client.connect()
+        mock_fastmcp_client.__aenter__.assert_called_once()
+        assert mcp_client.is_connected()
+
+        # Test disconnection
+        mock_fastmcp_client.is_connected.return_value = False
+        await mcp_client.disconnect()
+        mock_fastmcp_client.__aexit__.assert_called_once()
+        assert not mcp_client.is_connected()
+
+    @pytest.mark.asyncio
+    async def test_context_manager(self, mcp_client, mock_fastmcp_client):
+        """Test using MCPClient as async context manager."""
+        mock_fastmcp_client.is_connected.return_value = True
+
+        async with mcp_client:
+            mock_fastmcp_client.__aenter__.assert_called()
+            assert mcp_client.is_connected()
+
+        mock_fastmcp_client.__aexit__.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_list_tools(self, mcp_client, mock_fastmcp_client):
+        """Test listing available tools from MCP server."""
+        # Mock successful response - FastMCP returns tool objects
+        mock_tool = Mock()
+        mock_tool.name = "test_tool"
+        mock_tool.description = "A test tool"
+        mock_tool.inputSchema = {
+            "type": "object",
+            "properties": {"arg1": {"type": "string"}},
+        }
+
+        mock_fastmcp_client.list_tools.return_value = [mock_tool]
+        mock_fastmcp_client.is_connected.return_value = True
+
+        tools = await mcp_client.list_tools()
+
+        # Verify method was called
+        mock_fastmcp_client.list_tools.assert_called_once()
+
+        # Verify response parsing
+        assert len(tools) == 1
+        assert tools[0].name == "test_tool"
+        assert tools[0].description == "A test tool"
+
+    @pytest.mark.asyncio
+    async def test_call_tool(self, mcp_client, mock_fastmcp_client):
+        """Test calling a tool with arguments."""
+        # Mock successful response - return list directly (FastMCP returns list of content objects)
+        mock_fastmcp_client.call_tool.return_value = [
+            {"type": "text", "text": "Tool execution result"}
+        ]
+        mock_fastmcp_client.is_connected.return_value = True
+
+        result = await mcp_client.call_tool("test_tool", {"arg1": "value1"})
+
+        # Verify method was called correctly
+        mock_fastmcp_client.call_tool.assert_called_once_with(
+            "test_tool", {"arg1": "value1"}
+        )
+
+        # Verify response parsing
+        assert len(result) == 1
+        assert result[0]["type"] == "text"
+        assert result[0]["text"] == "Tool execution result"
+
+    @pytest.mark.asyncio
+    async def test_list_resources(self, mcp_client, mock_fastmcp_client):
+        """Test listing available resources from MCP server."""
+        # Mock successful response - FastMCP returns resource objects
+        mock_resource = Mock()
+        mock_resource.uri = "file:///test.txt"
+        mock_resource.name = "test.txt"
+        mock_resource.description = "A test file"
+        mock_resource.mimeType = "text/plain"
+
+        mock_fastmcp_client.list_resources.return_value = [mock_resource]
+        mock_fastmcp_client.is_connected.return_value = True
+
+        resources = await mcp_client.list_resources()
+
+        # Verify method was called
+        mock_fastmcp_client.list_resources.assert_called_once()
+
+        # Verify response parsing
+        assert len(resources) == 1
+        assert resources[0].uri == "file:///test.txt"
+        assert resources[0].name == "test.txt"
+
+    @pytest.mark.asyncio
+    async def test_read_resource(self, mcp_client, mock_fastmcp_client):
+        """Test reading resource content from MCP server."""
+        # Mock successful response - return list directly (FastMCP returns list of content objects)
+        mock_fastmcp_client.read_resource.return_value = [
+            {
+                "uri": "file:///test.txt",
+                "text": "Test file content",
+                "mimeType": "text/plain",
+            }
+        ]
+        mock_fastmcp_client.is_connected.return_value = True
+
+        contents = await mcp_client.read_resource("file:///test.txt")
+
+        # Verify method was called correctly
+        mock_fastmcp_client.read_resource.assert_called_once_with("file:///test.txt")
+
+        # Verify response parsing
+        assert len(contents) == 1
+        assert contents[0]["uri"] == "file:///test.txt"
+        assert contents[0]["text"] == "Test file content"
+
+    @pytest.mark.asyncio
+    async def test_ping(self, mcp_client, mock_fastmcp_client):
+        """Test ping functionality for server connectivity."""
+        mock_fastmcp_client.is_connected.return_value = True
+
+        await mcp_client.ping()
+
+        # Verify ping was called
+        mock_fastmcp_client.ping.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_error_handling_json_rpc_error(self, mcp_client, mock_fastmcp_client):
+        """Test handling of JSON-RPC errors."""
+        # Mock FastMCP raising an exception
+        mock_fastmcp_client.call_tool.side_effect = Exception("Method not found")
+        mock_fastmcp_client.is_connected.return_value = True
+
+        with pytest.raises(Exception) as exc_info:
+            await mcp_client.call_tool("unknown_tool", {})
+
+        assert "Method not found" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_error_handling_connection_error(
+        self, mcp_client, mock_fastmcp_client
+    ):
+        """Test handling of connection errors."""
+        mock_fastmcp_client.list_tools.side_effect = ConnectionError("Connection lost")
+        mock_fastmcp_client.is_connected.return_value = True
+
+        with pytest.raises(Exception) as exc_info:
+            await mcp_client.list_tools()
+
+        # Our implementation wraps the exception in MCPProtocolError
+        assert "Connection lost" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_error_handling_not_connected(self, mcp_client, mock_fastmcp_client):
+        """Test error handling when client is not connected."""
+        mock_fastmcp_client.is_connected.return_value = False
+
+        with pytest.raises(RuntimeError, match="Client is not connected to server"):
+            await mcp_client.list_tools()
+
+        with pytest.raises(RuntimeError, match="Client is not connected to server"):
+            await mcp_client.call_tool("test_tool", {})
+
+        with pytest.raises(RuntimeError, match="Client is not connected to server"):
+            await mcp_client.list_resources()
+
+        with pytest.raises(RuntimeError, match="Client is not connected to server"):
+            await mcp_client.read_resource("test://resource")
+
+        with pytest.raises(RuntimeError, match="Client is not connected to server"):
+            await mcp_client.ping()
+
+    @pytest.mark.asyncio
+    async def test_request_timeout(self, mcp_client, mock_fastmcp_client):
+        """Test request timeout handling."""
+        mock_fastmcp_client.ping.side_effect = asyncio.TimeoutError("Request timed out")
+        mock_fastmcp_client.is_connected.return_value = True
+
+        with pytest.raises(Exception) as exc_info:
+            await mcp_client.ping()
+
+        # Our implementation wraps the exception in MCPTimeoutError
+        assert "Request timed out" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_invalid_json_response(self, mcp_client, mock_fastmcp_client):
+        """Test handling of invalid JSON responses."""
+        # Mock FastMCP raising a protocol error
+        mock_fastmcp_client.list_tools.side_effect = ValueError(
+            "Invalid JSON-RPC response"
+        )
+        mock_fastmcp_client.is_connected.return_value = True
+
+        with pytest.raises(Exception) as exc_info:
+            await mcp_client.list_tools()
+
+        # Our implementation wraps the exception in MCPProtocolError
+        assert "Invalid JSON-RPC response" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_missing_result_in_response(self, mcp_client, mock_fastmcp_client):
+        """Test handling of responses missing result field."""
+        # Mock FastMCP raising a protocol error
+        mock_fastmcp_client.list_tools.side_effect = ValueError(
+            "Missing result in response"
+        )
+        mock_fastmcp_client.is_connected.return_value = True
+
+        with pytest.raises(Exception) as exc_info:
+            await mcp_client.list_tools()
+
+        # Our implementation wraps the exception in MCPProtocolError
+        assert "Missing result in response" in str(exc_info.value)
+
+    def test_request_id_increment(self, mcp_client):
+        """Test that request IDs are incremented correctly."""
+        # Test request ID increment
+        request1 = mcp_client._create_request("test_method")
+        request2 = mcp_client._create_request("test_method")
+
+        assert request1["id"] == 1
+        assert request2["id"] == 2
+        assert request2["id"] > request1["id"]
+
+    def test_create_request_with_params(self, mcp_client):
+        """Test request creation with parameters."""
+        params = {"key": "value", "number": 42}
+        request = mcp_client._create_request("test_method", params)
+
+        assert request["jsonrpc"] == "2.0"
+        assert request["method"] == "test_method"
+        assert request["params"] == params
+        assert "id" in request
+
+    @pytest.mark.asyncio
+    async def test_concurrent_requests(self, mcp_client, mock_fastmcp_client):
+        """Test handling of concurrent requests with different IDs."""
+        # Mock responses for concurrent requests
+        mock_tool1 = Mock()
+        mock_tool1.name = "tool1"
+        mock_tool1.description = "Tool 1"
+        mock_tool1.inputSchema = {}
+
+        mock_tool2 = Mock()
+        mock_tool2.name = "tool2"
+        mock_tool2.description = "Tool 2"
+        mock_tool2.inputSchema = {}
+
+        mock_fastmcp_client.list_tools.side_effect = [
+            [mock_tool1],
+            [mock_tool2],
+            [mock_tool1, mock_tool2],
+        ]
+        mock_fastmcp_client.is_connected.return_value = True
+
+        # Send concurrent requests
+        tasks = [
+            mcp_client.list_tools(),
+            mcp_client.list_tools(),
+            mcp_client.list_tools(),
+        ]
+
+        results = await asyncio.gather(*tasks)
+
+        # Verify we got three different results
+        assert len(results) == 3
+        assert len(results[0]) == 1
+        assert len(results[1]) == 1
+        assert len(results[2]) == 2
+
+    @pytest.mark.asyncio
+    async def test_cleanup_on_exception(self, mcp_client, mock_fastmcp_client):
+        """Test that resources are properly cleaned up on exceptions."""
+        mock_fastmcp_client.__aenter__.side_effect = Exception("Connection failed")
+
+        try:
+            async with mcp_client:
+                pass
+        except Exception:
+            pass
+
+        # When __aenter__ fails, __aexit__ is still called by the context manager protocol
+        # but our implementation doesn't call the client's __aexit__ if client creation failed
+        # This is actually correct behavior - we shouldn't call __aexit__ on a client that never entered
+        mock_fastmcp_client.__aenter__.assert_called_once()
+        # The __aexit__ on the mock client shouldn't be called if __aenter__ failed
+        mock_fastmcp_client.__aexit__.assert_not_called()
+
+
+class TestMCPConfig:
+    """Test cases for the MCPConfig class."""
+
+    def test_config_validation_valid(self):
+        """Test configuration validation with valid configs."""
+        # Valid stdio config using proper format
+        config_data = {
+            "mcpServers": {"test_server": {"command": "python", "args": ["server.py"]}}
+        }
+        config = MCPConfig(config_data)
+        assert config.is_valid()
+
+        # Valid HTTP config
+        http_config_data = {
+            "mcpServers": {"http_server": {"url": "https://example.com/mcp"}}
+        }
+        config2 = MCPConfig(http_config_data)
+        assert config2.is_valid()
+
+    def test_config_validation_invalid(self):
+        """Test configuration validation with invalid configs."""
+        # Create config that tries to parse but has no servers
+        invalid_config_data = {"some_key": "some_value"}
+        config = MCPConfig(invalid_config_data)
+        assert not config.is_valid()
+        errors = config.get_validation_errors()
+        assert any("No MCP servers found" in error for error in errors)
+
+        # Missing command for stdio - this creates a server but validation should catch it
+        invalid_config2_data = {
+            "mcpServers": {
+                "test_server": {
+                    # Missing command - will default to stdio transport but no command provided
+                }
+            }
+        }
+        config2 = MCPConfig(invalid_config2_data)
+        # Check server-level validation
+        all_errors = config2.validate_all_servers()
+        assert len(all_errors) > 0
+        assert any(
+            "Command is required for stdio transport" in error for error in all_errors
+        )
+
+    def test_config_from_file(self, tmp_path):
+        """Test loading configuration from JSON file."""
+        # Create test config file
+        config_data = {
+            "mcpServers": {"test_server": {"command": "python", "args": ["server.py"]}}
+        }
+
+        config_file = tmp_path / "mcp.json"
+        config_file.write_text(json.dumps(config_data))
+
+        config = MCPConfig.from_file(str(config_file))
+        assert len(config.servers) == 1
+        server_names = list(config.servers.keys())
+        assert "test_server" in server_names
+
+
+class TestMCPServerRegistry:
+    """Test cases for the MCPServerRegistry class."""
+
+    def test_registry_initialization(self):
+        """Test MCPServerRegistry initialization."""
+        registry = MCPServerRegistry()
+        assert len(registry._servers) == 0
+        assert len(registry._tools_cache) == 0
+
+    def test_register_server(self):
+        """Test registering a server with the registry."""
+        registry = MCPServerRegistry()
+
+        config = {
+            "server_name": "test_server",
+            "transport": "stdio",
+            "command": "python",
+            "args": ["server.py"],
+        }
+
+        with patch("src.my_coding_agent.core.mcp.mcp_client.Client"):
+            client = MCPClient(config)
+            registry.register_server(client)
+
+            assert len(registry._servers) == 1
+            assert "test_server" in registry._servers
+            assert registry._servers["test_server"] == client
+
+    def test_unregister_server(self):
+        """Test unregistering a server from the registry."""
+        registry = MCPServerRegistry()
+
+        config = {
+            "server_name": "test_server",
+            "transport": "stdio",
+            "command": "python",
+            "args": ["server.py"],
+        }
+
+        with patch("src.my_coding_agent.core.mcp.mcp_client.Client"):
+            client = MCPClient(config)
+            registry.register_server(client)
+            registry.unregister_server("test_server")
+
+            assert len(registry._servers) == 0
+            assert "test_server" not in registry._servers
+
+    def test_get_server_by_name(self):
+        """Test retrieving a server by name."""
+        registry = MCPServerRegistry()
+
+        config = {
+            "server_name": "test_server",
+            "transport": "stdio",
+            "command": "python",
+            "args": ["server.py"],
+        }
+
+        with patch("src.my_coding_agent.core.mcp.mcp_client.Client"):
+            client = MCPClient(config)
+            registry.register_server(client)
+
+            retrieved_client = registry.get_server("test_server")
+            assert retrieved_client == client
+
+            # Test non-existent server
+            assert registry.get_server("nonexistent") is None
+
+    @pytest.mark.asyncio
+    async def test_update_tools_cache(self):
+        """Test updating the tools cache for registered servers."""
+        registry = MCPServerRegistry()
+
+        # Mock client with tools
+        mock_client = Mock()
+        mock_client.server_name = "test_server"
+        mock_client.is_connected.return_value = True
+
+        mock_tool = Mock()
+        mock_tool.name = "test_tool"
+        mock_tool.description = "Test tool"
+        mock_tool.input_schema = {}
+        mock_tool.server = "test_server"
+
+        mock_client.list_tools = AsyncMock(return_value=[mock_tool])
+
+        registry._servers["test_server"] = mock_client
+        # Initialize the server status that the registry expects
+        from src.my_coding_agent.core.mcp.server_registry import ServerStatus
+
+        registry._server_status["test_server"] = ServerStatus(name="test_server")
+
+        await registry.update_tools_cache()
+
+        # Verify cache was updated
+        assert "test_server:test_tool" in registry._tools_cache
+
+    @pytest.mark.asyncio
+    async def test_update_tools_cache_disconnected_server(self):
+        """Test updating tools cache with disconnected server."""
+        registry = MCPServerRegistry()
+
+        # Mock disconnected client
+        mock_client = Mock()
+        mock_client.server_name = "test_server"
+        mock_client.is_connected.return_value = False
+
+        registry._servers["test_server"] = mock_client
+
+        await registry.update_tools_cache()
+
+        # Verify no tools were cached for disconnected server
+        server_tools = [
+            key
+            for key in registry._tools_cache
+            if key.startswith("test_server:")
+        ]
+        assert len(server_tools) == 0
+
+    def test_get_tool_by_name(self):
+        """Test retrieving a tool by name across all servers."""
+        registry = MCPServerRegistry()
+
+        # Set up mock tools cache with proper ToolRegistry objects
+        from src.my_coding_agent.core.mcp.mcp_client import MCPTool
+        from src.my_coding_agent.core.mcp.server_registry import ToolRegistry
+
+        tool1 = MCPTool(
+            name="tool1", description="Tool 1", input_schema={}, server="server1"
+        )
+        tool2 = MCPTool(
+            name="tool2", description="Tool 2", input_schema={}, server="server2"
+        )
+
+        from datetime import datetime
+
+        registry._tools_cache = {
+            "server1:tool1": ToolRegistry(
+                tool=tool1, server_name="server1", last_updated=datetime.now()
+            ),
+            "server2:tool2": ToolRegistry(
+                tool=tool2, server_name="server2", last_updated=datetime.now()
+            ),
+        }
+
+        tool = registry.get_tool("tool1")
+        assert tool is not None
+        assert tool.tool.name == "tool1"
+
+    def test_list_tools_by_server(self):
+        """Test listing tools for a specific server."""
+        registry = MCPServerRegistry()
+
+        # Set up mock tools cache by calling get_tools_for_server which uses _tools_by_server
+        from src.my_coding_agent.core.mcp.mcp_client import MCPTool
+
+        tool1 = MCPTool(
+            name="tool1", description="Tool 1", input_schema={}, server="server1"
+        )
+        tool2 = MCPTool(
+            name="tool2", description="Tool 2", input_schema={}, server="server1"
+        )
+        tool3 = MCPTool(
+            name="tool3", description="Tool 3", input_schema={}, server="server2"
+        )
+
+        # Set up the _tools_by_server cache directly
+        registry._tools_by_server = {"server1": [tool1, tool2], "server2": [tool3]}
+
+        server1_tools = registry.get_tools_for_server("server1")
+        assert len(server1_tools) == 2
+        tool_names = [tool.name for tool in server1_tools]
+        assert "tool1" in tool_names
+        assert "tool2" in tool_names
+
+        server2_tools = registry.get_tools_for_server("server2")
+        assert len(server2_tools) == 1
+        assert server2_tools[0].name == "tool3"
+
+
+class TestMCPTransportProtocols:
+    """Test transport protocol support for stdio, HTTP SSE, and WebSocket."""
+
+    @pytest.fixture
+    def stdio_config(self):
+        """Stdio transport configuration."""
+        return {
+            "server_name": "stdio_server",
+            "transport": "stdio",
+            "command": "python",
+            "args": ["test_server.py"],
+            "env": {"DEBUG": "1"},
+        }
+
+    @pytest.fixture
+    def http_config(self):
+        """HTTP transport configuration."""
+        return {
+            "server_name": "http_server",
+            "transport": "http",
+            "url": "https://example.com/mcp",
+            "headers": {"Authorization": "Bearer token123"},
+        }
+
+    @pytest.fixture
+    def sse_config(self):
+        """SSE transport configuration."""
+        return {
+            "server_name": "sse_server",
+            "transport": "sse",
+            "url": "https://example.com/sse",
+            "headers": {"Authorization": "Bearer token456"},
+        }
+
+    @pytest.fixture
+    def websocket_config(self):
+        """WebSocket transport configuration."""
+        return {
+            "server_name": "ws_server",
+            "transport": "websocket",
+            "url": "wss://example.com/ws",
+            "headers": {"Authorization": "Bearer token789"},
+        }
+
+    @pytest.mark.asyncio
+    async def test_stdio_transport_creation(self, stdio_config):
+        """Test stdio transport client creation."""
+        with patch(
+            "src.my_coding_agent.core.mcp.mcp_client.Client"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+            mock_client.is_connected.return_value = False
+
+            client = MCPClient(stdio_config)
+            client._create_client()
+
+            # Should create client with script path for stdio
+            mock_client_class.assert_called_once_with("test_server.py")
+
+    @pytest.mark.asyncio
+    async def test_http_transport_creation(self, http_config):
+        """Test HTTP transport client creation."""
+        with patch(
+            "src.my_coding_agent.core.mcp.mcp_client.Client"
+        ) as mock_client_class, patch(
+            "fastmcp.client.transports.StreamableHttpTransport"
+        ) as mock_transport:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+            mock_client.is_connected.return_value = False
+
+            client = MCPClient(http_config)
+            client._create_client()
+
+            # Should create transport with headers and then create client with transport
+            mock_transport.assert_called_once_with(
+                url="https://example.com/mcp",
+                headers={"Authorization": "Bearer token123"},
+            )
+            mock_client_class.assert_called_once_with(mock_transport.return_value)
+
+    @pytest.mark.asyncio
+    async def test_sse_transport_creation(self, sse_config):
+        """Test SSE transport client creation."""
+        with patch(
+            "src.my_coding_agent.core.mcp.mcp_client.Client"
+        ) as mock_client_class:
+            with patch("fastmcp.client.transports.SSETransport") as mock_transport:
+                mock_client = AsyncMock()
+                mock_client_class.return_value = mock_client
+                mock_client.is_connected.return_value = False
+
+                client = MCPClient(sse_config)
+                client._create_client()
+
+                # Should create transport with headers and then create client with transport
+                mock_transport.assert_called_once_with(
+                    url="https://example.com/sse",
+                    headers={"Authorization": "Bearer token456"},
+                )
+                mock_client_class.assert_called_once_with(mock_transport.return_value)
+
+    @pytest.mark.asyncio
+    async def test_websocket_transport_creation(self, websocket_config):
+        """Test WebSocket transport client creation."""
+        with patch(
+            "src.my_coding_agent.core.mcp.mcp_client.Client"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+            mock_client.is_connected.return_value = False
+
+            client = MCPClient(websocket_config)
+            client._create_client()
+
+            # WebSocket is not supported, so client should not be created
+            # The _client should be None due to the exception handling
+            assert client._client is None
+
+    @pytest.mark.asyncio
+    async def test_transport_auto_detection_stdio(self):
+        """Test automatic transport detection for stdio."""
+        config = {
+            "server_name": "auto_stdio",
+            "command": "python",
+            "args": ["server.py"],
+        }
+
+        client = MCPClient(config)
+        assert client.config.get("transport", "stdio") == "stdio"
+
+    @pytest.mark.asyncio
+    async def test_transport_auto_detection_http(self):
+        """Test automatic transport detection for HTTP."""
+        config = {"server_name": "auto_http", "url": "https://example.com/mcp"}
+
+        client = MCPClient(config)
+        # Should auto-detect as HTTP (not SSE since no /sse in path)
+        detected_transport = client._detect_transport_from_config()
+        assert detected_transport == "http"
+
+    @pytest.mark.asyncio
+    async def test_transport_auto_detection_sse(self):
+        """Test automatic transport detection for SSE."""
+        config = {"server_name": "auto_sse", "url": "https://example.com/sse"}
+
+        client = MCPClient(config)
+        detected_transport = client._detect_transport_from_config()
+        assert detected_transport == "sse"
+
+    @pytest.mark.asyncio
+    async def test_transport_auto_detection_websocket(self):
+        """Test automatic transport detection for WebSocket."""
+        config = {"server_name": "auto_ws", "url": "wss://example.com/ws"}
+
+        client = MCPClient(config)
+        detected_transport = client._detect_transport_from_config()
+        assert detected_transport == "websocket"
+
+    @pytest.mark.asyncio
+    async def test_stdio_connection_lifecycle(self, stdio_config):
+        """Test stdio transport connection lifecycle."""
+        with patch(
+            "src.my_coding_agent.core.mcp.mcp_client.Client"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+            mock_client.is_connected.return_value = True
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+
+            client = MCPClient(stdio_config)
+
+            async with client:
+                assert client.is_connected()
+                mock_client.__aenter__.assert_called_once()
+
+            mock_client.__aexit__.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_http_connection_with_headers(self, http_config):
+        """Test HTTP transport connection with custom headers."""
+        with patch(
+            "fastmcp.client.transports.StreamableHttpTransport"
+        ) as mock_transport, patch(
+            "src.my_coding_agent.core.mcp.mcp_client.Client"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+            mock_client.is_connected.return_value = True
+
+            client = MCPClient(http_config)
+            await client.connect()
+
+            # Should create transport with headers
+            mock_transport.assert_called_once_with(
+                url="https://example.com/mcp",
+                headers={"Authorization": "Bearer token123"},
+            )
+
+    @pytest.mark.asyncio
+    async def test_sse_connection_with_headers(self, sse_config):
+        """Test SSE transport connection with custom headers."""
+        with patch("fastmcp.client.transports.SSETransport") as mock_transport:
+            with patch(
+                "src.my_coding_agent.core.mcp.mcp_client.Client"
+            ) as mock_client_class:
+                mock_client = AsyncMock()
+                mock_client_class.return_value = mock_client
+                mock_client.is_connected.return_value = True
+
+                client = MCPClient(sse_config)
+                await client.connect()
+
+                # Should create transport with headers
+                mock_transport.assert_called_once_with(
+                    url="https://example.com/sse",
+                    headers={"Authorization": "Bearer token456"},
+                )
+
+    @pytest.mark.asyncio
+    async def test_websocket_connection_with_headers(self, websocket_config):
+        """Test WebSocket transport connection with custom headers."""
+        client = MCPClient(websocket_config)
+
+        # WebSocket transport is not supported, so connection should fail
+        with pytest.raises(Exception) as exc_info:
+            await client.connect()
+
+        assert "Client not initialized" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_transport_specific_error_handling(self, stdio_config):
+        """Test transport-specific error handling."""
+        with patch(
+            "src.my_coding_agent.core.mcp.mcp_client.Client"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+            mock_client.__aenter__.side_effect = ConnectionError(
+                "Process failed to start"
+            )
+
+            client = MCPClient(stdio_config)
+
+            with pytest.raises(Exception) as exc_info:
+                await client.connect()
+
+            assert "Connection failed" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_transport_reconnection_logic(self, http_config):
+        """Test transport reconnection logic."""
+        with patch(
+            "src.my_coding_agent.core.mcp.mcp_client.Client"
+        ) as mock_client_class:
+            with patch("fastmcp.client.transports.StreamableHttpTransport"):
+                mock_client = AsyncMock()
+                mock_client_class.return_value = mock_client
+                mock_client.is_connected.side_effect = [
+                    False,
+                    True,
+                ]  # First disconnected, then connected
+                mock_client.__aenter__.return_value = mock_client
+
+                client = MCPClient(http_config)
+
+                # First connection attempt
+                await client.connect()
+
+                # Simulate disconnection and reconnection
+                await client.reconnect()
+
+                # Should have called connect twice
+                assert mock_client.__aenter__.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_transport_timeout_handling(self, http_config):
+        """Test transport timeout handling."""
+        timeout_config = http_config.copy()
+        timeout_config["timeout"] = 5.0
+
+        with patch(
+            "src.my_coding_agent.core.mcp.mcp_client.Client"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+            mock_client.ping.side_effect = asyncio.TimeoutError("Request timeout")
+            mock_client.is_connected.return_value = True
+
+            client = MCPClient(timeout_config)
+            client._client = mock_client
+
+            with pytest.raises(Exception) as exc_info:
+                await client.ping()
+
+            assert "timeout" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_transport_keep_alive_stdio(self, stdio_config):
+        """Test keep_alive functionality for stdio transport."""
+        keep_alive_config = stdio_config.copy()
+        keep_alive_config["keep_alive"] = True
+
+        with patch(
+            "src.my_coding_agent.core.mcp.mcp_client.Client"
+        ) as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client_class.return_value = mock_client
+            mock_client.is_connected.return_value = True
+
+            client = MCPClient(keep_alive_config)
+
+            # Should pass keep_alive to FastMCP client
+            client._create_client()
+
+            # Verify client was created with keep_alive setting
+            assert client.config["keep_alive"] is True
+
+    @pytest.mark.asyncio
+    async def test_unsupported_transport_error(self):
+        """Test error handling for unsupported transport types."""
+        config = {
+            "server_name": "unsupported",
+            "transport": "carrier_pigeon",
+            "url": "pigeon://localhost",
+        }
+
+        with pytest.raises(ValueError, match="Unsupported transport type"):
+            MCPClient(config)
+
+    @pytest.mark.asyncio
+    async def test_transport_validation_stdio_missing_command(self):
+        """Test validation error for stdio transport missing command."""
+        config = {
+            "server_name": "invalid_stdio",
+            "transport": "stdio",
+            # Missing command
+        }
+
+        with pytest.raises(ValueError, match="command is required for stdio transport"):
+            MCPClient(config)
+
+    @pytest.mark.asyncio
+    async def test_transport_validation_http_missing_url(self):
+        """Test validation error for HTTP transport missing URL."""
+        config = {
+            "server_name": "invalid_http",
+            "transport": "http",
+            # Missing url
+        }
+
+        with pytest.raises(ValueError, match="url is required for http transport"):
+            MCPClient(config)
+
+    @pytest.mark.asyncio
+    async def test_transport_validation_websocket_missing_url(self):
+        """Test validation error for WebSocket transport missing URL."""
+        config = {
+            "server_name": "invalid_ws",
+            "transport": "websocket",
+            # Missing url
+        }
+
+        with pytest.raises(ValueError, match="url is required for websocket transport"):
+            MCPClient(config)

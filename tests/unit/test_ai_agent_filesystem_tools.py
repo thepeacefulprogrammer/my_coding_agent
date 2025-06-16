@@ -151,16 +151,18 @@ class TestAIAgentFilesystemTools:
 
         # Mock the MCP connection and file server list operation
         expected_files = ["example.py", "config.json", "README.md", "src/"]
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server, "list_directory", return_value=expected_files
-            ) as mock_list:
-                result = await agent._tool_list_directory(".")
+            ) as mock_list,
+        ):
+            result = await agent._tool_list_directory(".")
 
-                assert "example.py" in result
-                assert "config.json" in result
-                assert "README.md" in result
-                mock_list.assert_called_once_with(".")
+            assert "example.py" in result
+            assert "config.json" in result
+            assert "README.md" in result
+            mock_list.assert_called_once_with(".")
 
     @pytest.mark.asyncio
     async def test_create_directory_tool(self, ai_agent_with_filesystem):
@@ -168,14 +170,16 @@ class TestAIAgentFilesystemTools:
         agent = ai_agent_with_filesystem
 
         # Mock the MCP connection and file server create directory operation
-        with patch.object(agent.mcp_file_server, "is_connected", True):
-            with patch.object(
+        with (
+            patch.object(agent.mcp_file_server, "is_connected", True),
+            patch.object(
                 agent.mcp_file_server, "create_directory", return_value=True
-            ) as mock_create:
-                result = await agent._tool_create_directory("new_folder")
+            ) as mock_create,
+        ):
+            result = await agent._tool_create_directory("new_folder")
 
-                assert result == "Directory created successfully"
-                mock_create.assert_called_once_with("new_folder")
+            assert result == "Directory created successfully"
+            mock_create.assert_called_once_with("new_folder")
 
     @pytest.mark.asyncio
     async def test_get_file_info_tool(self, ai_agent_with_filesystem):

@@ -14,8 +14,10 @@ from pathlib import Path
 from typing import Any
 
 import chromadb
-from crawl4ai import AsyncWebCrawler
-from crawl4ai.extraction_strategy import LLMExtractionStrategy
+from crawl4ai import AsyncWebCrawler  # type: ignore[import-untyped]
+from crawl4ai.extraction_strategy import (
+    LLMExtractionStrategy,  # type: ignore[import-untyped]
+)
 
 from .chroma_utils import (
     CONVERSATIONS_COLLECTION,
@@ -38,7 +40,7 @@ class ChromaRAGEngine:
 
     def __init__(
         self,
-        memory_manager=None,  # Optional for backward compatibility
+        memory_manager: Any = None,  # Optional for backward compatibility
         db_path: str | None = None,
         use_azure: bool = True,
         embedding_model: str = "azure",
@@ -138,12 +140,10 @@ class ChromaRAGEngine:
                 "memory_id": memory.id,
                 "memory_type": memory.memory_type,
                 "importance_score": memory.importance_score,
-                "created_at": memory.created_at.isoformat()
-                if memory.created_at
-                else "",
-                "updated_at": memory.updated_at.isoformat()
-                if memory.updated_at
-                else "",
+                "created_at": memory.created_at if memory.created_at else "",
+                "updated_at": getattr(memory, "updated_at", memory.last_accessed)
+                if hasattr(memory, "updated_at")
+                else memory.last_accessed,
                 "tags": ",".join(memory.tags) if memory.tags else "",
                 "source": "memory_manager",
             }
@@ -414,7 +414,7 @@ class ChromaRAGEngine:
 
             # Filter out the original memory and return others
             filtered_results = [
-                result for result in similar_results if result.memory_id != memory_id
+                result for result in similar_results if result.id != memory_id
             ]
 
             return filtered_results[:limit]
