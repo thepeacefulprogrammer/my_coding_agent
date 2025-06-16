@@ -211,18 +211,11 @@ class MCPFileServer:
             if ClientSession is not None:
                 try:
                     # Try to import and use MCP client
-                    from mcp.client.stdio import stdio_client
 
-                    # Attempt to create MCP connection
-                    read_stream, write_stream = await stdio_client().__aenter__()
-                    self._read_stream = read_stream
-                    self._write_stream = write_stream
-
-                    # Create and initialize session
-                    session = ClientSession(read_stream, write_stream)
-                    await session.__aenter__()
-                    await session.initialize()
-                    self.client_session = session
+                    # Note: stdio_client() requires server parameters, but for file operations
+                    # we'll use direct file access instead of MCP protocol
+                    # Skip MCP connection and use direct file operations
+                    raise Exception("MCP file server not implemented - using direct file operations")
 
                 except Exception as e:
                     # MCP connection failed, but we can still operate without it

@@ -85,6 +85,9 @@ class MCPServerRegistry:
         """
         server_name = client.server_name
 
+        if not server_name:
+            raise ValueError("Client must have a valid server_name")
+
         if server_name in self._servers:
             logger.warning(f"Server {server_name} is already registered, replacing")
 
@@ -200,29 +203,39 @@ class MCPServerRegistry:
 
         for server_name, client in self._servers.items():
             try:
+                logger.info(f"Connecting to MCP server: {server_name}")
                 await client.connect()
                 results[server_name] = True
-                self._server_status[server_name].connected = True
-                self._server_status[server_name].connection_attempts += 1
+
+                # Update status
+                status = self._server_status[server_name]
+                status.connected = True
+                status.last_error = None
+                status.connection_attempts += 1
+
                 logger.info(f"Connected to server: {server_name}")
             except Exception as e:
                 results[server_name] = False
+
+                # Update status
                 status = self._server_status[server_name]
                 status.connected = False
                 status.last_error = str(e)
                 status.connection_attempts += 1
+
                 logger.error(f"Failed to connect to server {server_name}: {e}")
 
         return results
 
     async def disconnect_all_servers(self) -> None:
-        """Disconnect from all registered servers."""
+        """Disconnect from all servers."""
         for server_name, client in self._servers.items():
             try:
                 await client.disconnect()
                 self._server_status[server_name].connected = False
                 logger.info(f"Disconnected from server: {server_name}")
             except Exception as e:
+                self._server_status[server_name].connected = False
                 logger.error(f"Error disconnecting from server {server_name}: {e}")
 
     async def update_tools_cache(self) -> None:
@@ -397,7 +410,7 @@ class MCPServerRegistry:
         self, tool_name: str, arguments: dict[str, Any], server_name: str | None = None
     ) -> list[dict[str, Any]]:
         """
-        Call a tool across servers.
+        Call a tool across servers with improved error handling.
 
         Args:
             tool_name: Name of the tool to call
@@ -425,10 +438,36 @@ class MCPServerRegistry:
         if not server:
             raise MCPError(f"Server '{tool_registry.server_name}' not available")
 
+        # Check connection and attempt reconnection if needed
         if not server.is_connected():
-            raise MCPError(f"Server '{tool_registry.server_name}' is not connected")
+            logger.warning(f"Server '{tool_registry.server_name}' is not connected, attempting reconnection...")
+            try:
+                await server.reconnect()
+            except Exception as e:
+                logger.error(f"Failed to reconnect to server '{tool_registry.server_name}': {e}")
+                raise MCPError(f"Server '{tool_registry.server_name}' is not connected and reconnection failed: {e}")
 
-        return await server.call_tool(tool_name, arguments)
+        # Execute the tool call with error handling
+        try:
+            return await server.call_tool(tool_name, arguments)
+        except Exception as e:
+            # Check if this is an event loop issue
+            error_msg = str(e)
+            if "loop" in error_msg.lower() or "event" in error_msg.lower():
+                logger.warning(f"Event loop issue calling tool {tool_name} on server {tool_registry.server_name}: {e}")
+                # Mark server as disconnected and attempt reconnection
+                server._connected = False
+                try:
+                    logger.info(f"Attempting to reconnect server {tool_registry.server_name} due to event loop issue")
+                    await server.reconnect()
+                    # Retry the tool call once after reconnection
+                    return await server.call_tool(tool_name, arguments)
+                except Exception as reconnect_error:
+                    logger.error(f"Failed to reconnect and retry tool call: {reconnect_error}")
+                    raise MCPError(f"Tool call failed due to event loop issue and reconnection failed: {reconnect_error}")
+            else:
+                # Re-raise other errors
+                raise
 
     async def read_resource(self, uri: str) -> list[dict[str, Any]]:
         """

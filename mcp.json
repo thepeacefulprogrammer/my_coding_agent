@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp@latest"
+      ]
+    },
+    "legal-case-analysis": {
+      "command": "/mnt/nas/randy/Documents/legal-case-prep-mcp/venv/bin/python",
+      "args": [
+        "/mnt/nas/randy/Documents/legal-case-prep-mcp/src/mcp_server_fastmcp.py",
+        "--debug"
+      ],
+      "cwd": "/mnt/nas/randy/Documents/legal-case-prep-mcp",
+      "env": {
+        "PYTHONPATH": "/mnt/nas/randy/Documents/legal-case-prep-mcp/src:/mnt/nas/randy/Documents/legal-case-prep-mcp:/mnt/nas/randy/Documents/legal-case-prep-mcp/venv/lib/python3.11/site-packages",
+        "LEGAL_MCP_CONFIG": "/mnt/nas/randy/Documents/legal-case-prep-mcp/config/legal_mcp_config.yaml"
+      },
+      "disabled": false
+    },
+    "github-project-manager": {
+      "command": "/home/randy/workspace/personal/github_manager_mcp/venv/bin/python",
+      "args": [
+        "/home/randy/workspace/personal/github_manager_mcp/src/github_project_manager_mcp/mcp_server_fastmcp.py",
+        "--debug"
+      ],
+      "cwd": "/home/randy/workspace/personal/github_manager_mcp",
+      "env": {
+        "PYTHONPATH": "/home/randy/workspace/personal/github_manager_mcp/src:/home/randy/workspace/personal/github_manager_mcp"
+      },
+      "disabled": false
+    }
+  }
+}

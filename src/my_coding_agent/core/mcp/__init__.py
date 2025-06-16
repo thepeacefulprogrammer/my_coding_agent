@@ -10,6 +10,17 @@ This module provides comprehensive Model Context Protocol (MCP) support includin
 - Error handling and recovery
 """
 
+from .connection_manager import ConnectionEvent, ConnectionManager, ConnectionMetrics
+from .error_handler import (
+    CircuitBreakerState,
+    ErrorCategory,
+    ErrorRecoveryStrategy,
+    ErrorSeverity,
+    MCPCircuitBreaker,
+    MCPErrorContext,
+    MCPErrorHandler,
+    MCPErrorMetrics,
+)
 from .mcp_client import (
     MCPClient,
     MCPConnectionError,
@@ -25,31 +36,63 @@ from .mcp_config import (
     create_sample_config,
     load_default_mcp_config,
 )
+from .oauth2_auth import (
+    OAuth2AuthenticationError,
+    OAuth2Authenticator,
+    OAuth2Config,
+    OAuth2Error,
+    OAuth2Token,
+    OAuth2TokenExpiredError,
+)
 from .server_registry import (
     MCPServerRegistry,
-    ResourceRegistry,
     ServerStatus,
     ToolRegistry,
 )
 
 __all__ = [
-    # Client classes
+    # Core client
     "MCPClient",
     "MCPTool",
     "MCPResource",
+
     # Exceptions
     "MCPError",
     "MCPConnectionError",
     "MCPProtocolError",
     "MCPTimeoutError",
+
+    # Server registry
+    "MCPServerRegistry",
+    "ServerStatus",
+    "ToolRegistry",
+
+    # Connection management
+    "ConnectionManager",
+    "ConnectionMetrics",
+    "ConnectionEvent",
+
     # Configuration
     "MCPConfig",
     "MCPServerConfig",
     "load_default_mcp_config",
     "create_sample_config",
-    # Registry
-    "MCPServerRegistry",
-    "ServerStatus",
-    "ToolRegistry",
-    "ResourceRegistry",
+
+    # OAuth 2.0 authentication
+    "OAuth2Config",
+    "OAuth2Token",
+    "OAuth2Authenticator",
+    "OAuth2Error",
+    "OAuth2AuthenticationError",
+    "OAuth2TokenExpiredError",
+
+    # Error handling
+    "MCPErrorHandler",
+    "MCPErrorContext",
+    "MCPErrorMetrics",
+    "MCPCircuitBreaker",
+    "ErrorCategory",
+    "ErrorSeverity",
+    "ErrorRecoveryStrategy",
+    "CircuitBreakerState",
 ]

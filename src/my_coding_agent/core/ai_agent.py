@@ -16,9 +16,8 @@ from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 
-from .mcp import MCPClient, MCPConfig, MCPServerRegistry
+from .mcp import MCPClient, MCPServerRegistry
 from .mcp_file_server import FileOperationError, MCPFileConfig, MCPFileServer
-from .memory_integration import ConversationMemoryHandler
 from .streaming import StreamHandler
 
 # Load environment variables
@@ -116,73 +115,102 @@ class AIAgent:
         enable_mcp_tools: bool = False,
         auto_discover_mcp_servers: bool = False,
     ) -> None:
-        """Initialize the AI Agent.
+        """
+        Initialize the AI Agent.
 
         Args:
-            config: The configuration for the AI Agent.
-            mcp_config: Optional MCP file server configuration.
-            enable_filesystem_tools: Whether to enable filesystem tools (auto-detected if None).
-            enable_memory_awareness: Whether to enable memory-aware conversation capabilities.
-            enable_mcp_tools: Whether to enable MCP protocol tools integration.
-            auto_discover_mcp_servers: Whether to automatically discover MCP servers from configuration.
+            config: Configuration for the AI Agent
+            mcp_config: Optional MCP file server configuration
+            enable_filesystem_tools: Whether to enable filesystem tools (auto-detected if None)
+            enable_memory_awareness: Whether to enable memory-aware conversations
+            enable_mcp_tools: Whether to enable MCP tools integration
+            auto_discover_mcp_servers: Whether to auto-discover MCP servers from configuration
         """
         self.config = config
-        self.mcp_file_server: MCPFileServer | None = None
-        self.workspace_root: Path | None = None
-        self.current_stream_handler: StreamHandler | None = None
-        self.current_stream_id: str | None = None
-
-        # Memory awareness configuration
+        self.mcp_config = mcp_config
+        self.filesystem_tools_enabled = enable_filesystem_tools
         self.memory_aware_enabled = enable_memory_awareness
-        self._memory_system: ConversationMemoryHandler | None = None
-
-        # MCP tools configuration
         self.mcp_tools_enabled = enable_mcp_tools
-        self.mcp_registry: MCPServerRegistry | None = None
-        self._mcp_tool_prefix = "mcp_"  # Prefix for MCP tools to avoid conflicts
+        self.mcp_file_server = None
+        self.mcp_registry = None
+        self.workspace_root = None  # Initialize workspace root as None
+        self._mcp_servers_need_connection = False
+        self._mcp_tools_registered = False  # Track if MCP tools have been registered
+        self._mcp_status_tool_registered = False  # Track if MCP status tool has been registered
+        self._environment_tool_registered = False  # Track if environment tool has been registered
 
-        # Validate MCP configuration if MCP tools are enabled
-        if enable_mcp_tools and mcp_config is None:
-            raise ValueError(
-                "Invalid MCP configuration: mcp_config is required when enable_mcp_tools is True"
-            )
+        # Setup logging
+        self._setup_logging()
 
-        # Auto-detect filesystem tools enablement
-        if enable_filesystem_tools is None:
-            self.filesystem_tools_enabled = mcp_config is not None
-        else:
-            self.filesystem_tools_enabled = (
-                enable_filesystem_tools and mcp_config is not None
-            )
-
-        # Initialize MCP file server if config provided and tools enabled
-        if mcp_config and self.filesystem_tools_enabled:
-            self.mcp_file_server = MCPFileServer(mcp_config)
-            logger.info("AI Agent initialized with MCP file server integration")
-
-        # Initialize MCP tools registry if enabled
-        if self.mcp_tools_enabled:
-            self._initialize_mcp_registry(auto_discover_mcp_servers)
-
-        # Initialize streaming handler
-        self.stream_handler = StreamHandler()
+        # Create model and agent
+        self._create_model()
+        self._create_agent()
 
         # Initialize memory system if enabled
+        self._memory_system = None
         if self.memory_aware_enabled:
             try:
-                # Initialize the proper memory system
-                self._memory_system = ConversationMemoryHandler()
-                logger.info(
-                    "AI Agent initialized with memory-aware capabilities using ChromaDB"
-                )
+                from .memory.chroma_rag_engine import ChromaRAGEngine
+
+                self._memory_system = ChromaRAGEngine()
+                logger.info("Memory system initialized successfully")
             except Exception as e:
                 logger.warning(f"Failed to initialize memory system: {e}")
                 self.memory_aware_enabled = False
 
-        self._setup_logging()
-        self._create_model()
-        self._create_agent()
+        # Initialize MCP file server if config provided
+        if mcp_config:
+            try:
+                from .mcp_file_server import MCPFileServer
+
+                self.mcp_file_server = MCPFileServer(mcp_config)
+                logger.info("AI Agent initialized with MCP file server integration")
+            except Exception as e:
+                logger.error(f"Failed to initialize MCP file server: {e}")
+
+        # Initialize MCP registry and auto-discover servers if enabled
+        if self.mcp_tools_enabled:
+            self._initialize_mcp_registry(auto_discover=auto_discover_mcp_servers)
+
+        # Auto-detect filesystem tools if not explicitly set
+        if self.filesystem_tools_enabled is None:
+            self.filesystem_tools_enabled = mcp_config is not None
+
+        # Register tools
         self._register_tools()
+
+        # Register MCP tools if enabled
+        if self.mcp_tools_enabled and self.mcp_registry:
+            self._register_mcp_tools()  # Register empty tools list initially (will be re-registered after connection)
+
+            # Register MCP status and environment tools
+            self._register_mcp_status_tool()
+            self._register_environment_tool()
+        else:
+            self._register_mcp_tools()  # Register empty tools list
+
+        logger.info("MCP tools and status tool registered successfully")
+
+        # Initialize streaming state
+        self.current_stream_handler = None
+        self.current_stream_id = None
+
+        # Mark servers for connection if enabled
+        if self.mcp_tools_enabled and auto_discover_mcp_servers:
+            # Mark servers for connection (will be initiated by MainWindow)
+            self._mcp_servers_need_connection = True
+
+    async def _connect_mcp_servers_on_startup(self) -> None:
+        """Connect MCP servers during startup for immediate availability."""
+        try:
+            logger.info("Connecting MCP servers during startup...")
+            await self._connect_mcp_servers_async()
+            self._mcp_servers_need_connection = False
+            logger.info("MCP servers connected successfully during startup")
+        except Exception as e:
+            logger.error(f"Failed to connect MCP servers during startup: {e}")
+            # Fall back to lazy connection
+            self._mcp_servers_need_connection = True
 
     def _initialize_mcp_registry(self, auto_discover: bool = False) -> None:
         """Initialize MCP server registry and optionally auto-discover servers.
@@ -206,23 +234,81 @@ class AIAgent:
     def _auto_discover_mcp_servers(self) -> None:
         """Automatically discover and register MCP servers from configuration."""
         try:
-            # Try to load MCP configuration
-            mcp_config = MCPConfig()
-            servers = mcp_config.load_servers()
+            # Try to load MCP configuration from default locations
+            from .mcp import load_default_mcp_config
 
-            for server_config in servers:
+            mcp_config = load_default_mcp_config()
+            servers = mcp_config.get_all_servers()
+            logger.info(f"Found {len(servers)} MCP servers in configuration: {list(servers.keys())}")
+
+            for server_name, server_config in servers.items():
                 try:
-                    client = MCPClient(server_config)
+                    # Convert MCPServerConfig to dict format expected by MCPClient
+                    client_config = server_config.to_dict()
+                    client = MCPClient(client_config)
                     if self.mcp_registry:
                         self.mcp_registry.register_server(client)
-                        logger.info(f"Auto-discovered MCP server: {client.server_name}")
+                        logger.info(f"Auto-discovered MCP server: {server_name}")
+                    else:
+                        logger.error("MCP registry is None during server registration")
                 except Exception as e:
                     logger.warning(
-                        f"Failed to register auto-discovered server {server_config.get('server_name', 'unknown')}: {e}"
+                        f"Failed to register auto-discovered server {server_name}: {e}"
                     )
+
+            # After registering all servers, mark them for lazy connection
+            if self.mcp_registry and servers:
+                logger.info(f"Auto-discovered {len(servers)} MCP servers, will connect on first use")
+                # Set flag to indicate we need to connect on first use
+                self._mcp_servers_need_connection = True
 
         except Exception as e:
             logger.warning(f"Failed to auto-discover MCP servers: {e}")
+
+    async def _connect_mcp_servers_async(self) -> None:
+        """Connect to all registered MCP servers asynchronously."""
+        try:
+            if not self.mcp_registry:
+                logger.warning("No MCP registry available for connection")
+                return
+
+            logger.info("Connecting to MCP servers...")
+
+            # Get current event loop info for debugging
+            try:
+                current_loop = asyncio.get_running_loop()
+                logger.info(f"Connecting MCP servers in event loop: {current_loop}")
+            except RuntimeError:
+                logger.warning("No event loop running during MCP connection")
+
+            # Connect to all servers
+            connection_results = await self.mcp_registry.connect_all_servers()
+
+            successful_connections = sum(1 for success in connection_results.values() if success)
+            total_servers = len(connection_results)
+
+            logger.info(f"MCP server connections: {successful_connections}/{total_servers} successful")
+
+            if successful_connections > 0:
+                # Update tools cache from connected servers
+                logger.info("Updating MCP tools cache from connected servers...")
+                await self.mcp_registry.update_tools_cache()
+
+                # Get tool count for logging
+                all_tools = self.mcp_registry.get_all_tools()
+                total_tools = sum(len(tools) for tools in all_tools.values())
+                logger.info(f"MCP tools cache updated: {total_tools} tools discovered from {successful_connections} servers")
+
+                # Re-register MCP tools with the agent after successful connections
+                logger.info("Re-registering MCP tools after successful server connections...")
+                self._register_mcp_tools()
+                self._mcp_tools_registered = True
+            else:
+                logger.warning("No MCP servers connected successfully")
+
+        except Exception as e:
+            logger.error(f"Error connecting to MCP servers: {e}")
+            # Don't raise the exception to avoid breaking initialization
 
     def _setup_logging(self) -> None:
         """Setup logging for the AI Agent."""
@@ -272,6 +358,7 @@ class AIAgent:
             )
 
             # Add memory-aware capabilities to system prompt
+            memory_prompt = ""
             if self.memory_aware_enabled:
                 memory_prompt = (
                     "\n\nMemory Capabilities:\n"
@@ -283,9 +370,33 @@ class AIAgent:
                     "When relevant memories are available, incorporate them naturally into your responses. "
                     "Remember user preferences, previous discussions, and project-specific context to enhance your assistance."
                 )
-                system_prompt = base_prompt + memory_prompt
-            else:
-                system_prompt = base_prompt
+
+            # Add MCP capabilities to system prompt
+            mcp_prompt = ""
+            if self.mcp_tools_enabled:
+                mcp_prompt = (
+                    "\n\nMCP (Model Context Protocol) Integration:\n"
+                    "You have access to external MCP servers that provide additional tools and capabilities. "
+                    "MCP servers are external services that extend your functionality beyond basic file operations. "
+                    "You can:\n"
+                    "- Check the status of connected MCP servers using the get_mcp_server_status tool\n"
+                    "- Use tools provided by connected MCP servers (these will be dynamically available)\n"
+                    "- Access external services like documentation, APIs, databases, and specialized tools\n"
+                    "\nWhen users ask about 'MCP servers', they are referring to these external service integrations. "
+                    "You can check which servers are available and what tools they provide. "
+                    "Common MCP servers include documentation services (like Context7), project management tools, "
+                    "and specialized development utilities.\n\n"
+                    "IMPORTANT MCP Tool Usage Guidelines:\n"
+                    "- Be proactive: When users ask for information, immediately use the appropriate MCP tools\n"
+                    "- Read tool parameter descriptions carefully - they contain all the information you need\n"
+                    "- For GitHub tools: Check environment variables or ask the user for their GitHub username if needed\n"
+                    "- For Context7 tools: When users ask about documentation, use resolve-library-id then get-library-docs\n"
+                    "- Don't ask for clarification when you have the information needed to call MCP tools\n"
+                    "- If a tool call fails, try once more before asking the user for help\n"
+                    "- Use reasonable defaults for optional parameters based on the tool's schema constraints"
+                )
+
+            system_prompt = base_prompt + memory_prompt + mcp_prompt
 
             self._agent = Agent(
                 model=self._model,
@@ -396,8 +507,17 @@ class AIAgent:
             self.filesystem_tools_enabled = False
 
         # Register MCP tools if enabled
-        if self.mcp_tools_enabled and self.mcp_registry:
-            self._register_mcp_tools()
+        if self.mcp_tools_enabled:
+            if self.mcp_registry:
+                self._register_mcp_tools()
+                self._register_mcp_status_tool()
+                self._register_environment_tool()
+                logger.info("MCP tools and status tool registered successfully")
+            else:
+                # Even if registry failed, register the status tool so user can see what's wrong
+                self._register_mcp_status_tool()
+                self._register_environment_tool()
+                logger.warning("MCP registry not available, but status tool registered for debugging")
 
     def get_available_tools(self) -> list[str]:
         """Get list of available tool names.
@@ -424,6 +544,8 @@ class AIAgent:
         if self.mcp_tools_enabled and self.mcp_registry:
             mcp_tools = self._get_mcp_tools()
             tools.extend(mcp_tools)
+            # Add MCP status tool
+            tools.append("get_mcp_server_status")
 
         return tools
 
@@ -452,6 +574,8 @@ class AIAgent:
         if self.mcp_tools_enabled and self.mcp_registry:
             mcp_descriptions = self._get_mcp_tool_descriptions()
             descriptions.update(mcp_descriptions)
+            # Add MCP status tool description
+            descriptions["get_mcp_server_status"] = "Get the status of all MCP servers and their available tools"
 
         return descriptions
 
@@ -497,6 +621,10 @@ class AIAgent:
         try:
             if not self.mcp_file_server or not self.mcp_file_server.is_connected:
                 return "Error: MCP file server not connected. Please connect first."
+
+            # Ensure dir_path is not empty (default to current directory)
+            if not dir_path or not dir_path.strip():
+                dir_path = "."
 
             files = await self.mcp_file_server.list_directory(dir_path)
             if files:
@@ -670,26 +798,48 @@ class AIAgent:
 
             all_tools = self.mcp_registry.get_all_tools()
             registered_count = 0
+            registered_tool_names = set()  # Track registered tool names to avoid conflicts
 
-            for _server_name, tools in all_tools.items():
+            # First pass: collect all tool names to identify conflicts
+            tool_name_counts = {}
+            for server_name, tools in all_tools.items():
+                for tool in tools:
+                    tool_name_counts[tool.name] = tool_name_counts.get(tool.name, 0) + 1
+
+            for server_name, tools in all_tools.items():
                 for tool in tools:
                     tool_name = tool.name
                     original_name = tool_name
 
-                    # Handle name conflicts by prefixing
+                    # Handle name conflicts with filesystem tools
                     if tool_name in filesystem_tools:
                         tool_name = f"{self._mcp_tool_prefix}{tool.name}"
 
+                    # Handle name conflicts with other MCP tools - always prefix if there are conflicts
+                    if tool_name_counts.get(original_name, 0) > 1:
+                        tool_name = f"{server_name}_{tool.name}"
+                        logger.info(f"Tool name conflict resolved: '{original_name}' -> '{tool_name}' (from {server_name})")
+
+                    # If still conflicts (unlikely but possible), add a counter
+                    counter = 1
+                    base_tool_name = tool_name
+                    while tool_name in registered_tool_names:
+                        tool_name = f"{base_tool_name}_{counter}"
+                        counter += 1
+
                     # Create the tool function dynamically
                     self._create_mcp_tool_function(
-                        tool_name, original_name, tool.description, tool.input_schema
+                        tool_name, original_name, tool.description, tool.input_schema, server_name
                     )
+                    registered_tool_names.add(tool_name)
                     registered_count += 1
 
             logger.info(f"Registered {registered_count} MCP tools successfully")
 
         except Exception as e:
             logger.error(f"Failed to register MCP tools: {e}")
+            import traceback
+            logger.debug(f"MCP tool registration error traceback: {traceback.format_exc()}")
             self.mcp_tools_enabled = False
 
     def _create_mcp_tool_function(
@@ -698,6 +848,7 @@ class AIAgent:
         original_name: str,
         description: str,
         input_schema: dict[str, Any],
+        server_name: str,
     ) -> None:
         """Create and register a dynamic MCP tool function with the agent.
 
@@ -706,16 +857,58 @@ class AIAgent:
             original_name: The original MCP tool name
             description: Tool description
             input_schema: JSON schema for tool input validation
+            server_name: Name of the MCP server providing this tool
         """
 
         # Create the async function dynamically
         async def mcp_tool_wrapper(**kwargs) -> str:
             """Dynamically created MCP tool wrapper."""
-            return await self._call_mcp_tool(original_name, kwargs)
+            print(f"🔧 AI CALLING TOOL: {tool_name}")
+            print(f"   📋 Original name: {original_name}")
+            print(f"   🏷️  Server: {server_name}")
+            print(f"   📝 Arguments: {kwargs}")
+
+            result = await self._call_mcp_tool(original_name, kwargs, server_name)
+
+            print(f"✅ TOOL RESULT for {tool_name}:")
+            print(f"   📤 Result length: {len(str(result))} characters")
+            print(f"   📄 Result preview: {str(result)[:200]}...")
+
+            return result
 
         # Set function metadata
         mcp_tool_wrapper.__name__ = tool_name
-        mcp_tool_wrapper.__doc__ = f"{description}\n\nArgs:\n    **kwargs: Tool arguments as defined by the MCP server"
+
+        # Build comprehensive docstring with parameter information
+        docstring_parts = [f"{description}"]
+        docstring_parts.append(f"\nServer: {server_name}")
+
+        # Add parameter information from schema
+        if input_schema and "properties" in input_schema:
+            docstring_parts.append("\nParameters:")
+            properties = input_schema["properties"]
+            required_params = input_schema.get("required", [])
+
+            for param_name, param_info in properties.items():
+                param_type = param_info.get("type", "any")
+                param_desc = param_info.get("description", "No description")
+                is_required = param_name in required_params
+
+                # Add type constraints if available
+                constraints = []
+                if "minimum" in param_info:
+                    constraints.append(f"min: {param_info['minimum']}")
+                if "maximum" in param_info:
+                    constraints.append(f"max: {param_info['maximum']}")
+                if "enum" in param_info:
+                    constraints.append(f"options: {param_info['enum']}")
+
+                constraint_str = f" ({', '.join(constraints)})" if constraints else ""
+                required_str = " (required)" if is_required else " (optional)"
+
+                docstring_parts.append(f"  {param_name} ({param_type}){required_str}: {param_desc}{constraint_str}")
+
+        mcp_tool_wrapper.__doc__ = "\n".join(docstring_parts)
 
         # Register with the agent
         self._agent.tool_plain(mcp_tool_wrapper)
@@ -734,27 +927,87 @@ class AIAgent:
             Tool execution result as formatted string
         """
         try:
+            logger.info(f"🔧 Calling MCP tool: {tool_name} with args: {arguments}")
+
             if not self.mcp_registry:
+                logger.error("MCP registry not available")
                 return "Error: MCP registry not available"
 
+            # Check MCP server status before attempting call
+            server_statuses = self.mcp_registry.get_all_server_statuses()
+            connected_servers = {name: status for name, status in server_statuses.items() if status.connected}
+            logger.info(f"📊 MCP server status before tool call - Connected: {list(connected_servers.keys())}, Total: {len(server_statuses)}")
+
+            # Ensure MCP servers are connected in current event loop context
+            if not await self._ensure_mcp_servers_connected():
+                logger.error("Unable to ensure MCP servers are connected")
+                return "Error: Unable to connect to MCP servers"
+
             # Validate arguments against tool schema
-            # This is a basic validation - in a real implementation you'd want proper JSON schema validation
             if not isinstance(arguments, dict):
+                logger.error(f"Invalid arguments format for tool {tool_name}: {type(arguments)}")
                 return "Error: Invalid arguments format - expected dictionary"
 
             # Check for obviously invalid arguments (like "invalid_arg")
             if "invalid_arg" in arguments:
+                logger.warning(f"Invalid arguments detected for tool {tool_name}")
                 return (
                     "Error: Invalid arguments - 'invalid_arg' is not a valid parameter"
                 )
 
-            # Call the tool through the registry
-            results = await self.mcp_registry.call_tool(
-                tool_name, arguments, server_name
-            )
+            # Execute the MCP tool call with proper error handling and reconnection logic
+            max_retries = 2
+            last_error = None
+
+            for attempt in range(max_retries):
+                try:
+                    logger.info(f"🚀 Attempting MCP tool call {tool_name} (attempt {attempt + 1}/{max_retries})")
+                    results = await self.mcp_registry.call_tool(
+                        tool_name, arguments, server_name
+                    )
+                    logger.info(f"✅ MCP tool {tool_name} executed successfully")
+                    break  # Success, exit retry loop
+
+                except Exception as e:
+                    last_error = e
+                    error_msg = str(e)
+                    logger.warning(f"❌ MCP tool {tool_name} failed (attempt {attempt + 1}): {error_msg}")
+
+                    # Handle specific connection issues with reconnection
+                    if any(keyword in error_msg.lower() for keyword in ["event loop", "broken pipe", "connection", "stream", "stdio"]):
+                        logger.warning(f"Connection issue detected for MCP tool {tool_name}: {error_msg}")
+
+                        if attempt < max_retries - 1:  # Don't reconnect on last attempt
+                            logger.info(f"🔄 Attempting to reconnect MCP servers for tool {tool_name}")
+                            try:
+                                # Force reconnection
+                                await self.mcp_registry.disconnect_all_servers()
+                                await asyncio.sleep(1.0)  # Longer pause for stability
+                                connection_results = await self.mcp_registry.connect_all_servers()
+
+                                # Log reconnection results
+                                successful_reconnections = sum(1 for success in connection_results.values() if success)
+                                logger.info(f"🔗 Reconnection completed: {successful_reconnections}/{len(connection_results)} servers connected")
+
+                                await asyncio.sleep(0.5)  # Brief pause after reconnection
+                                continue  # Retry the tool call
+                            except Exception as reconnect_error:
+                                logger.error(f"Failed to reconnect MCP servers: {reconnect_error}")
+
+                        # If we're here, reconnection failed or this is the last attempt
+                        return f"Error: MCP tool {tool_name} failed due to connection issue. Servers may need to be restarted. Last error: {error_msg}"
+                    else:
+                        # Log non-connection errors and re-raise immediately
+                        logger.error(f"Non-connection error in MCP tool {tool_name}: {error_msg}")
+                        raise e
+            else:
+                # All retries exhausted
+                logger.error(f"All retry attempts failed for MCP tool {tool_name}")
+                return f"Error: MCP tool {tool_name} failed after {max_retries} attempts. Last error: {last_error}"
 
             # Format the results
             if not results:
+                logger.info(f"MCP tool {tool_name} returned no output")
                 return "Tool executed successfully (no output)"
 
             # Combine multiple results if present
@@ -770,11 +1023,14 @@ class AIAgent:
                 else:
                     formatted_results.append(str(result))
 
-            return (
+            final_result = (
                 "\n".join(formatted_results)
                 if formatted_results
                 else "Tool executed successfully"
             )
+
+            logger.info(f"📤 MCP tool {tool_name} result length: {len(final_result)} characters")
+            return final_result
 
         except ValueError as e:
             logger.error(f"Validation error executing MCP tool {tool_name}: {e}")
@@ -794,7 +1050,27 @@ class AIAgent:
         if not self.mcp_registry:
             return {}
 
-        return await self.mcp_registry.connect_all_servers()
+        # Connect to servers
+        connection_results = await self.mcp_registry.connect_all_servers()
+
+        # After successful connections, update tools cache and register MCP tools with the agent
+        if any(connection_results.values()) and self.mcp_tools_enabled:
+            successful_connections = sum(1 for success in connection_results.values() if success)
+            logger.info(f"Updating MCP tools cache from {successful_connections} connected servers...")
+
+            # Update tools cache from connected servers
+            await self.mcp_registry.update_tools_cache()
+
+            # Get tool count for logging
+            all_tools = self.mcp_registry.get_all_tools()
+            total_tools = sum(len(tools) for tools in all_tools.values())
+            logger.info(f"MCP tools cache updated: {total_tools} tools discovered from {successful_connections} servers")
+
+            # Re-register MCP tools with the agent
+            logger.info("Re-registering MCP tools after server connections...")
+            self._register_mcp_tools()
+
+        return connection_results
 
     async def disconnect_mcp_servers(self) -> None:
         """Disconnect from all MCP servers."""
@@ -835,6 +1111,166 @@ class AIAgent:
             self._register_mcp_tools()
 
         return result
+
+    def _register_mcp_status_tool(self) -> None:
+        """Register the MCP server status tool with the agent."""
+        if self._mcp_status_tool_registered:
+            logger.debug("MCP status tool already registered, skipping")
+            return
+
+        try:
+            @self._agent.tool_plain
+            async def internal_mcp_server_status_check() -> str:
+                """Get the status of all MCP servers and their available tools.
+
+                Returns:
+                    Formatted string with server status information
+                """
+                return await self._tool_get_mcp_server_status()
+
+            self._mcp_status_tool_registered = True
+            logger.info("MCP server status tool registered successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to register MCP server status tool: {e}")
+
+    def _register_environment_tool(self) -> None:
+        """Register the environment variable access tool with the agent."""
+        if self._environment_tool_registered:
+            logger.debug("Environment variable tool already registered, skipping")
+            return
+
+        try:
+            @self._agent.tool_plain
+            async def internal_get_environment_variable(variable_name: str) -> str:
+                """Get the value of an environment variable.
+
+                Args:
+                    variable_name: Name of the environment variable to retrieve
+
+                Returns:
+                    The value of the environment variable or an error message
+                """
+                return await self._tool_get_environment_variable(variable_name)
+
+            self._environment_tool_registered = True
+            logger.info("Environment variable tool registered successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to register environment variable tool: {e}")
+
+    async def _tool_get_mcp_server_status(self) -> str:
+        """Internal implementation of get_mcp_server_status tool."""
+        try:
+            logger.info("🔍 Checking MCP server status...")
+
+            if not self.mcp_registry:
+                return "MCP registry not available. MCP tools are not enabled."
+
+            # Get immediate status without trying to reconnect first
+            status = self.get_mcp_server_status()
+
+            if not status.get("servers"):
+                return "No MCP servers are currently registered or connected."
+
+            # Format the status information with detailed diagnostics
+            result_lines = ["🔧 MCP Server Diagnostic Status:"]
+            result_lines.append("=" * 60)
+
+            for server_name, server_info in status["servers"].items():
+                result_lines.append(f"\n📡 Server: {server_name}")
+
+                if hasattr(server_info, 'connected'):
+                    connection_status = "✅ Connected" if server_info.connected else "❌ Disconnected"
+                    result_lines.append(f"  Status: {connection_status}")
+                    result_lines.append(f"  Tools Available: {server_info.tools_count}")
+
+                    # Add more diagnostic info
+                    if hasattr(server_info, 'last_connected'):
+                        result_lines.append(f"  Last Connected: {server_info.last_connected}")
+
+                    if hasattr(server_info, 'connection_attempts'):
+                        result_lines.append(f"  Connection Attempts: {server_info.connection_attempts}")
+
+                    if server_info.last_error:
+                        result_lines.append(f"  Last Error: {server_info.last_error}")
+
+                    if hasattr(server_info, 'tools') and server_info.tools:
+                        result_lines.append("  Available Tools:")
+                        for tool in server_info.tools[:5]:  # Show first 5 tools
+                            result_lines.append(f"    - {tool.name}: {tool.description[:50]}...")
+                        if len(server_info.tools) > 5:
+                            result_lines.append(f"    ... and {len(server_info.tools) - 5} more tools")
+
+                    # Try to get more detailed connection info
+                    try:
+                        if hasattr(self.mcp_registry, 'get_server_connection_info'):
+                            conn_info = self.mcp_registry.get_server_connection_info(server_name)
+                            if conn_info:
+                                result_lines.append(f"  Connection Info: {conn_info}")
+                    except Exception:
+                        pass
+
+                else:
+                    # Fallback for dict-style server info
+                    result_lines.append(f"  Status: {server_info.get('status', 'unknown')}")
+                    tools = server_info.get('tools', [])
+                    result_lines.append(f"  Tools Available: {len(tools)}")
+
+            # Add summary with diagnostics
+            total_servers = len(status["servers"])
+            connected_servers = sum(
+                1 for info in status["servers"].values()
+                if (hasattr(info, 'connected') and info.connected) or
+                   (isinstance(info, dict) and info.get('status') == 'connected')
+            )
+
+            result_lines.append("\n📊 Summary:")
+            result_lines.append(f"  Total Servers: {total_servers}")
+            result_lines.append(f"  Connected: {connected_servers}")
+            result_lines.append(f"  Disconnected: {total_servers - connected_servers}")
+            result_lines.append(f"  Total Tools: {status.get('total_tools', 0)}")
+
+            # Add registry statistics if available
+            if hasattr(status, 'stats'):
+                result_lines.append(f"  Registry Stats: {status['stats']}")
+
+            # Add connection troubleshooting info
+            if connected_servers == 0:
+                result_lines.append("\n⚠️ Troubleshooting:")
+                result_lines.append("  - All servers are disconnected")
+                result_lines.append("  - Check server logs for connection errors")
+                result_lines.append("  - Try reconnecting with: await self._ensure_mcp_servers_connected()")
+            elif connected_servers < total_servers:
+                result_lines.append(f"\n⚠️ Warning: {total_servers - connected_servers} servers are disconnected")
+
+            return "\n".join(result_lines)
+
+        except Exception as e:
+            logger.error(f"Error getting MCP server status: {e}")
+            return f"Error retrieving MCP server status: {str(e)}"
+
+    async def _tool_get_environment_variable(self, variable_name: str) -> str:
+        """Internal implementation of get_environment_variable tool."""
+        try:
+            # Security: Only allow access to specific safe environment variables
+            allowed_vars = {
+                'GITHUB_USERNAME', 'GITHUB_USER', 'USER', 'USERNAME',
+                'HOME', 'PWD', 'SHELL', 'LANG', 'PATH'
+            }
+
+            if variable_name not in allowed_vars:
+                return f"Error: Access to environment variable '{variable_name}' is not allowed for security reasons. Allowed variables: {', '.join(sorted(allowed_vars))}"
+
+            value = os.getenv(variable_name)
+            if value is not None:
+                return f"{variable_name}={value}"
+            else:
+                return f"Environment variable '{variable_name}' is not set"
+
+        except Exception as e:
+            logger.error(f"Error getting environment variable {variable_name}: {e}")
+            return f"Error retrieving environment variable: {str(e)}"
 
     def get_mcp_server_status(self) -> dict[str, Any]:
         """Get status of all MCP servers.
@@ -2171,6 +2607,14 @@ User message: {message}
                         full_content = []
                         chunk_count = 0
 
+                        print(f"🧠 AI Agent: Starting stream for message: '{message[:100]}...'")
+
+                        # Show available tools to the AI
+                        available_tools = self.get_available_tools()
+                        print(f"🛠️  Available tools for AI: {len(available_tools)} tools")
+                        for tool in available_tools:
+                            print(f"   - {tool}")
+
                         # Get the stream text generator
                         stream_text = response.stream_text()
 
@@ -2180,6 +2624,8 @@ User message: {message}
                             async for chunk in stream_text:
                                 full_content.append(chunk)
                                 chunk_count += 1
+
+                                print(f"🔤 AI Chunk #{chunk_count}: '{chunk}'")
 
                                 # Call the external callback directly for each chunk
                                 try:
@@ -2244,15 +2690,35 @@ User message: {message}
                         # Get the final output
                         try:
                             final_output = await response.get_output()
+
+                            # Debug: Show the AI's reasoning and tool calls
+                            print("🧠 AI REASONING COMPLETE:")
+                            print(f"   📊 Response type: {type(final_output)}")
+
+                            # Check if there were any tool calls
+                            if hasattr(response, '_messages') and response._messages:
+                                print(f"   💬 Messages in response: {len(response._messages)}")
+                                for i, msg in enumerate(response._messages):
+                                    print(f"      Message {i}: {type(msg)} - {str(msg)[:100]}...")
+
+                            # Check for tool calls in the response
+                            if hasattr(response, '_tool_calls') and response._tool_calls:
+                                print(f"   🔧 Tool calls made: {len(response._tool_calls)}")
+                                for i, tool_call in enumerate(response._tool_calls):
+                                    print(f"      Tool call {i}: {tool_call}")
+
                             # Ensure final_output is a string
                             if hasattr(final_output, "data"):
                                 final_output = str(final_output.data)
                             elif not isinstance(final_output, str):
                                 final_output = str(final_output)
+
+                            print(f"   📝 Final output: '{final_output[:200]}...'")
                         except Exception as output_error:
                             logger.warning(
                                 f"Error getting final output: {output_error}"
                             )
+                            print(f"❌ Error getting final output: {output_error}")
                             final_output = None
 
                         full_text = "".join(str(chunk) for chunk in full_content)
@@ -2462,3 +2928,43 @@ User message: {message}
         except Exception as e:
             logger.error(f"Failed to get memory statistics: {e}")
             return {"memory_enabled": True, "error": str(e)}
+
+    async def _ensure_mcp_servers_connected(self) -> bool:
+        """Ensure MCP servers are connected in the current event loop context.
+
+        Returns:
+            True if servers are connected, False otherwise
+        """
+        try:
+            if not self.mcp_registry:
+                logger.warning("No MCP registry available")
+                return False
+
+            # Check if servers are already connected
+            server_statuses = self.mcp_registry.get_all_server_statuses()
+            connected_count = sum(1 for status in server_statuses.values() if status.connected)
+
+            if connected_count > 0:
+                logger.debug(f"MCP servers already connected: {connected_count}/{len(server_statuses)}")
+                return True
+
+            # Check if we need to connect servers on first use (fallback for lazy connection)
+            if self._mcp_servers_need_connection:
+                logger.info("First MCP access detected, connecting servers...")
+                await self._connect_mcp_servers_async()
+                self._mcp_servers_need_connection = False
+                return True
+
+            # If no servers connected and not flagged for connection, try to reconnect
+            logger.info("No MCP servers connected, attempting to reconnect...")
+            await self._connect_mcp_servers_async()
+
+            # Check again after reconnection attempt
+            server_statuses = self.mcp_registry.get_all_server_statuses()
+            connected_count = sum(1 for status in server_statuses.values() if status.connected)
+
+            return connected_count > 0
+
+        except Exception as e:
+            logger.error(f"Error ensuring MCP servers are connected: {e}")
+            return False

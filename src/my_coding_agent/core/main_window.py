@@ -571,6 +571,8 @@ class MainWindow(QMainWindow):
                 mcp_config=mcp_config,
                 enable_filesystem_tools=True,
                 enable_memory_awareness=True,
+                enable_mcp_tools=True,
+                auto_discover_mcp_servers=True,
             )
 
             # Connect chat widget message_sent signal to our handler
@@ -591,6 +593,10 @@ class MainWindow(QMainWindow):
 
             # Connect streaming signals now that chat widget is available
             self._connect_streaming_signals()
+
+            # Schedule MCP server connections to happen after GUI initialization
+            if self._ai_agent and self._ai_agent.mcp_tools_enabled:
+                QTimer.singleShot(1000, self._initialize_mcp_servers)  # 1 second delay
 
         except Exception as e:
             # If AI initialization fails, show error in chat
@@ -616,6 +622,46 @@ class MainWindow(QMainWindow):
             print("✅ MainWindow: All streaming signals connected")
         else:
             print("❌ MainWindow: Chat widget not found, cannot connect signals")
+
+    def _initialize_mcp_servers(self) -> None:
+        """Initialize MCP servers asynchronously after GUI startup."""
+        if not self._ai_agent or not self._ai_agent.mcp_tools_enabled:
+            return
+
+        import threading
+
+        def run_mcp_initialization():
+            """Run MCP server initialization in a separate thread with event loop."""
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            try:
+                print("🔗 Initializing MCP servers...")
+                # Connect to MCP servers using the startup method
+                loop.run_until_complete(self._ai_agent._connect_mcp_servers_on_startup())
+                print("✅ MCP servers initialized successfully")
+
+                # Update chat widget with MCP tool availability
+                if hasattr(self, '_chat_widget') and self._chat_widget:
+                    available_tools = self._ai_agent.get_available_tools()
+                    mcp_tools = [tool for tool in available_tools if not tool.startswith(('read_file', 'write_file', 'list_directory', 'create_directory', 'get_file_info', 'search_files'))]
+                    if mcp_tools:
+                        QTimer.singleShot(0, lambda: self._chat_widget.add_system_message(
+                            f"MCP tools are now available: {', '.join(mcp_tools)}"
+                        ))
+
+            except Exception as e:
+                print(f"❌ Failed to initialize MCP servers: {e}")
+                if hasattr(self, '_chat_widget') and self._chat_widget:
+                    QTimer.singleShot(0, lambda: self._chat_widget.add_system_message(
+                        f"MCP server initialization failed: {str(e)}"
+                    ))
+            finally:
+                loop.close()
+
+        # Start initialization in background thread
+        thread = threading.Thread(target=run_mcp_initialization, daemon=True)
+        thread.start()
 
     def _handle_chat_message(self, message: str) -> None:
         """Handle messages from the chat widget and generate AI responses with streaming."""
@@ -716,8 +762,9 @@ class MainWindow(QMainWindow):
                 nonlocal assistant_response_content
                 print(f"🔍 MainWindow callback: chunk='{chunk}', is_final={is_final}")
 
-                # Update assistant response content
-                assistant_response_content = chunk
+                # Accumulate assistant response content (don't overwrite!)
+                if chunk:
+                    assistant_response_content += chunk
 
                 # Only append non-empty chunks to avoid empty content
                 if chunk:
@@ -774,7 +821,7 @@ class MainWindow(QMainWindow):
                 message=message_with_context,
                 on_chunk=on_chunk,
                 on_error=on_error,
-                enable_filesystem=True,
+                enable_filesystem=False,  # Disable filesystem tools to prevent fallback from MCP
             )
             print(
                 f"✅ AI agent response: success={response.success}, content='{response.content}'"

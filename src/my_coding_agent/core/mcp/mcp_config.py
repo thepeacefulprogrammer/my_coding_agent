@@ -385,6 +385,7 @@ def load_default_mcp_config() -> MCPConfig:
     1. Current directory
     2. User's home directory
     3. User's config directory
+    4. User's .cursor directory (for Cursor IDE)
 
     Returns:
         MCPConfig instance, empty if no config found
@@ -393,6 +394,7 @@ def load_default_mcp_config() -> MCPConfig:
         Path.cwd() / "mcp.json",
         Path.home() / "mcp.json",
         Path.home() / ".config" / "mcp.json",
+        Path.home() / ".cursor" / "mcp.json",
     ]
 
     for config_path in search_paths:
