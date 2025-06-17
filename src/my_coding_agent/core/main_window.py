@@ -837,7 +837,7 @@ class MainWindow(QMainWindow):
                     print("⏰ Fallback timer was cancelled")
 
             # Start the fallback timer
-            fallback_timer_task = asyncio.create_task(ensure_response_starts())
+            asyncio.create_task(ensure_response_starts())
 
             response = await self._ai_agent.send_memory_aware_message_stream(
                 message=message,  # Use original message, not manually constructed context

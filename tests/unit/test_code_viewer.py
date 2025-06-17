@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 from PyQt6.QtWidgets import QWidget
 
 from my_coding_agent.core.code_viewer import CodeViewerWidget, LineNumbersWidget
@@ -261,6 +262,7 @@ class MyClass {
                 expected_lang
             )
 
+    @pytest.mark.slow
     def test_syntax_highlighting_performance(self, qapp, tmp_path):
         """Test syntax highlighting performance with medium-sized files."""
         widget = CodeViewerWidget()
@@ -545,6 +547,7 @@ class TestCodeViewerLargeFileHandling:
         loaded_content = widget.toPlainText()
         assert len(loaded_content) > 0
 
+    @pytest.mark.slow
     def test_large_file_performance_requirements(self, qapp, tmp_path):
         """Test performance requirements for large file loading."""
         widget = CodeViewerWidget()
@@ -1176,6 +1179,7 @@ class TestCodeViewerEdgeCases:
         # File path should be cleared
         assert widget.get_current_file() is None
 
+    @pytest.mark.slow
     def test_code_viewer_performance_with_complex_syntax(self, qapp, tmp_path):
         """Test performance with complex syntax highlighting scenarios."""
         widget = CodeViewerWidget()

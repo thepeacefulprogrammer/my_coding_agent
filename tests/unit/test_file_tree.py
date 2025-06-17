@@ -1321,6 +1321,7 @@ class TestFileTreeModelWidgetInteraction:
         assert blocker.args[0] == test_file
 
 
+@pytest.mark.slow
 class TestFileTreePerformanceOptimizations:
     """Test performance optimizations for the file tree."""
 

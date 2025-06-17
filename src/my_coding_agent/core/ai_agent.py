@@ -835,7 +835,7 @@ class AIAgent:
 
             # First pass: collect all tool names to identify conflicts
             tool_name_counts = {}
-            for server_name, tools in all_tools.items():
+            for _server_name, tools in all_tools.items():
                 for tool in tools:
                     tool_name_counts[tool.name] = tool_name_counts.get(tool.name, 0) + 1
 

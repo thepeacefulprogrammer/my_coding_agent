@@ -449,7 +449,7 @@ console.log(`Factorial of 5 is: ${result}`);
         assert len(token_styles) > 0
 
         # Verify that colors are appropriate for the theme
-        for token_type, color in token_styles.items():
+        for _token_type, color in token_styles.items():
             assert color.isValid()
 
         # Simulate theme change
@@ -503,8 +503,6 @@ console.log(`Factorial of 5 is: ${result}`);
             theme_manager=theme_manager,
             auto_adapt_theme=True,
         )
-
-        initial_style = widget.styleSheet()
 
         # Simulate theme change
         widget._on_theme_changed("light")

@@ -277,9 +277,9 @@ class MCPErrorHandler:
         # Check timeout first since TimeoutError is a subclass of OSError
         if isinstance(error, asyncio.TimeoutError):
             return ErrorCategory.TIMEOUT
-        elif isinstance(error, (ConnectionError, OSError)):
+        elif isinstance(error, ConnectionError | OSError):
             return ErrorCategory.NETWORK
-        elif isinstance(error, (OAuth2AuthenticationError, OAuth2TokenExpiredError)):
+        elif isinstance(error, OAuth2AuthenticationError | OAuth2TokenExpiredError):
             return ErrorCategory.AUTHENTICATION
         elif isinstance(error, PermissionError):
             return ErrorCategory.AUTHORIZATION
@@ -396,8 +396,8 @@ class MCPErrorHandler:
         server_name: str,
         operation_name: str,
         max_attempts: int | None = None,
-        **kwargs,
-    ) -> Any:
+        **kwargs: Any,
+    ) -> dict[str, Any] | list[Any] | str | None:
         """Execute operation with retry logic."""
         max_attempts = max_attempts if max_attempts is not None else self.max_retries
         last_error = None
@@ -470,7 +470,7 @@ class MCPErrorHandler:
         context: MCPErrorContext,
         recovery_func: Callable,
         max_attempts: int = 3,
-    ) -> Any:
+    ) -> dict[str, Any] | list[Any] | str | None:
         """Execute recovery strategy."""
         if strategy == ErrorRecoveryStrategy.RETRY_WITH_BACKOFF:
             return await self.execute_with_retry(
@@ -534,7 +534,7 @@ class MCPErrorHandler:
         # Default wait time
         return 60.0
 
-    def _get_fallback_result(self, operation: str) -> Any:
+    def _get_fallback_result(self, operation: str) -> dict[str, Any] | list[Any] | None:
         """Get fallback result for operation."""
         fallback_results = {
             "list_tools": [],
@@ -614,7 +614,4 @@ class MCPErrorHandler:
             error for error in recent_errors if error.severity == ErrorSeverity.CRITICAL
         ]
 
-        if len(critical_errors) > 0:
-            return False
-
-        return True
+        return not len(critical_errors) > 0

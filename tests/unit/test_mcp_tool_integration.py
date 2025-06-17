@@ -3,7 +3,6 @@
 import pytest
 from PyQt6.QtWidgets import QApplication
 from src.my_coding_agent.core.main_window import MainWindow
-from src.my_coding_agent.gui.chat_message_model import ChatMessageModel
 from src.my_coding_agent.gui.chat_widget_v2 import SimplifiedChatWidget
 from src.my_coding_agent.gui.components.mcp_tool_visualization import MCPToolCallWidget
 
@@ -14,9 +13,10 @@ class TestMCPToolIntegration:
     @pytest.fixture
     def chat_widget(self, qtbot):
         """Create a chat widget for testing."""
-        message_model = ChatMessageModel()
         widget = SimplifiedChatWidget(auto_adapt_theme=False)
+        widget.show()  # Ensure the widget is shown
         qtbot.addWidget(widget)
+        QApplication.processEvents()  # Process show events
         return widget
 
     @pytest.fixture
@@ -52,6 +52,9 @@ class TestMCPToolIntegration:
 
         # Start tool call
         chat_widget.start_tool_call(tool_call_data)
+
+        # Process Qt events to ensure widget is properly displayed
+        QApplication.processEvents()
 
         # Should create and display a tool call widget
         tool_widgets = chat_widget.findChildren(MCPToolCallWidget)

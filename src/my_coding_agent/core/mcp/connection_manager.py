@@ -10,6 +10,7 @@ This module provides comprehensive connection lifecycle management including:
 """
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -255,10 +256,8 @@ class ConnectionManager:
         self._monitoring_running = False
         self._monitoring_task.cancel()
 
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await self._monitoring_task
-        except asyncio.CancelledError:
-            pass
 
         self._monitoring_task = None
         logger.info("Stopped connection monitoring")
@@ -443,7 +442,7 @@ class ConnectionManager:
 
                     raise MCPConnectionError(
                         f"Failed to reconnect after {max_attempts} attempts: {e}"
-                    )
+                    ) from e
 
     async def health_check(self, client: MCPClient) -> bool:
         """
@@ -533,7 +532,7 @@ class ConnectionManager:
         if event_type not in self._event_listeners:
             return
 
-        event = ConnectionEvent(
+        ConnectionEvent(
             client=event_data.get("client"),
             event_type=event_data.get("event_type", event_type),
             details=event_data,

@@ -131,7 +131,7 @@ class MCPClient:
             )
         except Exception as e:
             logger.error(f"Failed to initialize OAuth 2.0 authenticator: {e}")
-            raise ValueError(f"Invalid OAuth 2.0 configuration: {e}")
+            raise ValueError(f"Invalid OAuth 2.0 configuration: {e}") from e
 
     def _detect_transport_from_config(self) -> str:
         """Auto-detect transport type from configuration."""
@@ -207,7 +207,7 @@ class MCPClient:
             package_name = None
             package_args = []
 
-            for i, arg in enumerate(args):
+            for _i, arg in enumerate(args):
                 if arg == "-y":
                     continue  # Skip the -y flag
                 elif not package_name:
@@ -395,8 +395,10 @@ class MCPClient:
                 logger.debug(
                     f"Pinging {self.server_name} in event loop: {current_loop}"
                 )
-            except RuntimeError:
-                raise MCPConnectionError("No event loop available for ping operation")
+            except RuntimeError as e:
+                raise MCPConnectionError(
+                    "No event loop available for ping operation"
+                ) from e
 
             await self._client.ping()
             logger.debug(f"Ping successful to server: {self.server_name}")
@@ -465,7 +467,13 @@ class MCPClient:
         except Exception as e:
             self._record_error(e, "list_tools")
             # Check if this is a connection issue
-            if "not connected" in str(e).lower() or "context manager" in str(e).lower():
+            if (
+                isinstance(e, ConnectionError | OSError)
+                or "not connected" in str(e).lower()
+                or "context manager" in str(e).lower()
+                or "network" in str(e).lower()
+                or "connection" in str(e).lower()
+            ):
                 self._connected = False  # Mark as disconnected
                 raise MCPConnectionError(f"List tools failed: {e}") from e
             raise MCPProtocolError(f"List tools failed: {e}") from e
@@ -534,7 +542,13 @@ class MCPClient:
         except Exception as e:
             self._record_error(e, f"call_tool({tool_name})")
             # Check if this is a connection issue
-            if "not connected" in str(e).lower() or "context manager" in str(e).lower():
+            if (
+                isinstance(e, ConnectionError | OSError)
+                or "not connected" in str(e).lower()
+                or "context manager" in str(e).lower()
+                or "network" in str(e).lower()
+                or "connection" in str(e).lower()
+            ):
                 self._connected = False  # Mark as disconnected
                 raise MCPConnectionError(f"Tool call failed: {e}") from e
             raise MCPProtocolError(f"Tool call failed: {e}") from e
@@ -578,7 +592,13 @@ class MCPClient:
         except Exception as e:
             self._record_error(e, "list_resources")
             # Check if this is a connection issue
-            if "not connected" in str(e).lower() or "context manager" in str(e).lower():
+            if (
+                isinstance(e, ConnectionError | OSError)
+                or "not connected" in str(e).lower()
+                or "context manager" in str(e).lower()
+                or "network" in str(e).lower()
+                or "connection" in str(e).lower()
+            ):
                 self._connected = False  # Mark as disconnected
                 raise MCPConnectionError(f"List resources failed: {e}") from e
             raise MCPProtocolError(f"List resources failed: {e}") from e
@@ -636,7 +656,13 @@ class MCPClient:
         except Exception as e:
             self._record_error(e, f"read_resource({uri})")
             # Check if this is a connection issue
-            if "not connected" in str(e).lower() or "context manager" in str(e).lower():
+            if (
+                isinstance(e, ConnectionError | OSError)
+                or "not connected" in str(e).lower()
+                or "context manager" in str(e).lower()
+                or "network" in str(e).lower()
+                or "connection" in str(e).lower()
+            ):
                 self._connected = False  # Mark as disconnected
                 raise MCPConnectionError(f"Read resource failed: {e}") from e
             raise MCPProtocolError(f"Read resource failed: {e}") from e

@@ -10,6 +10,7 @@ Tests proper connection lifecycle management including:
 """
 
 import asyncio
+import contextlib
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -98,12 +99,10 @@ class TestConnectionLifecycleManagement:
             return await original_sleep(0.01)  # Speed up test
 
         with patch("asyncio.sleep", side_effect=mock_sleep):
-            try:
+            with contextlib.suppress(MCPConnectionError):
                 await connection_manager._attempt_reconnection(
                     mcp_client, max_attempts=3
                 )
-            except MCPConnectionError:
-                pass  # Expected
 
         # Verify exponential backoff pattern (1, 2, 4 seconds)
         assert len(backoff_times) >= 2
@@ -224,7 +223,7 @@ class TestConnectionLifecycleManagement:
             for _ in range(3)
         ]
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
         # Only one should succeed, others should be skipped
         connect_calls = mcp_client.connect.call_count

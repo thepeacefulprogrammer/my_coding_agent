@@ -19,6 +19,14 @@ Based on the [AI Agent Chat Enhancements PRD](ai_agent_enhancements_prd.md)
 - `src/my_coding_agent/gui/chat_widget_v2.py` - Chat widget with thread-safe message content updates
 - `src/my_coding_agent/gui/components/mcp_tool_visualization.py` - MCP tool call visualization component with expandable details, theme-aware styling, and accessibility features
 
+### File Change Detection System (Task 9.1 - COMPLETED)
+- `src/my_coding_agent/core/file_change_detector.py` - Comprehensive file change detection system with watchdog integration, filtering, and analysis
+- `tests/unit/test_file_change_detection.py` - Comprehensive test suite for file change detection (21/21 tests passing)
+
+### Project Event Recording System (Task 9.2 - COMPLETED)
+- `src/my_coding_agent/core/project_event_recorder.py` - Project event recording system with automatic classification, manual annotation interface, and ChromaDB integration (26/26 tests passing)
+- `tests/unit/test_project_event_recorder.py` - Comprehensive test suite for project event recording system covering event types, classification, storage, and integration
+
 ### Configuration and Setup
 - `mcp.json` - MCP server configuration for Context7, legal, and GitHub servers
 
@@ -133,8 +141,7 @@ Based on the [AI Agent Chat Enhancements PRD](ai_agent_enhancements_prd.md)
   - [ ] 8.6 Add timing information for tool calls and reasoning steps
   - [ ] 8.7 Create theme-aware styling for reasoning and tool call components
   - [x] 8.8 ~~Integrate reasoning display with existing streaming system~~ REMOVED - Starting fresh
-  - [ ] 8.9 Add accessibility features for expandable sections (keyboard navigation, screen readers)
-  - [ ] 8.10 Implement unit tests for streaming reasoning and tool visualization components
+
 
 ### 6.3 Create memory retrieval system that searches short-term, long-term, and project history
 - [x] **Design unified search interface** - Created comprehensive `MemoryRetrievalSystem` class
@@ -193,20 +200,18 @@ Based on the [AI Agent Chat Enhancements PRD](ai_agent_enhancements_prd.md)
   - [x] Test MCP client integration and error recording
   - [x] Test configuration validation and customization
 
-### Test Files
-- `tests/unit/test_mcp_tool_visualization.py` - Comprehensive test suite for MCP tool call visualization component including expand/collapse, theme handling, status indicators, and accessibility features
 
 - [ ] 9.0 Implement Project History Tracking and Integration
-  - [ ] 9.1 Create automatic file change detection system
-    - [ ] Implement file system watcher for detecting file modifications, creations, and deletions
-    - [ ] Create file change analyzer to extract meaningful diffs and summaries
-    - [ ] Add filtering system to ignore temporary files, build artifacts, and sensitive data
-    - [ ] Integrate change detection with existing file tree widget signals
-  - [ ] 9.2 Build project event recording system
-    - [ ] Implement ProjectEventRecorder class to capture and categorize project changes
-    - [ ] Add support for different event types (file_modification, feature_addition, bug_fix, refactoring, etc.)
-    - [ ] Create automatic event classification based on file patterns and change content
-    - [ ] Add manual event annotation interface for architectural decisions and important changes
+  - [x] 9.1 Create automatic file change detection system - **COMPLETED** (All 21/21 tests passing)
+    - [x] Implement file system watcher for detecting file modifications, creations, and deletions
+    - [x] Create file change analyzer to extract meaningful diffs and summaries
+    - [x] Add filtering system to ignore temporary files, build artifacts, and sensitive data
+    - [x] Integrate change detection with existing file tree widget signals
+  - [x] 9.2 Build project event recording system
+    - [x] Implement ProjectEventRecorder class to capture and categorize project changes
+    - [x] Add support for different event types (file_modification, feature_addition, bug_fix, refactoring, etc.)
+    - [x] Create automatic event classification based on file patterns and change content
+    - [x] Add manual event annotation interface for architectural decisions and important changes
   - [ ] 9.3 Integrate project history with memory system
     - [ ] Connect ProjectEventRecorder with ChromaDB storage via existing store_project_history_with_embedding()
     - [ ] Implement project history retrieval in memory integration system

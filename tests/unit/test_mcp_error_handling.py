@@ -236,14 +236,12 @@ class TestMCPErrorRecovery:
 
     def test_authentication_error_recovery(self, error_handler):
         """Test authentication error recovery strategy."""
-        auth_error = OAuth2AuthenticationError("Token expired")
         strategy = error_handler.get_recovery_strategy(ErrorCategory.AUTHENTICATION)
 
         assert strategy == ErrorRecoveryStrategy.REAUTHENTICATE
 
     def test_protocol_error_recovery(self, error_handler):
         """Test protocol error recovery strategy."""
-        protocol_error = MCPProtocolError("Invalid response format")
         strategy = error_handler.get_recovery_strategy(ErrorCategory.PROTOCOL)
 
         assert strategy == ErrorRecoveryStrategy.RETRY_WITH_BACKOFF
@@ -383,9 +381,15 @@ class TestMCPClientErrorIntegration:
 
         # Mock network failure
         with patch.object(client, "_client") as mock_client:
-            mock_client.list_tools = AsyncMock(
-                side_effect=ConnectionError("Network unreachable")
-            )
+            # Mock the async context manager behavior
+            async def mock_aenter(self):
+                raise ConnectionError("Network unreachable")
+
+            async def mock_aexit(self, *args):
+                pass
+
+            mock_client.__aenter__ = mock_aenter
+            mock_client.__aexit__ = mock_aexit
 
             # Should handle error gracefully
             with pytest.raises(MCPConnectionError):
@@ -401,9 +405,15 @@ class TestMCPClientErrorIntegration:
 
         # Mock timeout
         with patch.object(client, "_client") as mock_client:
-            mock_client.list_tools = AsyncMock(
-                side_effect=asyncio.TimeoutError("Request timeout")
-            )
+            # Mock the async context manager behavior
+            async def mock_aenter(self):
+                raise asyncio.TimeoutError("Request timeout")
+
+            async def mock_aexit(self, *args):
+                pass
+
+            mock_client.__aenter__ = mock_aenter
+            mock_client.__aexit__ = mock_aexit
 
             # Should handle timeout gracefully
             with pytest.raises(MCPTimeoutError):
@@ -417,20 +427,27 @@ class TestMCPClientErrorIntegration:
         # Mock intermittent failure
         call_count = 0
 
-        def mock_list_tools():
+        async def mock_list_tools_context():
             nonlocal call_count
             call_count += 1
             if call_count < 3:
                 raise ConnectionError("Temporary network error")
-            return []
+            # Return a mock result that looks like the real MCP response
+            mock_result = type("MockResult", (), {"tools": []})()
+            return mock_result
 
-        with patch.object(client, "_client") as mock_client:
-            mock_client.list_tools = AsyncMock(side_effect=mock_list_tools)
+        # Mock the list_tools method directly for retry mechanism
+        with patch.object(client, "list_tools") as mock_list_tools:
+            mock_list_tools.side_effect = [
+                MCPConnectionError("Temporary network error"),
+                MCPConnectionError("Temporary network error"),
+                [],  # Success on third try
+            ]
 
             # Should retry and eventually succeed
             result = await client.list_tools_with_retry(max_attempts=3)
             assert result == []
-            assert call_count == 3
+            assert mock_list_tools.call_count == 3
 
     @pytest.mark.asyncio
     async def test_mcp_client_circuit_breaker_integration(self, mcp_config):
@@ -442,9 +459,15 @@ class TestMCPClientErrorIntegration:
 
         # Mock repeated failures
         with patch.object(client, "_client") as mock_client:
-            mock_client.list_tools = AsyncMock(
-                side_effect=ConnectionError("Server down")
-            )
+            # Mock the async context manager behavior
+            async def mock_aenter(self):
+                raise ConnectionError("Server down")
+
+            async def mock_aexit(self, *args):
+                pass
+
+            mock_client.__aenter__ = mock_aenter
+            mock_client.__aexit__ = mock_aexit
 
             # First two calls should fail and record failures in circuit breaker
             with pytest.raises(MCPConnectionError):
@@ -471,11 +494,9 @@ class TestMCPClientErrorIntegration:
         """Test MCP client graceful degradation."""
         client = MCPClient(mcp_config)
 
-        # Mock server failure
-        with patch.object(client, "_client") as mock_client:
-            mock_client.list_tools = AsyncMock(
-                side_effect=MCPConnectionError("Server unavailable")
-            )
+        # Mock the list_tools method directly to raise MCPConnectionError
+        with patch.object(client, "list_tools") as mock_list_tools:
+            mock_list_tools.side_effect = MCPConnectionError("Server unavailable")
 
             # Should degrade gracefully and return empty results
             result = await client.list_tools_with_fallback()

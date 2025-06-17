@@ -451,7 +451,7 @@ class MCPServerRegistry:
                 )
                 raise MCPError(
                     f"Server '{tool_registry.server_name}' is not connected and reconnection failed: {e}"
-                )
+                ) from e
 
         # Execute the tool call with error handling
         try:
@@ -478,7 +478,7 @@ class MCPServerRegistry:
                     )
                     raise MCPError(
                         f"Tool call failed due to event loop issue and reconnection failed: {reconnect_error}"
-                    )
+                    ) from reconnect_error
             else:
                 # Re-raise other errors
                 raise

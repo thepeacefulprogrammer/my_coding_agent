@@ -452,11 +452,11 @@ class OAuth2Authenticator:
             # Re-raise OAuth2AuthenticationError as-is
             raise
         except asyncio.TimeoutError as e:
-            raise OAuth2Error(f"Token request timeout: {e}")
+            raise OAuth2Error(f"Token request timeout: {e}") from e
         except aiohttp.ClientError as e:
-            raise OAuth2Error(f"Network error during token request: {e}")
+            raise OAuth2Error(f"Network error during token request: {e}") from e
         except Exception as e:
-            raise OAuth2Error(f"Unexpected error during token request: {e}")
+            raise OAuth2Error(f"Unexpected error during token request: {e}") from e
 
     async def get_authorization_header(self) -> str:
         """
@@ -478,7 +478,7 @@ class OAuth2Authenticator:
                 await self.refresh_token()
             except Exception as e:
                 logger.error(f"Token refresh failed: {e}")
-                raise OAuth2TokenExpiredError("Token expired and refresh failed")
+                raise OAuth2TokenExpiredError("Token expired and refresh failed") from e
 
         # Check if token is expired
         if self.current_token.is_expired():

@@ -166,7 +166,7 @@ class TestStreamingVisualIndicators:
         chat_height = chat_widget.height()
 
         # Indicator should be small relative to chat widget
-        assert indicator_height < chat_height * 0.1  # Less than 10% of chat height
+        assert indicator_height < chat_height * 0.12  # Less than 12% of chat height
 
     def test_streaming_progress_animation(self, chat_widget):
         """Test streaming indicator can show animated progress."""

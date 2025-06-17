@@ -52,7 +52,7 @@ class MCPToolCallWidget(QWidget):
         theme_manager: ThemeManager | None = None,
         auto_adapt_theme: bool = True,
         parent: QWidget | None = None,
-    ):
+    ) -> None:
         """
         Initialize the MCPToolCallWidget.
 
@@ -332,7 +332,7 @@ class MCPToolCallWidget(QWidget):
         # Fallback to plain text
         return "text"
 
-    def _get_lexer_for_language(self, language: str):
+    def _get_lexer_for_language(self, language: str) -> object | None:
         """Get appropriate Pygments lexer for the detected language."""
         try:
             if language == "python":
@@ -466,6 +466,9 @@ class MCPToolCallWidget(QWidget):
             result: Dictionary containing execution result
         """
         self.result = result.copy()
+
+        # Merge result data into tool_call
+        self.tool_call.update(result)
 
         # Update status based on result - check both direct status and nested result
         if (

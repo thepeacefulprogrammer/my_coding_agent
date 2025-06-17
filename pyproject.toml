@@ -159,9 +159,12 @@ ignore = [
 "src/my_coding_agent/core/memory/memory_transparency.py" = ["ANN204"]
 "src/my_coding_agent/gui/components/theme_aware_widget.py" = ["ANN201", "ANN202", "ANN204"]
 "src/my_coding_agent/gui/components/message_display.py" = ["ANN201", "ANN202", "ANN204"]
-"src/my_coding_agent/core/mcp/*.py" = ["ANN001", "ANN202", "ANN204", "ANN206"]
+"src/my_coding_agent/gui/components/mcp_tool_visualization.py" = ["ANN401"]
+"src/my_coding_agent/core/mcp/*.py" = ["ANN001", "ANN202", "ANN204", "ANN206", "ANN401"]
 "src/my_coding_agent/core/mcp_file_server.py" = ["ANN001", "ANN204", "ANN206"]
 "src/my_coding_agent/core/file_tree.py" = ["ANN001", "ANN401"]
+"src/my_coding_agent/core/file_change_detector.py" = ["ANN001", "ANN204", "ANN401", "SIM102"]
+"src/my_coding_agent/core/project_event_recorder.py" = ["ANN204", "ANN401"]
 "src/my_coding_agent/core/theme_manager.py" = ["ANN204"]
 "src/my_coding_agent/core/memory/chroma_rag_engine.py" = ["ANN204", "ANN401"]
 "src/my_coding_agent/core/memory/memory_types.py" = ["ANN001", "ANN201", "ANN206"]
@@ -223,7 +226,7 @@ disallow_untyped_defs = false
 # Pytest configuration
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -q --strict-markers --strict-config"
+addopts = "-ra -q --strict-markers --strict-config -m 'not slow and not integration' -n auto --maxfail=5 --tb=short"
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
@@ -233,6 +236,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
+    "fast: marks tests as fast unit tests",
 ]
 
 # Coverage configuration

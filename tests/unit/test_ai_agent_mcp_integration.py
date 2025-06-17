@@ -154,7 +154,9 @@ class TestAIAgentMCPIntegration:
             # Mock the agent creation to avoid actual API calls and speed up tests
             agent._agent = MagicMock()
             agent._agent.run = AsyncMock(return_value=MagicMock(data="Test response"))
-            agent._agent.tool_plain = MagicMock()  # Mock tool registration to avoid conflicts
+            agent._agent.tool_plain = (
+                MagicMock()
+            )  # Mock tool registration to avoid conflicts
 
             # Ensure MCP registry is properly set up
             agent.mcp_registry = mock_server_registry
@@ -195,7 +197,10 @@ class TestAIAgentMCPIntegration:
             assert tool in tools
 
         # Should include MCP tools
-        mcp_tools = ["test_tool_one", "test_tool_two"]  # Updated to simple test tool names
+        mcp_tools = [
+            "test_tool_one",
+            "test_tool_two",
+        ]  # Updated to simple test tool names
         for tool in mcp_tools:
             assert tool in tools
 
@@ -214,7 +219,9 @@ class TestAIAgentMCPIntegration:
         assert "test_tool_one" in descriptions
         assert "Test tool for integration testing" in descriptions["test_tool_one"]
         assert "test_tool_two" in descriptions
-        assert "Second test tool for integration testing" in descriptions["test_tool_two"]
+        assert (
+            "Second test tool for integration testing" in descriptions["test_tool_two"]
+        )
 
     @pytest.mark.asyncio
     async def test_mcp_tool_registration_with_agent(self, ai_agent_with_mcp):
@@ -237,7 +244,9 @@ class TestAIAgentMCPIntegration:
         result = await agent._call_mcp_tool("test_tool_one", {})
 
         # Should call through the registry
-        mock_server_registry.call_tool.assert_called_once_with("test_tool_one", {}, None)
+        mock_server_registry.call_tool.assert_called_once_with(
+            "test_tool_one", {}, None
+        )
         assert result == "Tool executed"
 
     @pytest.mark.asyncio
@@ -467,9 +476,11 @@ class TestAIAgentMCPIntegration:
         result = await agent._call_mcp_tool("test_tool_one", {})
 
         # Check for timeout handling in the actual error message format
-        assert ("timeout" in result.lower() or
-                "timed out" in result.lower() or
-                "Tool executed" in result)
+        assert (
+            "timeout" in result.lower()
+            or "timed out" in result.lower()
+            or "Tool executed" in result
+        )
 
     @pytest.mark.asyncio
     async def test_mcp_registry_auto_discovery(self, ai_config, mcp_config):
