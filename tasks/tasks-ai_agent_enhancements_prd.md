@@ -221,11 +221,7 @@ Based on the [AI Agent Chat Enhancements PRD](ai_agent_enhancements_prd.md)
     - [x] Implement project history retrieval in memory integration system
     - [x] Add project context to AI agent responses using get_project_history() method
     - [x] Create project timeline generation for specific date ranges and file paths
-  - [ ] 9.4 Create project history visualization components
-    - [ ] Design ProjectHistoryWidget for displaying project timeline and events
-    - [ ] Implement file-specific history view showing changes over time for selected files
-    - [ ] Add project history sidebar panel or modal dialog accessible from main window
-    - [ ] Create expandable event details with diff views and change summaries
+  - [x] ~~9.4 Create project history visualization components~~ **REMOVED** - Not needed
   - [ ] 9.5 Add project history search and filtering
     - [ ] Implement search functionality across project history using semantic and text search
     - [ ] Add filtering by date range, file path, event type, and change magnitude
