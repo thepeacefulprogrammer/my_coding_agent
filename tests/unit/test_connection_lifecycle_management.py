@@ -47,10 +47,13 @@ class TestConnectionLifecycleManagement:
     def connection_manager(self):
         """Create connection manager for testing."""
         from src.my_coding_agent.core.mcp.connection_manager import ConnectionManager
+
         return ConnectionManager()
 
     @pytest.mark.asyncio
-    async def test_automatic_reconnection_on_connection_failure(self, connection_manager, mcp_client):
+    async def test_automatic_reconnection_on_connection_failure(
+        self, connection_manager, mcp_client
+    ):
         """Test automatic reconnection when connection fails."""
         # Mock the client's connection methods
         mcp_client.connect = AsyncMock()
@@ -64,7 +67,9 @@ class TestConnectionLifecycleManagement:
         await connection_manager.start_monitoring()
 
         # Simulate connection failure detection
-        with patch.object(connection_manager, '_handle_connection_failure') as mock_handler:
+        with patch.object(
+            connection_manager, "_handle_connection_failure"
+        ) as mock_handler:
             await connection_manager._check_client_health(mcp_client)
             mock_handler.assert_called_once_with(mcp_client)
 
@@ -72,10 +77,14 @@ class TestConnectionLifecycleManagement:
         await connection_manager.stop_monitoring()
 
     @pytest.mark.asyncio
-    async def test_exponential_backoff_for_reconnection_attempts(self, connection_manager, mcp_client):
+    async def test_exponential_backoff_for_reconnection_attempts(
+        self, connection_manager, mcp_client
+    ):
         """Test exponential backoff strategy for reconnection attempts."""
         # Mock the client
-        mcp_client.connect = AsyncMock(side_effect=MCPConnectionError("Connection failed"))
+        mcp_client.connect = AsyncMock(
+            side_effect=MCPConnectionError("Connection failed")
+        )
         mcp_client.is_connected = Mock(return_value=False)
 
         connection_manager.add_client(mcp_client)
@@ -88,9 +97,11 @@ class TestConnectionLifecycleManagement:
             backoff_times.append(delay)
             return await original_sleep(0.01)  # Speed up test
 
-        with patch('asyncio.sleep', side_effect=mock_sleep):
+        with patch("asyncio.sleep", side_effect=mock_sleep):
             try:
-                await connection_manager._attempt_reconnection(mcp_client, max_attempts=3)
+                await connection_manager._attempt_reconnection(
+                    mcp_client, max_attempts=3
+                )
             except MCPConnectionError:
                 pass  # Expected
 
@@ -137,7 +148,9 @@ class TestConnectionLifecycleManagement:
         mcp_client.ping.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_graceful_handling_of_transient_network_issues(self, connection_manager, mcp_client):
+    async def test_graceful_handling_of_transient_network_issues(
+        self, connection_manager, mcp_client
+    ):
         """Test graceful handling of temporary network problems."""
         # Simulate transient network issue (timeout that recovers)
         ping_attempts = 0
@@ -163,7 +176,9 @@ class TestConnectionLifecycleManagement:
         assert ping_attempts == 1  # Should only attempt once for transient timeout
 
     @pytest.mark.asyncio
-    async def test_connection_recovery_after_server_restart(self, connection_manager, mcp_client):
+    async def test_connection_recovery_after_server_restart(
+        self, connection_manager, mcp_client
+    ):
         """Test connection recovery when server restarts."""
         # Simulate server restart scenario
         connection_attempts = 0
@@ -187,8 +202,11 @@ class TestConnectionLifecycleManagement:
         assert connection_attempts >= 3
 
     @pytest.mark.asyncio
-    async def test_multiple_concurrent_reconnection_attempts_handled_safely(self, connection_manager, mcp_client):
+    async def test_multiple_concurrent_reconnection_attempts_handled_safely(
+        self, connection_manager, mcp_client
+    ):
         """Test that multiple concurrent reconnection attempts are handled safely."""
+
         # Mock connection method with delay
         async def mock_connect():
             await asyncio.sleep(0.1)
@@ -200,7 +218,9 @@ class TestConnectionLifecycleManagement:
 
         # Start multiple concurrent reconnection attempts
         tasks = [
-            asyncio.create_task(connection_manager._attempt_reconnection(mcp_client, max_attempts=1))
+            asyncio.create_task(
+                connection_manager._attempt_reconnection(mcp_client, max_attempts=1)
+            )
             for _ in range(3)
         ]
 
@@ -218,15 +238,15 @@ class TestConnectionLifecycleManagement:
             events.append(event)
 
         # Register event handler
-        connection_manager.add_event_listener('connection_state_changed', event_handler)
+        connection_manager.add_event_listener("connection_state_changed", event_handler)
 
         # Add client (should emit event)
         connection_manager.add_client(mcp_client)
 
         # Verify event was emitted
         assert len(events) == 1
-        assert events[0]['client'] == mcp_client
-        assert events[0]['event_type'] == 'client_added'
+        assert events[0]["client"] == mcp_client
+        assert events[0]["event_type"] == "client_added"
 
     def test_registry_connection_management(self, server_registry):
         """Test registry-level connection management."""
@@ -255,7 +275,11 @@ class TestConnectionLifecycleManagement:
     def test_connection_pooling_and_reuse(self, connection_manager):
         """Test connection pooling and reuse functionality."""
         # Create clients with same server name (for pooling)
-        config = {"server_name": "pooled-server", "command": "test", "transport": "stdio"}
+        config = {
+            "server_name": "pooled-server",
+            "command": "test",
+            "transport": "stdio",
+        }
 
         client1 = MCPClient(config)
         client2 = MCPClient(config)
@@ -297,7 +321,9 @@ class TestConnectionLifecycleManagement:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_maximum_reconnection_attempts_respected(self, connection_manager, mcp_client):
+    async def test_maximum_reconnection_attempts_respected(
+        self, connection_manager, mcp_client
+    ):
         """Test that maximum reconnection attempts are respected."""
         # Mock connection that always fails
         mcp_client.connect = AsyncMock(side_effect=MCPConnectionError("Always fails"))
@@ -320,17 +346,27 @@ class TestConnectionLifecycleManagement:
         metrics = connection_manager.get_connection_metrics(mcp_client)
 
         # Should contain expected metrics
-        expected_fields = ['connection_attempts', 'successful_connections', 'failed_connections',
-                          'last_connection_time', 'uptime', 'reconnection_count']
+        expected_fields = [
+            "connection_attempts",
+            "successful_connections",
+            "failed_connections",
+            "last_connection_time",
+            "uptime",
+            "reconnection_count",
+        ]
 
         for field in expected_fields:
             assert field in metrics
 
     @pytest.mark.asyncio
-    async def test_graceful_degradation_on_persistent_failures(self, connection_manager, mcp_client):
+    async def test_graceful_degradation_on_persistent_failures(
+        self, connection_manager, mcp_client
+    ):
         """Test graceful degradation when connections persistently fail."""
         # Mock persistent connection failures
-        mcp_client.connect = AsyncMock(side_effect=MCPConnectionError("Persistent failure"))
+        mcp_client.connect = AsyncMock(
+            side_effect=MCPConnectionError("Persistent failure")
+        )
         mcp_client.is_connected = Mock(return_value=False)
 
         connection_manager.add_client(mcp_client)
@@ -341,7 +377,7 @@ class TestConnectionLifecycleManagement:
 
         # Client should be marked as degraded
         status = connection_manager.get_client_status(mcp_client)
-        assert status['status'] == 'degraded'
+        assert status["status"] == "degraded"
 
 
 class TestConnectionManager:
@@ -351,6 +387,7 @@ class TestConnectionManager:
     def connection_manager(self):
         """Create connection manager for testing."""
         from src.my_coding_agent.core.mcp.connection_manager import ConnectionManager
+
         return ConnectionManager()
 
     def test_connection_manager_initialization(self, connection_manager):
@@ -397,8 +434,10 @@ class TestConnectionManager:
         result = connection_manager.remove_client(client)
 
         assert result is True
-        assert "test-server" not in connection_manager._clients or \
-               client not in connection_manager._clients["test-server"]
+        assert (
+            "test-server" not in connection_manager._clients
+            or client not in connection_manager._clients["test-server"]
+        )
 
     @pytest.mark.asyncio
     async def test_connection_manager_handle_connection_loss(self, connection_manager):
@@ -435,7 +474,9 @@ class TestConnectionManager:
         assert client.connect.call_count >= 1
 
     @pytest.mark.asyncio
-    async def test_connection_manager_health_check_integration(self, connection_manager):
+    async def test_connection_manager_health_check_integration(
+        self, connection_manager
+    ):
         """Test integration with health checking."""
         client = Mock(spec=MCPClient)
         client.server_name = "test-server"
@@ -457,19 +498,19 @@ class TestConnectionManager:
         def event_handler(event):
             events.append(event)
 
-        connection_manager.add_event_listener('test_event', event_handler)
-        connection_manager.emit_event('test_event', {'data': 'test'})
+        connection_manager.add_event_listener("test_event", event_handler)
+        connection_manager.emit_event("test_event", {"data": "test"})
 
         assert len(events) == 1
-        assert events[0]['data'] == 'test'
+        assert events[0]["data"] == "test"
 
     def test_connection_manager_configuration_validation(self, connection_manager):
         """Test validation of connection manager configuration."""
         # Test valid configuration
         valid_config = {
-            'monitoring_interval': 30.0,
-            'max_reconnection_attempts': 5,
-            'reconnection_backoff_base': 2.0
+            "monitoring_interval": 30.0,
+            "max_reconnection_attempts": 5,
+            "reconnection_backoff_base": 2.0,
         }
 
         connection_manager.configure(valid_config)
@@ -477,7 +518,7 @@ class TestConnectionManager:
 
         # Test invalid configuration
         invalid_config = {
-            'monitoring_interval': -1.0  # Invalid negative interval
+            "monitoring_interval": -1.0  # Invalid negative interval
         }
 
         with pytest.raises(ValueError):

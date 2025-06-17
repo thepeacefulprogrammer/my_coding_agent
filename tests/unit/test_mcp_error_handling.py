@@ -93,7 +93,7 @@ class TestMCPErrorCategories:
             error=error,
             server_name="test-server",
             operation="list_tools",
-            attempt_count=2
+            attempt_count=2,
         )
 
         assert context.error == error
@@ -110,9 +110,7 @@ class TestMCPCircuitBreaker:
     def test_circuit_breaker_initialization(self):
         """Test circuit breaker initialization."""
         breaker = MCPCircuitBreaker(
-            failure_threshold=5,
-            recovery_timeout=30,
-            half_open_max_calls=3
+            failure_threshold=5, recovery_timeout=30, half_open_max_calls=3
         )
 
         assert breaker.state == CircuitBreakerState.CLOSED
@@ -164,6 +162,7 @@ class TestMCPCircuitBreaker:
 
         # Wait for recovery timeout
         import time
+
         time.sleep(0.2)
 
         # Should transition to half-open on next call check
@@ -214,7 +213,12 @@ class TestMCPErrorRecovery:
             backoff_times_no_jitter.append(backoff)
 
         # Should increase exponentially without jitter
-        assert backoff_times_no_jitter[0] < backoff_times_no_jitter[1] < backoff_times_no_jitter[2] < backoff_times_no_jitter[3]
+        assert (
+            backoff_times_no_jitter[0]
+            < backoff_times_no_jitter[1]
+            < backoff_times_no_jitter[2]
+            < backoff_times_no_jitter[3]
+        )
         assert backoff_times_no_jitter[0] >= 1.0  # Minimum 1 second
         assert backoff_times_no_jitter[3] <= 16.0  # Maximum reasonable backoff
 
@@ -225,7 +229,10 @@ class TestMCPErrorRecovery:
 
         # Critical server errors should use fallback
         if error_handler.assess_severity(critical_error) == ErrorSeverity.CRITICAL:
-            assert strategy in [ErrorRecoveryStrategy.FALLBACK_MODE, ErrorRecoveryStrategy.CIRCUIT_BREAKER]
+            assert strategy in [
+                ErrorRecoveryStrategy.FALLBACK_MODE,
+                ErrorRecoveryStrategy.CIRCUIT_BREAKER,
+            ]
 
     def test_authentication_error_recovery(self, error_handler):
         """Test authentication error recovery strategy."""
@@ -246,9 +253,7 @@ class TestMCPErrorRecovery:
         """Test error recovery strategy execution."""
         error = ConnectionError("Network unreachable")
         context = error_handler.create_error_context(
-            error=error,
-            server_name="test-server",
-            operation="list_tools"
+            error=error, server_name="test-server", operation="list_tools"
         )
 
         # Mock recovery function
@@ -258,7 +263,7 @@ class TestMCPErrorRecovery:
             strategy=ErrorRecoveryStrategy.RETRY_WITH_BACKOFF,
             context=context,
             recovery_func=recovery_func,
-            max_attempts=3
+            max_attempts=3,
         )
 
         assert result == "recovered"
@@ -288,7 +293,7 @@ class TestMCPErrorMetrics:
             operation="list_tools",
             category=ErrorCategory.NETWORK,
             severity=ErrorSeverity.MEDIUM,
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
 
         metrics.record_error(context)
@@ -311,7 +316,7 @@ class TestMCPErrorMetrics:
                 operation="list_tools",
                 category=ErrorCategory.NETWORK,
                 severity=ErrorSeverity.MEDIUM,
-                timestamp=datetime.now()
+                timestamp=datetime.now(),
             )
             metrics.record_error(context)
 
@@ -330,7 +335,7 @@ class TestMCPErrorMetrics:
             operation="list_tools",
             category=ErrorCategory.NETWORK,
             severity=ErrorSeverity.MEDIUM,
-            timestamp=datetime.now() - timedelta(hours=2)
+            timestamp=datetime.now() - timedelta(hours=2),
         )
         metrics.record_error(old_error)
 
@@ -341,7 +346,7 @@ class TestMCPErrorMetrics:
             operation="list_tools",
             category=ErrorCategory.NETWORK,
             severity=ErrorSeverity.MEDIUM,
-            timestamp=datetime.now()
+            timestamp=datetime.now(),
         )
         metrics.record_error(recent_error)
 
@@ -360,14 +365,14 @@ class TestMCPClientErrorIntegration:
         return {
             "server_name": "test-server",
             "url": "https://api.example.com/mcp",
-            "transport": "http"
+            "transport": "http",
         }
 
     def test_mcp_client_error_handler_initialization(self, mcp_config):
         """Test MCP client error handler initialization."""
         client = MCPClient(mcp_config)
 
-        assert hasattr(client, 'error_handler')
+        assert hasattr(client, "error_handler")
         assert client.error_handler is not None
         assert isinstance(client.error_handler, MCPErrorHandler)
 
@@ -377,8 +382,10 @@ class TestMCPClientErrorIntegration:
         client = MCPClient(mcp_config)
 
         # Mock network failure
-        with patch.object(client, '_client') as mock_client:
-            mock_client.list_tools = AsyncMock(side_effect=ConnectionError("Network unreachable"))
+        with patch.object(client, "_client") as mock_client:
+            mock_client.list_tools = AsyncMock(
+                side_effect=ConnectionError("Network unreachable")
+            )
 
             # Should handle error gracefully
             with pytest.raises(MCPConnectionError):
@@ -393,8 +400,10 @@ class TestMCPClientErrorIntegration:
         client = MCPClient(mcp_config)
 
         # Mock timeout
-        with patch.object(client, '_client') as mock_client:
-            mock_client.list_tools = AsyncMock(side_effect=asyncio.TimeoutError("Request timeout"))
+        with patch.object(client, "_client") as mock_client:
+            mock_client.list_tools = AsyncMock(
+                side_effect=asyncio.TimeoutError("Request timeout")
+            )
 
             # Should handle timeout gracefully
             with pytest.raises(MCPTimeoutError):
@@ -407,6 +416,7 @@ class TestMCPClientErrorIntegration:
 
         # Mock intermittent failure
         call_count = 0
+
         def mock_list_tools():
             nonlocal call_count
             call_count += 1
@@ -414,7 +424,7 @@ class TestMCPClientErrorIntegration:
                 raise ConnectionError("Temporary network error")
             return []
 
-        with patch.object(client, '_client') as mock_client:
+        with patch.object(client, "_client") as mock_client:
             mock_client.list_tools = AsyncMock(side_effect=mock_list_tools)
 
             # Should retry and eventually succeed
@@ -431,8 +441,10 @@ class TestMCPClientErrorIntegration:
         client.error_handler.circuit_breaker.failure_threshold = 2
 
         # Mock repeated failures
-        with patch.object(client, '_client') as mock_client:
-            mock_client.list_tools = AsyncMock(side_effect=ConnectionError("Server down"))
+        with patch.object(client, "_client") as mock_client:
+            mock_client.list_tools = AsyncMock(
+                side_effect=ConnectionError("Server down")
+            )
 
             # First two calls should fail and record failures in circuit breaker
             with pytest.raises(MCPConnectionError):
@@ -446,7 +458,9 @@ class TestMCPClientErrorIntegration:
             client.error_handler.circuit_breaker.record_failure()
 
             # Circuit should now be open
-            assert client.error_handler.circuit_breaker.state == CircuitBreakerState.OPEN
+            assert (
+                client.error_handler.circuit_breaker.state == CircuitBreakerState.OPEN
+            )
 
             # Next call should be blocked by circuit breaker if we use the retry mechanism
             with pytest.raises(Exception, match="Circuit breaker is open"):
@@ -458,8 +472,10 @@ class TestMCPClientErrorIntegration:
         client = MCPClient(mcp_config)
 
         # Mock server failure
-        with patch.object(client, '_client') as mock_client:
-            mock_client.list_tools = AsyncMock(side_effect=MCPConnectionError("Server unavailable"))
+        with patch.object(client, "_client") as mock_client:
+            mock_client.list_tools = AsyncMock(
+                side_effect=MCPConnectionError("Server unavailable")
+            )
 
             # Should degrade gracefully and return empty results
             result = await client.list_tools_with_fallback()
@@ -488,7 +504,7 @@ class TestMCPClientErrorIntegration:
             "max_retries": 5,
             "circuit_breaker_threshold": 10,
             "recovery_timeout": 60,
-            "enable_fallback": True
+            "enable_fallback": True,
         }
 
         client = MCPClient(mcp_config)
@@ -503,21 +519,27 @@ class TestMCPClientErrorIntegration:
 class TestMCPServerRegistryErrorHandling:
     """Test suite for MCP server registry error handling."""
 
-    @pytest.mark.skip(reason="Server registry error handling methods not yet implemented")
+    @pytest.mark.skip(
+        reason="Server registry error handling methods not yet implemented"
+    )
     @pytest.mark.asyncio
     async def test_server_registry_connection_failure_handling(self):
         """Test server registry handling of connection failures."""
         # This test will be implemented when server registry error handling is added
         pass
 
-    @pytest.mark.skip(reason="Server registry error handling methods not yet implemented")
+    @pytest.mark.skip(
+        reason="Server registry error handling methods not yet implemented"
+    )
     @pytest.mark.asyncio
     async def test_server_registry_partial_failure_handling(self):
         """Test server registry handling of partial failures."""
         # This test will be implemented when server registry error handling is added
         pass
 
-    @pytest.mark.skip(reason="Server registry error handling methods not yet implemented")
+    @pytest.mark.skip(
+        reason="Server registry error handling methods not yet implemented"
+    )
     def test_server_registry_error_metrics(self):
         """Test server registry error metrics collection."""
         # This test will be implemented when server registry error handling is added
@@ -545,7 +567,7 @@ class TestMCPErrorHandlerConfiguration:
             "max_backoff": 120.0,
             "circuit_breaker_threshold": 10,
             "recovery_timeout": 300,
-            "enable_fallback": False
+            "enable_fallback": False,
         }
 
         handler = MCPErrorHandler(config)
@@ -566,5 +588,7 @@ class TestMCPErrorHandlerConfiguration:
         with pytest.raises(ValueError, match="base_backoff must be positive"):
             MCPErrorHandler({"base_backoff": 0})
 
-        with pytest.raises(ValueError, match="circuit_breaker_threshold must be positive"):
+        with pytest.raises(
+            ValueError, match="circuit_breaker_threshold must be positive"
+        ):
             MCPErrorHandler({"circuit_breaker_threshold": 0})

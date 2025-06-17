@@ -26,16 +26,19 @@ logger = logging.getLogger(__name__)
 
 class OAuth2Error(Exception):
     """Base exception for OAuth 2.0 related errors."""
+
     pass
 
 
 class OAuth2AuthenticationError(OAuth2Error):
     """Exception raised when OAuth 2.0 authentication fails."""
+
     pass
 
 
 class OAuth2TokenExpiredError(OAuth2Error):
     """Exception raised when OAuth 2.0 token has expired."""
+
     pass
 
 
@@ -92,7 +95,7 @@ class OAuth2Config:
             token_url=config_dict.get("token_url", ""),
             scope=config_dict.get("scope"),
             redirect_uri=config_dict.get("redirect_uri"),
-            audience=config_dict.get("audience")
+            audience=config_dict.get("audience"),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -104,7 +107,7 @@ class OAuth2Config:
             "token_url": self.token_url,
             "scope": self.scope,
             "redirect_uri": self.redirect_uri,
-            "audience": self.audience
+            "audience": self.audience,
         }
 
 
@@ -149,9 +152,8 @@ class OAuth2Token:
         Returns:
             True if token should be refreshed
         """
-        return (
-            self.refresh_token is not None and
-            self.is_expired(buffer_seconds=threshold_minutes * 60)
+        return self.refresh_token is not None and self.is_expired(
+            buffer_seconds=threshold_minutes * 60
         )
 
     def to_authorization_header(self) -> str:
@@ -166,7 +168,7 @@ class OAuth2Token:
             token_type=response_data.get("token_type", "Bearer"),
             expires_in=response_data.get("expires_in"),
             refresh_token=response_data.get("refresh_token"),
-            scope=response_data.get("scope")
+            scope=response_data.get("scope"),
         )
 
 
@@ -190,7 +192,9 @@ class OAuth2Authenticator:
         self._states: dict[str, datetime] = {}  # For state validation
         self._code_verifiers: dict[str, str] = {}  # For PKCE
 
-        logger.info(f"OAuth 2.0 authenticator initialized for client: {config.client_id}")
+        logger.info(
+            f"OAuth 2.0 authenticator initialized for client: {config.client_id}"
+        )
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -202,7 +206,9 @@ class OAuth2Authenticator:
         if self._session:
             await self._session.close()
 
-    def generate_authorization_url(self, state: str | None = None, use_pkce: bool = True) -> str:
+    def generate_authorization_url(
+        self, state: str | None = None, use_pkce: bool = True
+    ) -> str:
         """
         Generate OAuth 2.0 authorization URL.
 
@@ -214,7 +220,9 @@ class OAuth2Authenticator:
             Authorization URL
         """
         if not self.config.authorization_url:
-            raise ValueError("authorization_url is required for authorization code flow")
+            raise ValueError(
+                "authorization_url is required for authorization code flow"
+            )
 
         # Generate state if not provided
         if state is None:
@@ -226,7 +234,7 @@ class OAuth2Authenticator:
         params = {
             "response_type": "code",
             "client_id": self.config.client_id,
-            "state": state
+            "state": state,
         }
 
         if self.config.scope:
@@ -283,17 +291,23 @@ class OAuth2Authenticator:
             Tuple of (code_verifier, code_challenge)
         """
         # Generate code verifier (43-128 characters)
-        code_verifier = base64.urlsafe_b64encode(
-            secrets.token_bytes(32)
-        ).decode('utf-8').rstrip('=')
+        code_verifier = (
+            base64.urlsafe_b64encode(secrets.token_bytes(32))
+            .decode("utf-8")
+            .rstrip("=")
+        )
 
         # Generate code challenge
-        challenge_bytes = hashlib.sha256(code_verifier.encode('utf-8')).digest()
-        code_challenge = base64.urlsafe_b64encode(challenge_bytes).decode('utf-8').rstrip('=')
+        challenge_bytes = hashlib.sha256(code_verifier.encode("utf-8")).digest()
+        code_challenge = (
+            base64.urlsafe_b64encode(challenge_bytes).decode("utf-8").rstrip("=")
+        )
 
         return code_verifier, code_challenge
 
-    async def exchange_code_for_token(self, authorization_code: str, state: str) -> OAuth2Token:
+    async def exchange_code_for_token(
+        self, authorization_code: str, state: str
+    ) -> OAuth2Token:
         """
         Exchange authorization code for access token.
 
@@ -314,7 +328,7 @@ class OAuth2Authenticator:
         data = {
             "grant_type": "authorization_code",
             "code": authorization_code,
-            "client_id": self.config.client_id
+            "client_id": self.config.client_id,
         }
 
         if self.config.client_secret:
@@ -351,7 +365,7 @@ class OAuth2Authenticator:
         data = {
             "grant_type": "client_credentials",
             "client_id": self.config.client_id,
-            "client_secret": self.config.client_secret
+            "client_secret": self.config.client_secret,
         }
 
         if self.config.scope:
@@ -380,7 +394,7 @@ class OAuth2Authenticator:
         data = {
             "grant_type": "refresh_token",
             "refresh_token": self.current_token.refresh_token,
-            "client_id": self.config.client_id
+            "client_id": self.config.client_id,
         }
 
         if self.config.client_secret:
@@ -411,7 +425,7 @@ class OAuth2Authenticator:
 
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
-            "Accept": "application/json"
+            "Accept": "application/json",
         }
 
         try:
@@ -419,16 +433,18 @@ class OAuth2Authenticator:
                 self.config.token_url,
                 data=data,
                 headers=headers,
-                timeout=aiohttp.ClientTimeout(total=30)
+                timeout=aiohttp.ClientTimeout(total=30),
             ) as response:
                 response_data = await response.json()
 
                 if response.status != 200:
                     error_msg = response_data.get(
                         "error_description",
-                        response_data.get("error", f"HTTP {response.status}")
+                        response_data.get("error", f"HTTP {response.status}"),
                     )
-                    raise OAuth2AuthenticationError(f"Token request failed: {error_msg}")
+                    raise OAuth2AuthenticationError(
+                        f"Token request failed: {error_msg}"
+                    )
 
                 return OAuth2Token.from_response(response_data)
 
@@ -496,10 +512,7 @@ class OAuth2Authenticator:
         Returns:
             True if authenticated with non-expired token
         """
-        return (
-            self.current_token is not None and
-            not self.current_token.is_expired()
-        )
+        return self.current_token is not None and not self.current_token.is_expired()
 
     async def revoke_token(self, token: str | None = None) -> bool:
         """
@@ -524,10 +537,7 @@ class OAuth2Authenticator:
         if not self._session:
             self._session = aiohttp.ClientSession()
 
-        data = {
-            "token": token,
-            "client_id": self.config.client_id
-        }
+        data = {"token": token, "client_id": self.config.client_id}
 
         if self.config.client_secret:
             data["client_secret"] = self.config.client_secret
@@ -566,5 +576,5 @@ class OAuth2Authenticator:
             "expires_at": self.current_token.expires_at.isoformat(),
             "is_expired": self.current_token.is_expired(),
             "needs_refresh": self.current_token.needs_refresh(),
-            "has_refresh_token": self.current_token.refresh_token is not None
+            "has_refresh_token": self.current_token.refresh_token is not None,
         }

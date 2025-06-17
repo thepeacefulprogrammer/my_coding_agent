@@ -33,9 +33,33 @@ class ConversationMemoryHandler:
 
     def _get_or_create_session_id(self) -> str:
         """Generate a new session ID for conversation persistence."""
-        # For now, always create a new session ID when the app starts
-        # This can be modified later to restore sessions
+        # Try to load existing session ID from a file
+        session_file = (
+            Path.home() / ".config" / "my_coding_agent" / "current_session.txt"
+        )
+
+        try:
+            if session_file.exists():
+                existing_session_id = session_file.read_text().strip()
+                if existing_session_id:
+                    print(
+                        f"🔄 Resuming conversation session: {existing_session_id[:8]}..."
+                    )
+                    return existing_session_id
+        except Exception as e:
+            print(f"Failed to load existing session ID: {e}")
+
+        # Create a new session ID if none exists or loading failed
         new_session_id = str(uuid.uuid4())
+
+        try:
+            # Save session ID for persistence
+            session_file.parent.mkdir(parents=True, exist_ok=True)
+            session_file.write_text(new_session_id)
+            # Session created successfully - use logger instead of print
+        except Exception as e:
+            print(f"Failed to save session ID: {e}")
+
         return new_session_id
 
     def store_user_message(
@@ -78,38 +102,89 @@ class ConversationMemoryHandler:
 
         return message_id
 
-    def get_conversation_context(self, limit: int = 20) -> list[dict[str, Any]]:
+    def get_conversation_context(self, limit: int = 50) -> list[dict[str, Any]]:
         """Get recent conversation context for AI agent.
 
         Args:
-            limit: Maximum number of messages to retrieve
+            limit: Maximum number of messages to retrieve (default: 50 for short-term memory)
 
         Returns:
             List of message dictionaries formatted for AI agent
         """
-        # Use semantic search to get conversation history
-        # Search for all conversation messages (not just current session for cross-session memory)
-        results = self.rag_engine.semantic_search(
-            query="conversation history",  # Use a query to get relevant conversations
-            limit=limit * 2,  # Get more results to filter
-            memory_types=["conversation"],
-        )
-
-        # Convert to format expected by AI agent
-        context = []
-        for result in results:
-            context.append(
-                {
-                    "role": result.metadata.get("role", "unknown"),
-                    "content": result.content,
-                    "timestamp": result.metadata.get("timestamp", 0),
-                    "metadata": result.metadata,
-                }
+        try:
+            # Get conversation history using a general query that should match conversations
+            # Increase search limit to ensure we get enough results to filter from
+            session_results = self.rag_engine.semantic_search(
+                query="conversation messages chat dialog",  # Use relevant keywords instead of empty query
+                limit=limit
+                * 5,  # Get more results to filter by session - increased multiplier for larger limits
+                memory_types=["conversation"],
             )
 
-        # Sort by timestamp (most recent first) and limit
-        context.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
-        return context[:limit]
+            # Filter results by current session and sort by timestamp
+            current_session_messages = []
+            for result in session_results:
+                if result.metadata.get("session_id") == self.current_session_id:
+                    current_session_messages.append(
+                        {
+                            "role": result.metadata.get("role", "unknown"),
+                            "content": result.content,
+                            "timestamp": result.metadata.get("timestamp", 0),
+                            "metadata": result.metadata,
+                        }
+                    )
+
+            # If we don't have enough from current session, get recent from all sessions
+            if len(current_session_messages) < min(
+                10, limit // 5
+            ):  # If less than 10 messages or 1/5 of limit
+                all_messages = []
+                for result in session_results:
+                    all_messages.append(
+                        {
+                            "role": result.metadata.get("role", "unknown"),
+                            "content": result.content,
+                            "timestamp": result.metadata.get("timestamp", 0),
+                            "metadata": result.metadata,
+                        }
+                    )
+
+                # Sort all messages by timestamp (most recent first) and take what we need
+                all_messages.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+                context = all_messages[:limit]
+            else:
+                # Sort current session messages by timestamp (most recent first)
+                current_session_messages.sort(
+                    key=lambda x: x.get("timestamp", 0), reverse=True
+                )
+                context = current_session_messages[:limit]
+
+            return context
+
+        except Exception as e:
+            print(f"Error getting conversation context: {e}")
+            # Fallback to original method if new method fails
+            results = self.rag_engine.semantic_search(
+                query="conversation history",
+                limit=limit * 2,
+                memory_types=["conversation"],
+            )
+
+            # Convert to format expected by AI agent
+            context = []
+            for result in results:
+                context.append(
+                    {
+                        "role": result.metadata.get("role", "unknown"),
+                        "content": result.content,
+                        "timestamp": result.metadata.get("timestamp", 0),
+                        "metadata": result.metadata,
+                    }
+                )
+
+            # Sort by timestamp (most recent first) and limit
+            context.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+            return context[:limit]
 
     def start_new_session(self) -> str:
         """Start a new conversation session.
@@ -118,6 +193,18 @@ class ConversationMemoryHandler:
             The new session ID
         """
         self.current_session_id = str(uuid.uuid4())
+
+        # Update the persisted session file
+        session_file = (
+            Path.home() / ".config" / "my_coding_agent" / "current_session.txt"
+        )
+        try:
+            session_file.parent.mkdir(parents=True, exist_ok=True)
+            session_file.write_text(self.current_session_id)
+            # Session started successfully
+        except Exception as e:
+            print(f"Failed to persist new session ID: {e}")
+
         return self.current_session_id
 
     def load_conversation_history(self, chat_widget) -> None:
@@ -218,3 +305,46 @@ class ConversationMemoryHandler:
         """Close the memory handler and cleanup resources."""
         if self.rag_engine:
             await self.rag_engine.close()
+
+    async def clear_all_memory_data(self) -> bool:
+        """Clear all stored memory data and reset session.
+
+        This removes:
+        - All conversation history
+        - All long-term memories
+        - All project history
+        - Current session ID
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Clear all data from ChromaDB
+            success = self.rag_engine.clear_all_memories()
+
+            if success:
+                # Remove the current session file
+                session_file = (
+                    Path.home() / ".config" / "my_coding_agent" / "current_session.txt"
+                )
+                try:
+                    if session_file.exists():
+                        session_file.unlink()
+
+                    # Create a fresh session
+                    self.current_session_id = str(uuid.uuid4())
+                    session_file.write_text(self.current_session_id)
+                    # Memory cleared successfully
+
+                    return True
+                except Exception as e:
+                    print(f"Warning: Could not save new session ID: {e}")
+                    return False
+
+            else:
+                print("❌ Failed to clear memory data from ChromaDB")
+                return False
+
+        except Exception as e:
+            print(f"Error clearing memory data: {e}")
+            return False

@@ -4,79 +4,23 @@ Based on the [AI Agent Chat Enhancements PRD](ai_agent_enhancements_prd.md)
 
 ## Relevant Files
 
-- `src/my_coding_agent/core/memory/` - New directory for memory system components ✅ Created
-- `src/my_coding_agent/core/memory/__init__.py` - Memory module initialization ✅ Created
-- `src/my_coding_agent/core/memory/database_schema.py` - SQLite database schema with FTS5 support ✅ Created
-- `src/my_coding_agent/core/memory/memory_types.py` - Pydantic data models for all memory types ✅ Created
-- `tests/test_memory_system.py` - Comprehensive unit tests for database schema ✅ Created
-- `src/my_coding_agent/core/memory/memory_manager.py` - Core memory management system with session persistence and Crawl4AI chunking ✅ Created
-- `src/my_coding_agent/core/memory/migration_manager.py` - Database migration system for schema versioning and updates ✅ Created
-- `tests/test_memory_manager.py` - Unit tests for MemoryManager CRUD operations, session persistence, text chunking, and database migrations (37 passed, 1 skipped) ✅ Created
-- `tests/unit/test_retry_logic.py` - Unit tests for automatic retry logic with exponential backoff in streaming operations ✅ Created
-- `tests/unit/test_chat_widget_streaming.py` - Comprehensive unit tests for chat widget streaming state management including stream lifecycle, error handling, visual indicators, interruption, and theme compatibility (14/15 tests passing) ✅ Created
-- `pyproject.toml` - Added Crawl4AI dependency for intelligent text chunking ✅ Updated
-- `src/my_coding_agent/core/streaming/` - New directory for streaming functionality ✅ Created
-- `src/my_coding_agent/core/streaming/__init__.py` - Streaming module initialization and exports
-- `src/my_coding_agent/core/streaming/stream_handler.py` - Asynchronous streaming handler with state management, interruption capability, progress tracking, enhanced error handling with callback error isolation, circuit breaker pattern for repeated failures, memory pressure detection, and graceful degradation ✅ Enhanced
-- `src/my_coding_agent/core/streaming/response_buffer.py` - Intelligent buffering system with word boundary detection, automatic flushing, performance statistics, enhanced memory pressure handling, display callback circuit breaker pattern, large chunk splitting, and graceful degradation ✅ Enhanced
-- `tests/test_streaming.py` - Comprehensive test suite with 28 test cases covering streaming functionality, AI Agent integration, interruption capabilities, resource cleanup, error handling, concurrent streams, and edge cases
-- `src/my_coding_agent/gui/chat_widget.py` - Main chat widget with input/display capabilities, theme support, and accessibility features ✅ Enhanced with comprehensive streaming state management including stream tracking, real-time content updates, interruption capabilities, error handling, visual progress indicators, natural text flow for AI assistant messages (Task 3.1) with transparent background, no borders, and full-width display, enhanced user message styling (Task 3.2) with left-aligned layout, distinct border styling for clear distinction from AI messages, clean background colors, and modern border-radius, and complete metadata removal (Task 3.3) eliminating timestamps and status indicator display while preserving underlying message data and internal state tracking
-- `src/my_coding_agent/gui/components/` - New directory for chat UI components ✅ Created
-- `src/my_coding_agent/gui/components/__init__.py` - Components package initialization with MessageDisplay and MessageDisplayTheme exports ✅ Created
-- `src/my_coding_agent/gui/components/message_display.py` - Reusable MessageDisplay component for consistent AI and user message rendering with theme support, error display, content updates, and accessibility features (Task 3.4) ✅ Created
-- `tests/unit/test_message_display_component.py` - Comprehensive unit tests for MessageDisplay component including styling verification for different message roles, theme adaptation, content updates, error display, accessibility features, and component cleanup ✅ Created (Task 3.4)
-- `src/my_coding_agent/gui/components/code_highlighter.py` - Code syntax highlighting component
-- `tests/test_chat_ui.py` - Unit tests for chat UI components
-- `tests/unit/test_chat_widget.py` - Updated unit tests for chat widget functionality with metadata removal tests (Task 3.3) ✅ Updated
-- `src/my_coding_agent/core/mcp/` - New directory for FastMCP integration ✅ Created
-- `src/my_coding_agent/core/mcp/mcp_client.py` - FastMCP client implementation with JSON-RPC protocol support, enhanced transport protocol support (stdio, HTTP, SSE, WebSocket), automatic transport detection, connection management, tool operations, reconnection logic, and comprehensive error handling ✅ Enhanced (Task 4.4)
-- `src/my_coding_agent/core/mcp/mcp_config.py` - MCP configuration management system for reading and parsing mcp.json files with validation, multi-server support, and WebSocket transport detection ✅ Enhanced (Task 4.4)
-- `src/my_coding_agent/core/mcp/server_registry.py` - MCP server registry for tracking connected servers, managing tools/resources, health monitoring, and unified access across multiple servers ✅ Created
-- `src/my_coding_agent/core/mcp/__init__.py` - Module initialization with comprehensive exports for all MCP components ✅ Created
-- `tests/unit/test_mcp_client.py` - Comprehensive unit tests for MCP client functionality with 50 test cases covering initialization, connection management, tool operations, error handling, protocol validation, and transport protocol support (stdio, HTTP, SSE, WebSocket) with auto-detection, validation, and lifecycle management ✅ Enhanced (Task 4.4)
-- `tests/unit/test_ai_agent_mcp_integration.py` - Comprehensive unit tests for MCP tools integration with AIAgent including unified tool management, conflict resolution, tool execution, health status integration, server connection management, and seamless integration with existing filesystem tools (31/34 test cases passing) ✅ Created (Task 4.5)
-- `pyproject.toml` - Added FastMCP dependency (>=2.5.0) for FastMCP protocol support ✅ Updated
-- `src/my_coding_agent/core/ai_agent.py` - Enhanced with `send_message_with_tools_stream()` method for real-time streaming output with automatic retry logic (up to 2 retries with exponential backoff), integrated with Pydantic AI's native streaming capabilities, `interrupt_current_stream()` method for graceful stream interruption with proper cleanup, comprehensive error categorization system for proper handling of network, timeout, memory, authentication, validation, and streaming-specific errors, and MCP tools integration with unified tool management, conflict resolution, and seamless integration with existing filesystem tools (Task 4.5) ✅ Enhanced
-- `tests/unit/test_comprehensive_error_handling.py` - Comprehensive unit tests for enhanced error handling and graceful degradation including network timeout recovery, memory pressure handling, callback failure isolation, stream corruption detection, cascading error prevention, and circuit breaker patterns (11 test cases) ✅ Created
-- `tests/unit/test_streaming_edge_cases.py` - Additional comprehensive unit tests for streaming edge cases, performance scenarios, integration testing, and resource management including empty stream handling, unicode support, large chunk processing, rapid cycles, timeout recovery, cancellation, memory cleanup, and concurrent stream isolation (15 test cases) ✅ Created
-- `tests/unit/test_natural_text_flow.py` - Unit tests for natural text flow implementation (Task 3.1) verifying AI assistant messages display with transparent backgrounds and full-width natural flow while user messages have left-aligned border styling and system messages retain their distinct styling (6 test cases) ✅ Created
-- `tests/unit/test_enhanced_user_message_styling.py` - Comprehensive unit tests for enhanced user message styling (Task 3.2) with left-aligned layout, distinct border styling for visual distinction between user and AI messages, clean background colors, and modern border-radius in both light and dark themes (15 test cases) ✅ Created
-- `tests/unit/test_timestamp_removal.py` - Comprehensive unit tests for metadata removal from chat message display (Task 3.3) verifying that timestamps and status indicators are no longer displayed in UI while preserving underlying message data for export functionality and internal state tracking (16 test cases) ✅ Created
-- `src/my_coding_agent/core/main_window.py` - Main window enhanced with asynchronous streaming integration connecting AI Agent streaming to ChatWidget with proper callback handling and thread safety ✅ Updated
-- `mcp.json` - MCP server configuration file (project root)
-- `requirements.txt` - Dependencies (existing, needs updates)
-- `src/my_coding_agent/gui/components/theme_aware_widget.py` - Base class for automatic theme adaptation ✅ Created & enhanced
-- `src/my_coding_agent/gui/components/message_display.py` - MessageDisplay component for consistent rendering ✅ Created & enhanced
-- `src/my_coding_agent/gui/chat_widget_v2.py` - Simplified chat widget with auto-theme support and streaming visual indicators including subtle progress indicator, interrupt button, animated dots, theme-aware styling, and accessibility features ✅ Enhanced (Task 3.10)
-- `src/my_coding_agent/core/main_window.py` - Main window with "New Chat" functionality ✅ Enhanced
-- `tests/unit/test_message_display_component.py` - 14 comprehensive tests for MessageDisplay ✅ Created
-- `tests/unit/test_theme_aware_styling.py` - 13 comprehensive tests for theme-aware system ✅ Created
-- `tests/unit/test_new_chat_functionality.py` - 17 comprehensive tests for "New Chat" feature ✅ Created
-- `tests/unit/test_chat_input_improvements.py` - 8 comprehensive tests for Enter key and layout improvements ✅ Created
-- `tests/unit/test_message_styling_verification.py` - 8 comprehensive tests for message styling verification ✅ Created
-- `tests/unit/test_responsive_design.py` - 12 comprehensive tests for responsive design across different window sizes including minimum size constraints, mobile/tablet/desktop/ultrawide layouts, text wrapping, input area responsiveness, layout stability during resize, and aspect ratio adaptability ✅ Created (Task 3.9)
-- `tests/unit/test_streaming_visual_indicators.py` - 14 comprehensive tests for streaming visual indicators including indicator visibility, interrupt button functionality, theme compatibility, subtle visual feedback, progress animation, accessibility, and multi-session behavior ✅ Created (Task 3.10)
-- `src/my_coding_agent/core/memory/rag_engine.py` - RAG (Retrieval-Augmented Generation) engine with embedding generation using sentence-transformers, semantic search with cosine similarity, memory storage with automatic embeddings, batch processing, caching, and comprehensive search functionality ✅ Created (Task 6.1)
-- `src/my_coding_agent/core/memory/memory_types.py` - Enhanced with SemanticSearchResult model for RAG engine search results with similarity scoring ✅ Enhanced (Task 6.1)
-- `tests/unit/test_rag_engine.py` - Comprehensive unit tests for RAG engine including embedding generation, similarity calculation, semantic search, memory storage with embeddings, batch processing, caching, and performance testing (18 test cases) ✅ Created (Task 6.1)
-- `pyproject.toml` - Added sentence-transformers, numpy, and scikit-learn dependencies for RAG engine functionality ✅ Updated (Task 6.1)
-- `src/my_coding_agent/core/memory/memory_classifier.py` - Automated memory classification system with pattern-based rule engine for determining memory importance and type (preference, fact, lesson, instruction, project_info, user_info), priority-based rule selection, custom rule support, and comprehensive analysis capabilities ✅ Created (Task 6.2)
-- `tests/unit/test_memory_classifier.py` - Comprehensive unit tests for automated memory classification system including initialization, message analysis, classification rules for all memory types, conversation context analysis, batch processing, custom rules, error handling, and statistics (18 test cases) ✅ Created (Task 6.2)
-- `src/my_coding_agent/core/memory/__init__.py` - Enhanced with MemoryClassifier export for automated memory classification functionality ✅ Enhanced (Task 6.2)
-- `src/my_coding_agent/core/memory/memory_retrieval_system.py` - Comprehensive memory retrieval system with unified search across all memory types (short-term, long-term, project history), hybrid search strategies combining text and semantic search, contextual search using conversation history, advanced filtering and ranking, related memory discovery, memory timeline functionality, batch search capabilities, and comprehensive search analytics ✅ Created (Task 6.3)
-- `tests/unit/test_memory_retrieval_system.py` - Comprehensive unit tests for memory retrieval system including initialization, unified search across all memory types, text and semantic search strategies, hybrid search combining multiple approaches, contextual search with conversation history, advanced filtering by importance/tags/dates, memory ranking algorithms, related memory discovery, timeline generation, batch search, search suggestions, error handling, and comprehensive performance testing (20 test cases) ✅ Created (Task 6.3)
-- `src/my_coding_agent/core/memory/memory_aware_conversation.py` - Memory-aware conversation system that automatically retrieves and integrates relevant memories from all layers (short-term, long-term, project history) to enhance AI responses with contextual awareness, including automatic memory retrieval on messages, contextual search using conversation history, memory context generation for AI enhancement, comprehensive multi-layer memory integration, conversation context management, streaming integration, memory enhancement controls, and statistics tracking ✅ Created (Task 6.5)
-- `tests/unit/test_memory_aware_conversation.py` - Unit tests for memory-aware conversation system including initialization, automatic memory retrieval, conversation context management, memory enhancement controls, and statistics tracking (5 test cases) ✅ Created (Task 6.5)
-- `src/my_coding_agent/core/ai_agent.py` - Enhanced with memory-aware capabilities including `enable_memory_awareness` parameter, memory-enhanced system prompts that inform the agent about its memory capabilities (short-term, long-term, and project history), basic memory-aware streaming method stubs for future full integration, and graceful fallback to regular functionality when memory systems are unavailable ✅ Enhanced (Task 6.6)
-- `src/my_coding_agent/core/memory/memory_transparency.py` - Memory transparency system that tracks and displays when memories are used to enhance AI responses, providing users with insight into how their stored information influences conversations. Includes configurable transparency levels (minimal, simple, detailed), memory usage event tracking, formatted transparency messages with relevance scores and sources, memory usage statistics, and integration with all memory result types ✅ Created (Task 6.7)
-- `tests/unit/test_memory_transparency.py` - Comprehensive unit tests for memory transparency features including transparency manager initialization, memory usage recording, transparency message generation at different detail levels, memory preview formatting, usage statistics tracking, recent event retrieval, settings validation, and async integration testing (17 test cases) ✅ Created (Task 6.7)
-- `src/my_coding_agent/core/memory/memory_aware_conversation.py` - Enhanced with integrated memory transparency system that automatically tracks memory usage and provides transparency messages to users, showing when and how stored memories are being used to enhance AI responses ✅ Enhanced (Task 6.7)
-- `src/my_coding_agent/core/mcp/connection_manager.py` - Connection lifecycle management system with automatic reconnection, exponential backoff, health monitoring, graceful error handling, event emission, and comprehensive connection state management ✅ Created (Task 4.6)
-- `tests/unit/test_connection_lifecycle_management.py` - Comprehensive unit tests for connection lifecycle management including automatic reconnection, health monitoring, transient error handling, connection pooling, event emission, and graceful degradation (25 test cases) ✅ Created (Task 4.6)
-- `src/my_coding_agent/core/mcp/oauth2_auth.py` - OAuth 2.0 authentication system with PKCE support and automatic token refresh
-- `tests/unit/test_oauth2_authentication.py` - Comprehensive OAuth 2.0 authentication tests (26 tests)
-- `src/my_coding_agent/core/mcp/error_handler.py` - Comprehensive error handling system with circuit breaker, retry mechanisms, and metrics
-- `tests/unit/test_mcp_error_handling.py` - Error handling and graceful degradation tests (28 tests)
+### Core Application Files
+- `src/my_coding_agent/core/ai_agent.py` - Main AI agent with pydantic-ai integration, streaming, memory, and MCP tool support
+- `src/my_coding_agent/core/main_window.py` - Main application window with chat integration (reasoning functionality removed)
+- `src/my_coding_agent/core/mcp/connection_manager.py` - MCP connection lifecycle and resource management
+- `src/my_coding_agent/core/mcp/error_handler.py` - Comprehensive MCP error handling and recovery
+- `src/my_coding_agent/core/mcp/mcp_client.py` - Enhanced MCP client with connection management
+- `src/my_coding_agent/core/mcp/oauth2_auth.py` - OAuth2 authentication for MCP servers
+- `src/my_coding_agent/core/mcp/server_registry.py` - MCP server discovery and registry management
+- `src/my_coding_agent/core/mcp_file_server.py` - Built-in MCP file server for workspace operations
+
+### GUI Components (Task 8.0)
+- `src/my_coding_agent/gui/components/message_display.py` - Message display component (reasoning functionality removed)
+- `src/my_coding_agent/gui/chat_widget_v2.py` - Chat widget with thread-safe message content updates
+- `src/my_coding_agent/gui/components/mcp_tool_visualization.py` - MCP tool call visualization component with expandable details, theme-aware styling, and accessibility features
+
+### Configuration and Setup
+- `mcp.json` - MCP server configuration for Context7, legal, and GitHub servers
 
 ## Theme-Aware Styling (Task 3.5) ✅ COMPLETED
 
@@ -180,6 +124,18 @@ Based on the [AI Agent Chat Enhancements PRD](ai_agent_enhancements_prd.md)
 - [ ] 7.0 Address SNAGs
   - [ ] 7.1 SNAG: Line numbers are not aligning correctly with the text file - line numbers are closer together.
 
+- [ ] 8.0 Implement Streaming Reasoning and MCP Tool Visualization
+  - [x] 8.1 ~~Add streaming reasoning/thinking display component~~ REMOVED - Starting fresh
+  - [x] 8.2 ~~Implement expandable reasoning section in chat messages~~ REMOVED - Starting fresh
+  - [x] 8.3 Create MCP tool call visualization component with expandable details
+  - [x] 8.4 Add tool call status indicators (pending, success, error)
+  - [x] 8.5 Implement collapsible tool response display with syntax highlighting
+  - [ ] 8.6 Add timing information for tool calls and reasoning steps
+  - [ ] 8.7 Create theme-aware styling for reasoning and tool call components
+  - [x] 8.8 ~~Integrate reasoning display with existing streaming system~~ REMOVED - Starting fresh
+  - [ ] 8.9 Add accessibility features for expandable sections (keyboard navigation, screen readers)
+  - [ ] 8.10 Implement unit tests for streaming reasoning and tool visualization components
+
 ### 6.3 Create memory retrieval system that searches short-term, long-term, and project history
 - [x] **Design unified search interface** - Created comprehensive `MemoryRetrievalSystem` class
 - [x] **Implement text search across all memory types** - Added text search for conversations, long-term memories, and project history
@@ -236,3 +192,48 @@ Based on the [AI Agent Chat Enhancements PRD](ai_agent_enhancements_prd.md)
   - [x] Test error metrics and time-windowed calculations
   - [x] Test MCP client integration and error recording
   - [x] Test configuration validation and customization
+
+### Test Files
+- `tests/unit/test_mcp_tool_visualization.py` - Comprehensive test suite for MCP tool call visualization component including expand/collapse, theme handling, status indicators, and accessibility features
+
+- [ ] 9.0 Implement Project History Tracking and Integration
+  - [ ] 9.1 Create automatic file change detection system
+    - [ ] Implement file system watcher for detecting file modifications, creations, and deletions
+    - [ ] Create file change analyzer to extract meaningful diffs and summaries
+    - [ ] Add filtering system to ignore temporary files, build artifacts, and sensitive data
+    - [ ] Integrate change detection with existing file tree widget signals
+  - [ ] 9.2 Build project event recording system
+    - [ ] Implement ProjectEventRecorder class to capture and categorize project changes
+    - [ ] Add support for different event types (file_modification, feature_addition, bug_fix, refactoring, etc.)
+    - [ ] Create automatic event classification based on file patterns and change content
+    - [ ] Add manual event annotation interface for architectural decisions and important changes
+  - [ ] 9.3 Integrate project history with memory system
+    - [ ] Connect ProjectEventRecorder with ChromaDB storage via existing store_project_history_with_embedding()
+    - [ ] Implement project history retrieval in memory integration system
+    - [ ] Add project context to AI agent responses using get_project_history() method
+    - [ ] Create project timeline generation for specific date ranges and file paths
+  - [ ] 9.4 Create project history visualization components
+    - [ ] Design ProjectHistoryWidget for displaying project timeline and events
+    - [ ] Implement file-specific history view showing changes over time for selected files
+    - [ ] Add project history sidebar panel or modal dialog accessible from main window
+    - [ ] Create expandable event details with diff views and change summaries
+  - [ ] 9.5 Add project history search and filtering
+    - [ ] Implement search functionality across project history using semantic and text search
+    - [ ] Add filtering by date range, file path, event type, and change magnitude
+    - [ ] Create related event discovery to find connected changes and decision chains
+    - [ ] Add project history statistics and analytics (most changed files, activity patterns)
+  - [ ] 9.6 Integrate project history with AI agent decision making
+    - [ ] Update AI agent system prompts to include project history context capabilities
+    - [ ] Implement automatic project history lookup for file-related questions
+    - [ ] Add project evolution awareness to help AI understand codebase development
+    - [ ] Create project learning system that builds understanding from historical changes
+  - [ ] 9.7 Add project history management and configuration
+    - [ ] Create settings for project history tracking (enable/disable, retention period, file filters)
+    - [ ] Implement project history cleanup and archiving for old entries
+    - [ ] Add project history export functionality for backup and analysis
+    - [ ] Create project history import system for migrating from git logs or other sources
+  - [ ] 9.8 Create comprehensive test suite for project history system
+    - [ ] Write unit tests for file change detection and event classification
+    - [ ] Test project history storage and retrieval operations
+    - [ ] Create integration tests for AI agent project history integration
+    - [ ] Add performance tests for large project history databases

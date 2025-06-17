@@ -126,7 +126,9 @@ class MCPClient:
         try:
             oauth2_config = OAuth2Config.from_dict(self.config["oauth2"])
             self.oauth2_authenticator = OAuth2Authenticator(oauth2_config)
-            logger.info(f"OAuth 2.0 authenticator initialized for server: {self.server_name}")
+            logger.info(
+                f"OAuth 2.0 authenticator initialized for server: {self.server_name}"
+            )
         except Exception as e:
             logger.error(f"Failed to initialize OAuth 2.0 authenticator: {e}")
             raise ValueError(f"Invalid OAuth 2.0 configuration: {e}")
@@ -158,7 +160,9 @@ class MCPClient:
 
         # Validate that OAuth 2.0 is only used with HTTP-based transports
         if self.oauth2_authenticator and transport not in ["http", "sse", "websocket"]:
-            raise ValueError("OAuth 2.0 authentication is only supported with HTTP-based transports")
+            raise ValueError(
+                "OAuth 2.0 authentication is only supported with HTTP-based transports"
+            )
 
         # Validate transport-specific requirements
         if transport == "stdio":
@@ -213,8 +217,7 @@ class MCPClient:
 
             if package_name:
                 transport = NpxStdioTransport(
-                    package=package_name,
-                    args=package_args if package_args else None
+                    package=package_name, args=package_args if package_args else None
                 )
                 self._client = Client(transport)
             else:
@@ -277,8 +280,13 @@ class MCPClient:
     async def connect(self) -> None:
         """Establish connection to the MCP server."""
         # Authenticate with OAuth 2.0 if configured
-        if self.oauth2_authenticator and not self.oauth2_authenticator.is_authenticated():
-            logger.info(f"Performing OAuth 2.0 authentication for server: {self.server_name}")
+        if (
+            self.oauth2_authenticator
+            and not self.oauth2_authenticator.is_authenticated()
+        ):
+            logger.info(
+                f"Performing OAuth 2.0 authentication for server: {self.server_name}"
+            )
             await self.authenticate_oauth2()
 
         # Ensure we create the client in the current event loop context
@@ -291,9 +299,13 @@ class MCPClient:
             # Check if we're in a different event loop context
             try:
                 current_loop = asyncio.get_running_loop()
-                logger.debug(f"Connecting {self.server_name} in event loop: {current_loop}")
+                logger.debug(
+                    f"Connecting {self.server_name} in event loop: {current_loop}"
+                )
             except RuntimeError:
-                logger.warning(f"No event loop running during {self.server_name} connection")
+                logger.warning(
+                    f"No event loop running during {self.server_name} connection"
+                )
 
             # For FastMCP, we don't need to maintain persistent connections
             # The context manager handles connection lifecycle for each call
@@ -315,9 +327,13 @@ class MCPClient:
             # Check if the client is still valid and the event loop is running
             try:
                 current_loop = asyncio.get_running_loop()
-                logger.debug(f"Disconnecting {self.server_name} in event loop: {current_loop}")
+                logger.debug(
+                    f"Disconnecting {self.server_name} in event loop: {current_loop}"
+                )
             except RuntimeError:
-                logger.warning(f"No event loop running during {self.server_name} disconnection")
+                logger.warning(
+                    f"No event loop running during {self.server_name} disconnection"
+                )
                 # If no event loop, just mark as disconnected
                 self._connected = False
                 return
@@ -376,7 +392,9 @@ class MCPClient:
             # Check if we're in a valid event loop context
             try:
                 current_loop = asyncio.get_running_loop()
-                logger.debug(f"Pinging {self.server_name} in event loop: {current_loop}")
+                logger.debug(
+                    f"Pinging {self.server_name} in event loop: {current_loop}"
+                )
             except RuntimeError:
                 raise MCPConnectionError("No event loop available for ping operation")
 
@@ -387,7 +405,9 @@ class MCPClient:
         except Exception as e:
             # Check if this is an event loop issue
             if "loop" in str(e).lower() or "event" in str(e).lower():
-                logger.warning(f"Event loop issue during ping for {self.server_name}: {e}")
+                logger.warning(
+                    f"Event loop issue during ping for {self.server_name}: {e}"
+                )
                 self._connected = False  # Mark as disconnected
                 raise MCPConnectionError(f"Event loop issue during ping: {e}") from e
             raise MCPProtocolError(f"Ping failed: {e}") from e
@@ -411,9 +431,15 @@ class MCPClient:
                         elif hasattr(tool_data, "__dict__"):
                             tool_dict = tool_data.__dict__
                         else:
-                            tool_dict = dict(tool_data) if hasattr(tool_data, '__iter__') else {"name": str(tool_data)}
+                            tool_dict = (
+                                dict(tool_data)
+                                if hasattr(tool_data, "__iter__")
+                                else {"name": str(tool_data)}
+                            )
 
-                        tools.append(MCPTool.from_mcp_result(tool_dict, self.server_name or ""))
+                        tools.append(
+                            MCPTool.from_mcp_result(tool_dict, self.server_name or "")
+                        )
                 elif isinstance(result, list):
                     for tool_data in result:
                         if hasattr(tool_data, "model_dump"):
@@ -421,9 +447,15 @@ class MCPClient:
                         elif hasattr(tool_data, "__dict__"):
                             tool_dict = tool_data.__dict__
                         else:
-                            tool_dict = dict(tool_data) if hasattr(tool_data, '__iter__') else {"name": str(tool_data)}
+                            tool_dict = (
+                                dict(tool_data)
+                                if hasattr(tool_data, "__iter__")
+                                else {"name": str(tool_data)}
+                            )
 
-                        tools.append(MCPTool.from_mcp_result(tool_dict, self.server_name or ""))
+                        tools.append(
+                            MCPTool.from_mcp_result(tool_dict, self.server_name or "")
+                        )
 
                 return tools
 
@@ -442,9 +474,7 @@ class MCPClient:
         """Record error in error handler metrics."""
         server_name = self.server_name or "unknown"
         context = self.error_handler.create_error_context(
-            error=error,
-            server_name=server_name,
-            operation=operation
+            error=error, server_name=server_name, operation=operation
         )
         self.error_handler.metrics.record_error(context)
 
@@ -490,7 +520,10 @@ class MCPClient:
                     return [result]
                 elif isinstance(result, list):
                     # Handle list results
-                    return [{"text": str(item)} if not isinstance(item, dict) else item for item in result]
+                    return [
+                        {"text": str(item)} if not isinstance(item, dict) else item
+                        for item in result
+                    ]
                 else:
                     # Handle other types
                     return [{"text": str(result)}]
@@ -525,9 +558,17 @@ class MCPClient:
                         elif hasattr(resource_data, "__dict__"):
                             resource_dict = resource_data.__dict__
                         else:
-                            resource_dict = dict(resource_data) if hasattr(resource_data, '__iter__') else {"uri": str(resource_data)}
+                            resource_dict = (
+                                dict(resource_data)
+                                if hasattr(resource_data, "__iter__")
+                                else {"uri": str(resource_data)}
+                            )
 
-                        resources.append(MCPResource.from_mcp_result(resource_dict, self.server_name or ""))
+                        resources.append(
+                            MCPResource.from_mcp_result(
+                                resource_dict, self.server_name or ""
+                            )
+                        )
 
                 return resources
 
@@ -581,7 +622,10 @@ class MCPClient:
                     return [result]
                 elif isinstance(result, list):
                     # Handle list results
-                    return [{"text": str(item)} if not isinstance(item, dict) else item for item in result]
+                    return [
+                        {"text": str(item)} if not isinstance(item, dict) else item
+                        for item in result
+                    ]
                 else:
                     # Handle other types
                     return [{"text": str(result)}]
@@ -640,10 +684,14 @@ class MCPClient:
             else:
                 raise ValueError(f"Unsupported OAuth 2.0 flow type: {flow_type}")
 
-            logger.info(f"OAuth 2.0 authentication successful for server: {self.server_name}")
+            logger.info(
+                f"OAuth 2.0 authentication successful for server: {self.server_name}"
+            )
 
         except OAuth2AuthenticationError as e:
-            logger.error(f"OAuth 2.0 authentication failed for server {self.server_name}: {e}")
+            logger.error(
+                f"OAuth 2.0 authentication failed for server {self.server_name}: {e}"
+            )
             raise MCPConnectionError(f"OAuth 2.0 authentication failed: {e}") from e
         except Exception as e:
             logger.error(f"Unexpected error during OAuth 2.0 authentication: {e}")
@@ -666,7 +714,9 @@ class MCPClient:
             return self.oauth2_authenticator.generate_authorization_url()
         except Exception as e:
             logger.error(f"Failed to generate OAuth 2.0 authorization URL: {e}")
-            raise MCPConnectionError(f"Failed to generate authorization URL: {e}") from e
+            raise MCPConnectionError(
+                f"Failed to generate authorization URL: {e}"
+            ) from e
 
     async def exchange_oauth2_code(self, authorization_code: str, state: str) -> None:
         """
@@ -683,11 +733,17 @@ class MCPClient:
             raise MCPConnectionError("OAuth 2.0 not configured for this client")
 
         try:
-            await self.oauth2_authenticator.exchange_code_for_token(authorization_code, state)
-            logger.info(f"OAuth 2.0 code exchange successful for server: {self.server_name}")
+            await self.oauth2_authenticator.exchange_code_for_token(
+                authorization_code, state
+            )
+            logger.info(
+                f"OAuth 2.0 code exchange successful for server: {self.server_name}"
+            )
 
         except OAuth2AuthenticationError as e:
-            logger.error(f"OAuth 2.0 code exchange failed for server {self.server_name}: {e}")
+            logger.error(
+                f"OAuth 2.0 code exchange failed for server {self.server_name}: {e}"
+            )
             raise MCPConnectionError(f"OAuth 2.0 code exchange failed: {e}") from e
         except Exception as e:
             logger.error(f"Unexpected error during OAuth 2.0 code exchange: {e}")
@@ -700,7 +756,10 @@ class MCPClient:
         Returns:
             True if authenticated with valid OAuth 2.0 token
         """
-        return self.oauth2_authenticator is not None and self.oauth2_authenticator.is_authenticated()
+        return (
+            self.oauth2_authenticator is not None
+            and self.oauth2_authenticator.is_authenticated()
+        )
 
     def get_oauth2_token_info(self) -> Optional["dict[str, Any]"]:
         """
@@ -714,14 +773,16 @@ class MCPClient:
 
         return self.oauth2_authenticator.get_token_info()
 
-    async def list_tools_with_retry(self, max_attempts: int | None = None) -> "list[MCPTool]":
+    async def list_tools_with_retry(
+        self, max_attempts: int | None = None
+    ) -> "list[MCPTool]":
         """List available tools with retry logic."""
         server_name = self.server_name or "unknown"
         return await self.error_handler.execute_with_retry(
             operation=self.list_tools,
             server_name=server_name,
             operation_name="list_tools",
-            max_attempts=max_attempts
+            max_attempts=max_attempts,
         )
 
     async def list_tools_with_fallback(self) -> "list[MCPTool]":
@@ -731,12 +792,12 @@ class MCPClient:
         except Exception as error:
             server_name = self.server_name or "unknown"
             context = self.error_handler.create_error_context(
-                error=error,
-                server_name=server_name,
-                operation="list_tools"
+                error=error, server_name=server_name, operation="list_tools"
             )
             self.error_handler.metrics.record_error(context)
-            logger.warning(f"Failed to list tools from {server_name}, using fallback: {error}")
+            logger.warning(
+                f"Failed to list tools from {server_name}, using fallback: {error}"
+            )
             return []
 
     def get_error_report(self) -> "dict[str, Any]":

@@ -17,8 +17,7 @@
       "env": {
         "PYTHONPATH": "/mnt/nas/randy/Documents/legal-case-prep-mcp/src:/mnt/nas/randy/Documents/legal-case-prep-mcp:/mnt/nas/randy/Documents/legal-case-prep-mcp/venv/lib/python3.11/site-packages",
         "LEGAL_MCP_CONFIG": "/mnt/nas/randy/Documents/legal-case-prep-mcp/config/legal_mcp_config.yaml"
-      },
-      "disabled": false
+      }
     },
     "github-project-manager": {
       "command": "/home/randy/workspace/personal/github_manager_mcp/venv/bin/python",
@@ -29,8 +28,18 @@
       "cwd": "/home/randy/workspace/personal/github_manager_mcp",
       "env": {
         "PYTHONPATH": "/home/randy/workspace/personal/github_manager_mcp/src:/home/randy/workspace/personal/github_manager_mcp"
-      },
-      "disabled": false
+      }
+    },
+    "terminal-mcp-server": {
+      "command": "/home/randy/workspace/personal/my_coding_agent/venv/bin/python",
+      "args": [
+        "/home/randy/workspace/personal/terminal_mcp_server/src/terminal_mcp_server/server.py"
+      ],
+      "cwd": "/home/randy/workspace/personal/terminal_mcp_server",
+      "env": {
+        "PYTHONPATH": "/home/randy/workspace/personal/terminal_mcp_server/src",
+        "PYTHONUNBUFFERED": "1"
+      }
     }
   }
 }

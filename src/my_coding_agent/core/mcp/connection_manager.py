@@ -69,11 +69,17 @@ class ConnectionManager:
 
         # Configuration with defaults
         config = config or {}
-        self._monitoring_interval: float = config.get('monitoring_interval', 30.0)
-        self._max_reconnection_attempts: int = config.get('max_reconnection_attempts', 5)
-        self._reconnection_backoff_base: float = config.get('reconnection_backoff_base', 2.0)
-        self._health_check_timeout: float = config.get('health_check_timeout', 10.0)
-        self._transient_error_threshold: int = config.get('transient_error_threshold', 3)
+        self._monitoring_interval: float = config.get("monitoring_interval", 30.0)
+        self._max_reconnection_attempts: int = config.get(
+            "max_reconnection_attempts", 5
+        )
+        self._reconnection_backoff_base: float = config.get(
+            "reconnection_backoff_base", 2.0
+        )
+        self._health_check_timeout: float = config.get("health_check_timeout", 10.0)
+        self._transient_error_threshold: int = config.get(
+            "transient_error_threshold", 3
+        )
 
         logger.info("Connection manager initialized")
 
@@ -87,20 +93,20 @@ class ConnectionManager:
         Raises:
             ValueError: If configuration is invalid
         """
-        if 'monitoring_interval' in config:
-            interval = config['monitoring_interval']
+        if "monitoring_interval" in config:
+            interval = config["monitoring_interval"]
             if interval <= 0:
                 raise ValueError("monitoring_interval must be positive")
             self._monitoring_interval = interval
 
-        if 'max_reconnection_attempts' in config:
-            attempts = config['max_reconnection_attempts']
+        if "max_reconnection_attempts" in config:
+            attempts = config["max_reconnection_attempts"]
             if attempts < 0:
                 raise ValueError("max_reconnection_attempts must be non-negative")
             self._max_reconnection_attempts = attempts
 
-        if 'reconnection_backoff_base' in config:
-            backoff = config['reconnection_backoff_base']
+        if "reconnection_backoff_base" in config:
+            backoff = config["reconnection_backoff_base"]
             if backoff <= 1.0:
                 raise ValueError("reconnection_backoff_base must be greater than 1.0")
             self._reconnection_backoff_base = backoff
@@ -122,11 +128,14 @@ class ConnectionManager:
             self._client_metrics[client] = ConnectionMetrics()
 
             logger.info(f"Added client for server: {server_name}")
-            self.emit_event('connection_state_changed', {
-                'client': client,
-                'event_type': 'client_added',
-                'server_name': server_name
-            })
+            self.emit_event(
+                "connection_state_changed",
+                {
+                    "client": client,
+                    "event_type": "client_added",
+                    "server_name": server_name,
+                },
+            )
 
     def remove_client(self, client: MCPClient) -> bool:
         """
@@ -157,11 +166,14 @@ class ConnectionManager:
                 del self._client_metrics[client]
 
             logger.info(f"Removed client for server: {server_name}")
-            self.emit_event('connection_state_changed', {
-                'client': client,
-                'event_type': 'client_removed',
-                'server_name': server_name
-            })
+            self.emit_event(
+                "connection_state_changed",
+                {
+                    "client": client,
+                    "event_type": "client_removed",
+                    "server_name": server_name,
+                },
+            )
             return True
 
         return False
@@ -191,15 +203,17 @@ class ConnectionManager:
         metrics = self._client_metrics.get(client, ConnectionMetrics())
 
         return {
-            'status': metrics.status,
-            'connected': client.is_connected() if hasattr(client, 'is_connected') else False,
-            'connection_attempts': metrics.connection_attempts,
-            'successful_connections': metrics.successful_connections,
-            'failed_connections': metrics.failed_connections,
-            'last_connection_time': metrics.last_connection_time,
-            'uptime': metrics.uptime,
-            'reconnection_count': metrics.reconnection_count,
-            'last_error': metrics.last_error
+            "status": metrics.status,
+            "connected": client.is_connected()
+            if hasattr(client, "is_connected")
+            else False,
+            "connection_attempts": metrics.connection_attempts,
+            "successful_connections": metrics.successful_connections,
+            "failed_connections": metrics.failed_connections,
+            "last_connection_time": metrics.last_connection_time,
+            "uptime": metrics.uptime,
+            "reconnection_count": metrics.reconnection_count,
+            "last_error": metrics.last_error,
         }
 
     def get_connection_metrics(self, client: MCPClient) -> dict[str, Any]:
@@ -215,12 +229,12 @@ class ConnectionManager:
         metrics = self._client_metrics.get(client, ConnectionMetrics())
 
         return {
-            'connection_attempts': metrics.connection_attempts,
-            'successful_connections': metrics.successful_connections,
-            'failed_connections': metrics.failed_connections,
-            'last_connection_time': metrics.last_connection_time,
-            'uptime': metrics.uptime,
-            'reconnection_count': metrics.reconnection_count
+            "connection_attempts": metrics.connection_attempts,
+            "successful_connections": metrics.successful_connections,
+            "failed_connections": metrics.failed_connections,
+            "last_connection_time": metrics.last_connection_time,
+            "uptime": metrics.uptime,
+            "reconnection_count": metrics.reconnection_count,
         }
 
     async def start_monitoring(self) -> None:
@@ -257,7 +271,9 @@ class ConnectionManager:
                 tasks = []
                 for clients in self._clients.values():
                     for client in clients:
-                        tasks.append(asyncio.create_task(self._check_client_health(client)))
+                        tasks.append(
+                            asyncio.create_task(self._check_client_health(client))
+                        )
 
                 if tasks:
                     await asyncio.gather(*tasks, return_exceptions=True)
@@ -290,7 +306,9 @@ class ConnectionManager:
 
             # Perform ping health check with timeout
             try:
-                await asyncio.wait_for(client.ping(), timeout=self._health_check_timeout)
+                await asyncio.wait_for(
+                    client.ping(), timeout=self._health_check_timeout
+                )
                 logger.debug(f"Health check passed for {client.server_name}")
 
                 # Update metrics on successful health check
@@ -328,14 +346,20 @@ class ConnectionManager:
         metrics.status = "connecting"
 
         # Emit connection failure event
-        self.emit_event('connection_state_changed', {
-            'client': client,
-            'event_type': 'connection_failed',
-            'server_name': client.server_name
-        })
+        self.emit_event(
+            "connection_state_changed",
+            {
+                "client": client,
+                "event_type": "connection_failed",
+                "server_name": client.server_name,
+            },
+        )
 
         # Start reconnection task if not already running
-        if client not in self._reconnection_tasks or self._reconnection_tasks[client].done():
+        if (
+            client not in self._reconnection_tasks
+            or self._reconnection_tasks[client].done()
+        ):
             self._reconnection_tasks[client] = asyncio.create_task(
                 self._attempt_reconnection(client, self._max_reconnection_attempts)
             )
@@ -355,7 +379,9 @@ class ConnectionManager:
 
         for attempt in range(max_attempts):
             try:
-                logger.info(f"Reconnection attempt {attempt + 1} for {client.server_name}")
+                logger.info(
+                    f"Reconnection attempt {attempt + 1} for {client.server_name}"
+                )
 
                 # Update metrics
                 metrics.connection_attempts += 1
@@ -372,12 +398,15 @@ class ConnectionManager:
                 logger.info(f"Successfully reconnected to {client.server_name}")
 
                 # Emit successful reconnection event
-                self.emit_event('connection_state_changed', {
-                    'client': client,
-                    'event_type': 'reconnected',
-                    'server_name': client.server_name,
-                    'attempts': attempt + 1
-                })
+                self.emit_event(
+                    "connection_state_changed",
+                    {
+                        "client": client,
+                        "event_type": "reconnected",
+                        "server_name": client.server_name,
+                        "attempts": attempt + 1,
+                    },
+                )
 
                 return
 
@@ -387,25 +416,34 @@ class ConnectionManager:
 
                 if attempt < max_attempts - 1:
                     # Calculate exponential backoff delay
-                    delay = self._reconnection_backoff_base ** attempt
-                    logger.info(f"Reconnection failed for {client.server_name}, "
-                              f"retrying in {delay} seconds: {e}")
+                    delay = self._reconnection_backoff_base**attempt
+                    logger.info(
+                        f"Reconnection failed for {client.server_name}, "
+                        f"retrying in {delay} seconds: {e}"
+                    )
                     await asyncio.sleep(delay)
                 else:
                     # All attempts failed
-                    logger.error(f"All reconnection attempts failed for {client.server_name}: {e}")
+                    logger.error(
+                        f"All reconnection attempts failed for {client.server_name}: {e}"
+                    )
                     metrics.status = "degraded"
 
                     # Emit degraded event
-                    self.emit_event('connection_state_changed', {
-                        'client': client,
-                        'event_type': 'degraded',
-                        'server_name': client.server_name,
-                        'total_attempts': max_attempts,
-                        'error': str(e)
-                    })
+                    self.emit_event(
+                        "connection_state_changed",
+                        {
+                            "client": client,
+                            "event_type": "degraded",
+                            "server_name": client.server_name,
+                            "total_attempts": max_attempts,
+                            "error": str(e),
+                        },
+                    )
 
-                    raise MCPConnectionError(f"Failed to reconnect after {max_attempts} attempts: {e}")
+                    raise MCPConnectionError(
+                        f"Failed to reconnect after {max_attempts} attempts: {e}"
+                    )
 
     async def health_check(self, client: MCPClient) -> bool:
         """
@@ -431,13 +469,15 @@ class ConnectionManager:
             task.cancel()
 
         if self._reconnection_tasks:
-            await asyncio.gather(*self._reconnection_tasks.values(), return_exceptions=True)
+            await asyncio.gather(
+                *self._reconnection_tasks.values(), return_exceptions=True
+            )
 
         # Disconnect all clients
         disconnect_tasks = []
         for clients in self._clients.values():
             for client in clients:
-                if hasattr(client, 'disconnect'):
+                if hasattr(client, "disconnect"):
                     disconnect_tasks.append(asyncio.create_task(client.disconnect()))
 
         if disconnect_tasks:
@@ -474,7 +514,10 @@ class ConnectionManager:
         Returns:
             True if handler was removed, False if not found
         """
-        if event_type in self._event_listeners and handler in self._event_listeners[event_type]:
+        if (
+            event_type in self._event_listeners
+            and handler in self._event_listeners[event_type]
+        ):
             self._event_listeners[event_type].remove(handler)
             return True
         return False
@@ -491,9 +534,9 @@ class ConnectionManager:
             return
 
         event = ConnectionEvent(
-            client=event_data.get('client'),
-            event_type=event_data.get('event_type', event_type),
-            details=event_data
+            client=event_data.get("client"),
+            event_type=event_data.get("event_type", event_type),
+            details=event_data,
         )
 
         for handler in self._event_listeners[event_type]:
@@ -523,30 +566,26 @@ class ConnectionManager:
         """
         total_clients = len(self.get_all_clients())
         connected_clients = sum(
-            1 for client in self.get_all_clients()
-            if client.is_connected()
+            1 for client in self.get_all_clients() if client.is_connected()
         )
 
         total_attempts = sum(
-            metrics.connection_attempts
-            for metrics in self._client_metrics.values()
+            metrics.connection_attempts for metrics in self._client_metrics.values()
         )
 
         total_successes = sum(
-            metrics.successful_connections
-            for metrics in self._client_metrics.values()
+            metrics.successful_connections for metrics in self._client_metrics.values()
         )
 
         return {
-            'total_clients': total_clients,
-            'connected_clients': connected_clients,
-            'disconnected_clients': total_clients - connected_clients,
-            'total_connection_attempts': total_attempts,
-            'total_successful_connections': total_successes,
-            'success_rate': total_successes / max(total_attempts, 1),
-            'monitoring_running': self._monitoring_running,
-            'active_reconnection_tasks': len([
-                task for task in self._reconnection_tasks.values()
-                if not task.done()
-            ])
+            "total_clients": total_clients,
+            "connected_clients": connected_clients,
+            "disconnected_clients": total_clients - connected_clients,
+            "total_connection_attempts": total_attempts,
+            "total_successful_connections": total_successes,
+            "success_rate": total_successes / max(total_attempts, 1),
+            "monitoring_running": self._monitoring_running,
+            "active_reconnection_tasks": len(
+                [task for task in self._reconnection_tasks.values() if not task.done()]
+            ),
         }

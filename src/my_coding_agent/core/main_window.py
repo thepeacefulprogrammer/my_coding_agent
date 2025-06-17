@@ -65,6 +65,11 @@ class MainWindow(QMainWindow):
     complete_streaming_signal = pyqtSignal()  # no args
     streaming_error_signal = pyqtSignal(Exception)  # error
 
+    # MCP tool call signals for chat visualization
+    tool_call_started_signal = pyqtSignal(dict)  # tool_call_data
+    tool_call_completed_signal = pyqtSignal(dict)  # result_data
+    tool_call_failed_signal = pyqtSignal(dict)  # error_data
+
     def __init__(self, directory_path: str) -> None:
         """Initialize the main window.
 
@@ -573,6 +578,7 @@ class MainWindow(QMainWindow):
                 enable_memory_awareness=True,
                 enable_mcp_tools=True,
                 auto_discover_mcp_servers=True,
+                signal_handler=self,  # Pass MainWindow as signal handler for MCP tool visualization
             )
 
             # Connect chat widget message_sent signal to our handler
@@ -606,22 +612,24 @@ class MainWindow(QMainWindow):
             self._ai_agent = None
 
     def _connect_streaming_signals(self) -> None:
-        """Connect streaming signals to ChatWidget methods."""
-        if hasattr(self, "_chat_widget"):
-            print("🔗 MainWindow: Connecting streaming signals to ChatWidget")
-            self.start_streaming_signal.connect(
-                self._chat_widget.start_streaming_response
-            )
-            self.append_chunk_signal.connect(self._chat_widget.append_streaming_chunk)
-            self.complete_streaming_signal.connect(
-                self._chat_widget.complete_streaming_response
-            )
-            self.streaming_error_signal.connect(
-                self._chat_widget.handle_streaming_error
-            )
-            print("✅ MainWindow: All streaming signals connected")
-        else:
-            print("❌ MainWindow: Chat widget not found, cannot connect signals")
+        """Connect streaming signals between main window and chat widget."""
+        if not self._chat_widget:
+            return
+
+        # Connect streaming signals
+        self.start_streaming_signal.connect(self._chat_widget.start_streaming_response)
+        self.append_chunk_signal.connect(self._chat_widget.append_streaming_chunk)
+        self.complete_streaming_signal.connect(
+            self._chat_widget.complete_streaming_response
+        )
+        self.streaming_error_signal.connect(self._chat_widget.handle_streaming_error)
+
+        # Connect MCP tool call signals
+        self.tool_call_started_signal.connect(self._chat_widget.start_tool_call)
+        self.tool_call_completed_signal.connect(self._chat_widget.complete_tool_call)
+        self.tool_call_failed_signal.connect(self._chat_widget.fail_tool_call)
+
+        print("✅ MainWindow: All streaming signals connected")
 
     def _initialize_mcp_servers(self) -> None:
         """Initialize MCP servers asynchronously after GUI startup."""
@@ -638,24 +646,48 @@ class MainWindow(QMainWindow):
             try:
                 print("🔗 Initializing MCP servers...")
                 # Connect to MCP servers using the startup method
-                loop.run_until_complete(self._ai_agent._connect_mcp_servers_on_startup())
+                loop.run_until_complete(
+                    self._ai_agent._connect_mcp_servers_on_startup()
+                )
                 print("✅ MCP servers initialized successfully")
 
                 # Update chat widget with MCP tool availability
-                if hasattr(self, '_chat_widget') and self._chat_widget:
+                if hasattr(self, "_chat_widget") and self._chat_widget:
                     available_tools = self._ai_agent.get_available_tools()
-                    mcp_tools = [tool for tool in available_tools if not tool.startswith(('read_file', 'write_file', 'list_directory', 'create_directory', 'get_file_info', 'search_files'))]
+                    mcp_tools = [
+                        tool
+                        for tool in available_tools
+                        if not tool.startswith(
+                            (
+                                "read_file",
+                                "write_file",
+                                "list_directory",
+                                "create_directory",
+                                "get_file_info",
+                                "search_files",
+                            )
+                        )
+                    ]
                     if mcp_tools:
-                        QTimer.singleShot(0, lambda: self._chat_widget.add_system_message(
-                            f"MCP tools are now available: {', '.join(mcp_tools)}"
-                        ))
+                        QTimer.singleShot(
+                            0,
+                            lambda: self._chat_widget.add_system_message(
+                                f"MCP tools are now available: {', '.join(mcp_tools)}"
+                            ),
+                        )
 
             except Exception as e:
-                print(f"❌ Failed to initialize MCP servers: {e}")
-                if hasattr(self, '_chat_widget') and self._chat_widget:
-                    QTimer.singleShot(0, lambda: self._chat_widget.add_system_message(
-                        f"MCP server initialization failed: {str(e)}"
-                    ))
+                error_msg = f"❌ Failed to initialize MCP servers: {e}"
+                print(error_msg)
+                if hasattr(self, "_chat_widget") and self._chat_widget:
+                    # Capture the error message in the lambda to avoid variable scope issues
+                    error_message = f"MCP server initialization failed: {str(e)}"
+                    QTimer.singleShot(
+                        0,
+                        lambda msg=error_message: self._chat_widget.add_system_message(
+                            msg
+                        ),
+                    )
             finally:
                 loop.close()
 
@@ -672,18 +704,10 @@ class MainWindow(QMainWindow):
             )
             return
 
-        # Initialize memory handler if not already done
-        if not hasattr(self, "_memory_handler"):
-            from .memory_integration import ConversationMemoryHandler
-
-            self._memory_handler = ConversationMemoryHandler()
-
-        # Store the user message in memory
-        try:
-            self._memory_handler.store_user_message(message)
-            print(f"💾 Stored user message in memory: '{message[:50]}...'")
-        except Exception as e:
-            print(f"⚠️ Failed to store user message in memory: {e}")
+        # Memory handling is now done by the AI agent's built-in memory system
+        print(
+            f"💾 Using AI agent's built-in memory system for message: '{message[:50]}...'"
+        )
 
         # Show thinking indicator
         self._chat_widget.show_ai_thinking(animated=True)
@@ -731,42 +755,37 @@ class MainWindow(QMainWindow):
             # Hide thinking indicator and start streaming response
             QTimer.singleShot(0, lambda: self._chat_widget.hide_typing_indicator())
 
-            # Get conversation context from memory
-            conversation_context = []
-            if hasattr(self, "_memory_handler"):
-                try:
-                    conversation_context = (
-                        self._memory_handler.get_conversation_context(limit=10)
-                    )
-                    print(
-                        f"📚 Retrieved {len(conversation_context)} messages from conversation history"
-                    )
-                except Exception as e:
-                    print(f"⚠️ Failed to retrieve conversation context: {e}")
-
             # Generate a unique stream ID
             stream_id = str(uuid.uuid4())
             print(f"📝 Stream ID: {stream_id}")
 
-            # Start streaming response in the chat widget
-            print("🎯 MainWindow: About to emit start_streaming_signal")
-            self.start_streaming_signal.emit(stream_id)
-            print("🎯 MainWindow: Emitted start_streaming_signal")
+            # Note: We'll start the streaming response later, after reasoning appears
+            # This ensures reasoning shows first, then assistant response follows
 
             # Track assistant response content for memory storage
             assistant_response_content = ""
 
+            # Track streaming state
+            assistant_message_started = False
+
             # Define streaming callbacks
             def on_chunk(chunk: str, is_final: bool) -> None:
                 """Handle streaming chunks from AI response."""
-                nonlocal assistant_response_content
+                nonlocal assistant_response_content, assistant_message_started
                 print(f"🔍 MainWindow callback: chunk='{chunk}', is_final={is_final}")
 
-                # Accumulate assistant response content (don't overwrite!)
+                # Accumulate assistant response content
                 if chunk:
                     assistant_response_content += chunk
 
-                # Only append non-empty chunks to avoid empty content
+                # Start streaming response if not already started
+                if chunk and not assistant_message_started:
+                    assistant_message_started = True
+                    print("🎯 MainWindow: Starting assistant streaming response now")
+                    self.start_streaming_signal.emit(stream_id)
+                    print("🎯 MainWindow: Emitted start_streaming_signal")
+
+                # Emit chunks for the assistant response
                 if chunk:
                     print("🎯 MainWindow: About to emit append_chunk_signal")
                     self.append_chunk_signal.emit(chunk)
@@ -775,19 +794,10 @@ class MainWindow(QMainWindow):
                 if is_final:
                     print("🏁 MainWindow: Completing streaming response")
 
-                    # Store assistant response in memory
-                    if hasattr(self, "_memory_handler") and assistant_response_content:
-                        try:
-                            self._memory_handler.store_assistant_message(
-                                assistant_response_content
-                            )
-                            print(
-                                f"💾 Stored assistant response in memory: '{assistant_response_content[:50]}...'"
-                            )
-                        except Exception as e:
-                            print(
-                                f"⚠️ Failed to store assistant response in memory: {e}"
-                            )
+                    # Memory storage is handled by the AI agent's memory system
+                    print(
+                        "💾 AI agent's memory system handles response storage automatically"
+                    )
 
                     # Complete the streaming response
                     print("🎯 MainWindow: About to emit complete_streaming_signal")
@@ -799,26 +809,38 @@ class MainWindow(QMainWindow):
                 print(f"❌ MainWindow callback: error={error}")
                 self.streaming_error_signal.emit(error)
 
-            # Prepare context string for AI agent
-            context_str = ""
-            if conversation_context:
-                context_lines = []
-                for ctx_msg in conversation_context[-5:]:  # Last 5 messages for context
-                    role = ctx_msg["role"].upper()
-                    content = ctx_msg["content"]
-                    context_lines.append(f"{role}: {content}")
-                context_str = "\n".join(context_lines)
-                context_str = f"\n\nRecent conversation context:\n{context_str}\n\nCurrent message:\n"
-
-            # Create message with context
-            message_with_context = f"{context_str}{message}" if context_str else message
-
-            # Send message with streaming support
+            # Send message with streaming support and reasoning callbacks
             print(
-                f"📡 Calling AI agent streaming with context. Message length: {len(message_with_context)}"
+                f"📡 Calling AI agent memory-aware streaming. Message length: {len(message)}"
             )
-            response = await self._ai_agent.send_message_with_tools_stream(
-                message=message_with_context,
+
+            # Import QTimer for main thread signal emission
+            # Start a timer to ensure assistant response starts even if no reasoning chunks come
+            # This prevents the UI from hanging if there's no reasoning
+            import asyncio
+
+            async def ensure_response_starts():
+                nonlocal assistant_message_started
+                try:
+                    await asyncio.sleep(
+                        1.0
+                    )  # Reduced to 1 second to prevent long hangs
+                    if not assistant_message_started:
+                        print(
+                            "⏰ No response detected after 1s, starting assistant response"
+                        )
+                        self.start_streaming_signal.emit(stream_id)
+                        assistant_message_started = True
+                    else:
+                        print("⏰ Assistant response already started, timer not needed")
+                except asyncio.CancelledError:
+                    print("⏰ Fallback timer was cancelled")
+
+            # Start the fallback timer
+            fallback_timer_task = asyncio.create_task(ensure_response_starts())
+
+            response = await self._ai_agent.send_memory_aware_message_stream(
+                message=message,  # Use original message, not manually constructed context
                 on_chunk=on_chunk,
                 on_error=on_error,
                 enable_filesystem=False,  # Disable filesystem tools to prevent fallback from MCP
@@ -861,16 +883,22 @@ class MainWindow(QMainWindow):
             if hasattr(self._chat_widget, "_is_streaming"):
                 self._chat_widget._is_streaming = False
 
-            # Start new memory session if memory handler exists
-            if hasattr(self, "_memory_handler"):
+            # Start a new memory session to properly separate conversations
+            if (
+                hasattr(self, "_ai_agent")
+                and self._ai_agent
+                and hasattr(self._ai_agent, "_memory_system")
+                and self._ai_agent._memory_system
+            ):
                 try:
-                    old_session = self._memory_handler.current_session_id
-                    new_session = self._memory_handler.start_new_session()
-                    print(
-                        f"💾 Started new memory session: {new_session[:8]}... (was: {old_session[:8]}...)"
-                    )
+                    self._ai_agent._memory_system.start_new_session()
+                    # Memory session started successfully
                 except Exception as e:
-                    print(f"⚠️ Failed to start new memory session: {e}")
+                    print(f"Failed to start new memory session: {e}")
+            else:
+                print(
+                    "💾 AI agent's memory system will handle new conversation context"
+                )
 
             # Clear the conversation
             self._chat_widget.clear_conversation()

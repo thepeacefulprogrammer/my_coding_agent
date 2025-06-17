@@ -1,6 +1,6 @@
 """Clean, simplified chat widget implementation."""
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
@@ -29,6 +29,11 @@ from .chat_message_model import (
     MessageRole,
     MessageStatus,
 )
+
+if TYPE_CHECKING:
+    from .components.mcp_tool_visualization import MCPToolCallWidget
+else:
+    from .components.mcp_tool_visualization import MCPToolCallWidget
 
 
 class EnhancedTextEdit(QTextEdit):
@@ -271,9 +276,14 @@ class SimplifiedMessageBubble(QWidget):
 class SimplifiedMessageDisplayArea(QScrollArea):
     """Clean message display area with proper layout."""
 
-    def __init__(self, message_model: ChatMessageModel, parent=None):
+    def __init__(
+        self, message_model: ChatMessageModel, parent=None, theme_manager=None
+    ):
         super().__init__(parent)
         self.message_model = message_model
+        self.theme_manager = (
+            theme_manager  # Store theme manager for MessageDisplay components
+        )
         self._message_bubbles: dict[str, SimplifiedMessageBubble] = {}
         self._current_theme = "dark"
         self._typing_indicator: QLabel | None = None
@@ -319,7 +329,9 @@ class SimplifiedMessageDisplayArea(QScrollArea):
 
     def add_message(self, message: ChatMessage) -> None:
         """Add a new message bubble."""
+        # Use SimplifiedMessageBubble for all messages
         bubble = SimplifiedMessageBubble(message)
+        # SimplifiedMessageBubble.apply_theme() takes a theme parameter
         bubble.apply_theme(self._current_theme)
 
         self._message_bubbles[message.message_id] = bubble
@@ -432,6 +444,7 @@ class SimplifiedMessageDisplayArea(QScrollArea):
 
         # Update all existing bubbles
         for bubble in self._message_bubbles.values():
+            # All bubbles are SimplifiedMessageBubble - apply_theme(theme) takes a parameter
             bubble.apply_theme(self._current_theme)
 
     def _on_app_theme_changed(self, theme: str) -> None:
@@ -469,6 +482,14 @@ class SimplifiedChatWidget(QWidget):
     message_sent = pyqtSignal(str)
     stream_interrupted = pyqtSignal(str)
 
+    # Add internal signal for thread-safe message content updates
+    _update_message_content_signal = pyqtSignal(str, str)  # message_id, content
+
+    # Tool call signals for MCP integration
+    tool_call_started = pyqtSignal(dict)  # tool_call_data
+    tool_call_completed = pyqtSignal(dict)  # result_data
+    tool_call_failed = pyqtSignal(dict)  # error_data
+
     def __init__(self, parent=None, auto_adapt_theme: bool = False, theme_manager=None):
         """Initialize the simplified chat widget.
 
@@ -498,6 +519,9 @@ class SimplifiedChatWidget(QWidget):
         self._animation_timer: QTimer | None = None
         self._animation_dots = 0
 
+        # Tool call tracking
+        self._active_tool_calls: dict[str, MCPToolCallWidget] = {}
+
         # Initialize UI and connections
         self.setup_ui()
 
@@ -517,11 +541,16 @@ class SimplifiedChatWidget(QWidget):
         self.setMinimumSize(320, 240)  # Minimum usable size
 
         # Message display area - give it stretch to fill available space
-        self.display_area = SimplifiedMessageDisplayArea(self.message_model)
+        self.display_area = SimplifiedMessageDisplayArea(
+            self.message_model, self, self.theme_manager
+        )
         layout.addWidget(self.display_area, 1)  # stretch factor 1 to fill space
 
         # Input area - fixed size at bottom
         self.setup_input_area(layout)
+
+        # Connect internal signals for thread safety
+        self._update_message_content_signal.connect(self._update_message_content_safe)
 
     def setup_input_area(self, main_layout: QVBoxLayout) -> None:
         """Set up the input area with full-width text box and embedded send icon."""
@@ -663,10 +692,24 @@ class SimplifiedChatWidget(QWidget):
     def add_assistant_message(
         self, content: str, metadata: "dict[str, Any] | None" = None
     ) -> str:
-        """Add an assistant message."""
-        message = ChatMessage.create_assistant_message(content, metadata)
+        """Add an assistant message to the conversation."""
+        message = ChatMessage(
+            content=content,
+            role=MessageRole.ASSISTANT,
+            status=MessageStatus.SENT,
+            metadata=metadata or {},
+        )
+
+        # Get the message ID before adding to model
+        message_id = message.message_id
+
+        # Add to model
         self.message_model.add_message(message)
-        return message.message_id
+
+        # Use the standard message display
+        self.display_area.add_message(message)
+        self.display_area.scroll_to_bottom()
+        return message_id
 
     def add_system_message(
         self, content: str, metadata: "dict[str, Any] | None" = None
@@ -681,20 +724,17 @@ class SimplifiedChatWidget(QWidget):
         self.message_model.clear_all_messages()
 
     def apply_theme(self, theme: str) -> None:
-        """Apply theme to the entire widget."""
+        """Apply theme to all components."""
+        self._current_theme = theme
         self.display_area.apply_theme(theme)
         self.apply_input_theme(theme)
-
-        # Apply theme to streaming indicators if they exist
-        if self._streaming_container:
-            self._apply_streaming_indicator_theme()
+        self._apply_streaming_indicator_theme()
+        self.apply_theme_to_tool_calls(theme)
 
     def update_message_content(self, message_id: str, content: str) -> None:
-        """Update message content (for streaming)."""
-        message = self.message_model.get_message_by_id(message_id)
-        if message:
-            message.content = content
-            self.display_area.update_message(message)
+        """Update message content (for streaming) - thread safe."""
+        # Use signal to ensure UI updates happen on the main thread
+        self._update_message_content_signal.emit(message_id, content)
 
     # Streaming methods required by the main application
 
@@ -823,9 +863,8 @@ class SimplifiedChatWidget(QWidget):
             "AI is currently responding to your message"
         )
 
-        # Create interrupt button
-        self._interrupt_button = QPushButton("Stop")
-        self._interrupt_button.setObjectName("interrupt_button")
+        # Add interrupt button with proper sizing
+        self._interrupt_button = QPushButton("⏹")
         self._interrupt_button.setAccessibleName("Stop AI response")
         self._interrupt_button.clicked.connect(self._on_interrupt_clicked)
         self._interrupt_button.setMaximumWidth(60)
@@ -1055,3 +1094,159 @@ class SimplifiedChatWidget(QWidget):
     def hide_typing_indicator(self) -> None:
         """Hide typing indicator."""
         self.display_area.hide_typing_indicator()
+
+    def _update_message_content_safe(self, message_id: str, content: str) -> None:
+        """Thread-safe method to update message content."""
+        if message := self.message_model.get_message_by_id(message_id):
+            message.content = content
+            self.display_area.update_message(message)
+
+    # MCP Tool Call Integration Methods
+
+    def start_tool_call(self, tool_call_data: dict[str, Any]) -> None:
+        """Start a new MCP tool call visualization.
+
+        Args:
+            tool_call_data: Dictionary containing tool call information:
+                - id: unique identifier for the tool call
+                - name: name of the tool being called
+                - parameters: parameters passed to the tool
+                - server: MCP server providing the tool
+                - status: current status (typically 'pending')
+        """
+        tool_call_id = tool_call_data.get("id", "")
+        if not tool_call_id:
+            return
+
+        # Create and configure tool call widget
+        tool_widget = MCPToolCallWidget(
+            tool_call_data, theme_manager=self.theme_manager
+        )
+        tool_widget.apply_theme()  # Apply current theme without parameters
+
+        # Store reference for updates
+        self._active_tool_calls[tool_call_id] = tool_widget
+
+        # INSERTION ORDER FIX: Insert tool calls BEFORE the streaming message, not after
+        # If we have a streaming message, insert before it. Otherwise, insert before bottom spacer.
+        if self._streaming_message_id:
+            # Find the streaming message bubble and insert before it
+            streaming_message = self.message_model.get_message_by_id(
+                self._streaming_message_id
+            )
+            if (
+                streaming_message
+                and self._streaming_message_id in self.display_area._message_bubbles
+            ):
+                streaming_bubble = self.display_area._message_bubbles[
+                    self._streaming_message_id
+                ]
+                streaming_bubble_index = self.display_area.container_layout.indexOf(
+                    streaming_bubble
+                )
+                if streaming_bubble_index >= 0:
+                    # Insert tool call before the streaming message
+                    self.display_area.container_layout.insertWidget(
+                        streaming_bubble_index, tool_widget
+                    )
+                else:
+                    # Fallback: insert before bottom spacer
+                    spacer_index = self.display_area.container_layout.indexOf(
+                        self.display_area.bottom_spacer
+                    )
+                    self.display_area.container_layout.insertWidget(
+                        spacer_index, tool_widget
+                    )
+            else:
+                # Fallback: insert before bottom spacer
+                spacer_index = self.display_area.container_layout.indexOf(
+                    self.display_area.bottom_spacer
+                )
+                self.display_area.container_layout.insertWidget(
+                    spacer_index, tool_widget
+                )
+        else:
+            # No streaming message, insert before bottom spacer (normal case)
+            spacer_index = self.display_area.container_layout.indexOf(
+                self.display_area.bottom_spacer
+            )
+            self.display_area.container_layout.insertWidget(spacer_index, tool_widget)
+
+        # Ensure the widget is visible
+        tool_widget.show()
+        tool_widget.setVisible(True)
+
+        # Scroll to show the new tool call
+        self.scroll_to_bottom()
+
+        # Emit signal for any connected components
+        self.tool_call_started.emit(tool_call_data)
+
+    def complete_tool_call(self, result_data: dict[str, Any]) -> None:
+        """Complete an MCP tool call with results.
+
+        Args:
+            result_data: Dictionary containing completion information:
+                - id: tool call identifier
+                - status: final status ('success', 'error', etc.)
+                - result: tool execution result (if successful)
+                - execution_time: time taken for execution
+        """
+        tool_call_id = result_data.get("id", "")
+        if tool_call_id not in self._active_tool_calls:
+            return
+
+        # Update the widget with results
+        tool_widget = self._active_tool_calls[tool_call_id]
+
+        # Update tool call data
+        updated_data = tool_widget.tool_call.copy()
+        updated_data.update(result_data)
+
+        # Update the widget
+        tool_widget.update_result(updated_data)
+
+        # Emit signal for any connected components
+        self.tool_call_completed.emit(result_data)
+
+    def fail_tool_call(self, error_data: dict[str, Any]) -> None:
+        """Fail an MCP tool call with error information.
+
+        Args:
+            error_data: Dictionary containing error information:
+                - id: tool call identifier
+                - status: error status ('error', 'timeout', etc.)
+                - error: error message or details
+                - execution_time: time taken before failure
+        """
+        tool_call_id = error_data.get("id", "")
+        if tool_call_id not in self._active_tool_calls:
+            return
+
+        # Update the widget with error
+        tool_widget = self._active_tool_calls[tool_call_id]
+
+        # Update tool call data
+        updated_data = tool_widget.tool_call.copy()
+        updated_data.update(error_data)
+
+        # Update the widget
+        tool_widget.update_result(updated_data)
+
+        # Emit signal for any connected components
+        self.tool_call_failed.emit(error_data)
+
+    def clear_tool_calls(self) -> None:
+        """Clear all active tool call widgets."""
+        for tool_widget in self._active_tool_calls.values():
+            tool_widget.deleteLater()
+        self._active_tool_calls.clear()
+
+    def get_active_tool_calls(self) -> dict[str, "MCPToolCallWidget"]:
+        """Get dictionary of active tool call widgets."""
+        return self._active_tool_calls.copy()
+
+    def apply_theme_to_tool_calls(self, theme: str) -> None:
+        """Apply theme to all active tool call widgets."""
+        for tool_widget in self._active_tool_calls.values():
+            tool_widget.apply_theme()  # Apply current theme without parameters

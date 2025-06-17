@@ -6,6 +6,8 @@ import asyncio
 import logging
 import os
 import re
+import time
+import uuid
 from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -114,6 +116,7 @@ class AIAgent:
         enable_memory_awareness: bool = False,
         enable_mcp_tools: bool = False,
         auto_discover_mcp_servers: bool = False,
+        signal_handler=None,
     ) -> None:
         """
         Initialize the AI Agent.
@@ -125,9 +128,11 @@ class AIAgent:
             enable_memory_awareness: Whether to enable memory-aware conversations
             enable_mcp_tools: Whether to enable MCP tools integration
             auto_discover_mcp_servers: Whether to auto-discover MCP servers from configuration
+            signal_handler: Object that can emit signals for UI updates (e.g., MainWindow)
         """
         self.config = config
         self.mcp_config = mcp_config
+        self.signal_handler = signal_handler
         self.filesystem_tools_enabled = enable_filesystem_tools
         self.memory_aware_enabled = enable_memory_awareness
         self.mcp_tools_enabled = enable_mcp_tools
@@ -136,8 +141,12 @@ class AIAgent:
         self.workspace_root = None  # Initialize workspace root as None
         self._mcp_servers_need_connection = False
         self._mcp_tools_registered = False  # Track if MCP tools have been registered
-        self._mcp_status_tool_registered = False  # Track if MCP status tool has been registered
-        self._environment_tool_registered = False  # Track if environment tool has been registered
+        self._mcp_status_tool_registered = (
+            False  # Track if MCP status tool has been registered
+        )
+        self._environment_tool_registered = (
+            False  # Track if environment tool has been registered
+        )
 
         # Setup logging
         self._setup_logging()
@@ -146,13 +155,19 @@ class AIAgent:
         self._create_model()
         self._create_agent()
 
-        # Initialize memory system if enabled
-        self._memory_system = None
-        if self.memory_aware_enabled:
-            try:
-                from .memory.chroma_rag_engine import ChromaRAGEngine
+        # Initialize tool tracking
+        self._available_tools = []
+        self._tool_descriptions = {}
+        self._mcp_tool_prefix = (
+            "mcp_"  # Prefix for MCP tools when they conflict with filesystem tools
+        )
 
-                self._memory_system = ChromaRAGEngine()
+        # Initialize memory system if requested
+        if enable_memory_awareness:
+            try:
+                from .memory_integration import ConversationMemoryHandler
+
+                self._memory_system = ConversationMemoryHandler()
                 logger.info("Memory system initialized successfully")
             except Exception as e:
                 logger.warning(f"Failed to initialize memory system: {e}")
@@ -239,7 +254,9 @@ class AIAgent:
 
             mcp_config = load_default_mcp_config()
             servers = mcp_config.get_all_servers()
-            logger.info(f"Found {len(servers)} MCP servers in configuration: {list(servers.keys())}")
+            logger.info(
+                f"Found {len(servers)} MCP servers in configuration: {list(servers.keys())}"
+            )
 
             for server_name, server_config in servers.items():
                 try:
@@ -258,7 +275,9 @@ class AIAgent:
 
             # After registering all servers, mark them for lazy connection
             if self.mcp_registry and servers:
-                logger.info(f"Auto-discovered {len(servers)} MCP servers, will connect on first use")
+                logger.info(
+                    f"Auto-discovered {len(servers)} MCP servers, will connect on first use"
+                )
                 # Set flag to indicate we need to connect on first use
                 self._mcp_servers_need_connection = True
 
@@ -284,10 +303,14 @@ class AIAgent:
             # Connect to all servers
             connection_results = await self.mcp_registry.connect_all_servers()
 
-            successful_connections = sum(1 for success in connection_results.values() if success)
+            successful_connections = sum(
+                1 for success in connection_results.values() if success
+            )
             total_servers = len(connection_results)
 
-            logger.info(f"MCP server connections: {successful_connections}/{total_servers} successful")
+            logger.info(
+                f"MCP server connections: {successful_connections}/{total_servers} successful"
+            )
 
             if successful_connections > 0:
                 # Update tools cache from connected servers
@@ -297,10 +320,14 @@ class AIAgent:
                 # Get tool count for logging
                 all_tools = self.mcp_registry.get_all_tools()
                 total_tools = sum(len(tools) for tools in all_tools.values())
-                logger.info(f"MCP tools cache updated: {total_tools} tools discovered from {successful_connections} servers")
+                logger.info(
+                    f"MCP tools cache updated: {total_tools} tools discovered from {successful_connections} servers"
+                )
 
                 # Re-register MCP tools with the agent after successful connections
-                logger.info("Re-registering MCP tools after successful server connections...")
+                logger.info(
+                    "Re-registering MCP tools after successful server connections..."
+                )
                 self._register_mcp_tools()
                 self._mcp_tools_registered = True
             else:
@@ -517,7 +544,9 @@ class AIAgent:
                 # Even if registry failed, register the status tool so user can see what's wrong
                 self._register_mcp_status_tool()
                 self._register_environment_tool()
-                logger.warning("MCP registry not available, but status tool registered for debugging")
+                logger.warning(
+                    "MCP registry not available, but status tool registered for debugging"
+                )
 
     def get_available_tools(self) -> list[str]:
         """Get list of available tool names.
@@ -575,7 +604,9 @@ class AIAgent:
             mcp_descriptions = self._get_mcp_tool_descriptions()
             descriptions.update(mcp_descriptions)
             # Add MCP status tool description
-            descriptions["get_mcp_server_status"] = "Get the status of all MCP servers and their available tools"
+            descriptions["get_mcp_server_status"] = (
+                "Get the status of all MCP servers and their available tools"
+            )
 
         return descriptions
 
@@ -798,7 +829,9 @@ class AIAgent:
 
             all_tools = self.mcp_registry.get_all_tools()
             registered_count = 0
-            registered_tool_names = set()  # Track registered tool names to avoid conflicts
+            registered_tool_names = (
+                set()
+            )  # Track registered tool names to avoid conflicts
 
             # First pass: collect all tool names to identify conflicts
             tool_name_counts = {}
@@ -818,7 +851,9 @@ class AIAgent:
                     # Handle name conflicts with other MCP tools - always prefix if there are conflicts
                     if tool_name_counts.get(original_name, 0) > 1:
                         tool_name = f"{server_name}_{tool.name}"
-                        logger.info(f"Tool name conflict resolved: '{original_name}' -> '{tool_name}' (from {server_name})")
+                        logger.info(
+                            f"Tool name conflict resolved: '{original_name}' -> '{tool_name}' (from {server_name})"
+                        )
 
                     # If still conflicts (unlikely but possible), add a counter
                     counter = 1
@@ -829,7 +864,11 @@ class AIAgent:
 
                     # Create the tool function dynamically
                     self._create_mcp_tool_function(
-                        tool_name, original_name, tool.description, tool.input_schema, server_name
+                        tool_name,
+                        original_name,
+                        tool.description,
+                        tool.input_schema,
+                        server_name,
                     )
                     registered_tool_names.add(tool_name)
                     registered_count += 1
@@ -839,7 +878,10 @@ class AIAgent:
         except Exception as e:
             logger.error(f"Failed to register MCP tools: {e}")
             import traceback
-            logger.debug(f"MCP tool registration error traceback: {traceback.format_exc()}")
+
+            logger.debug(
+                f"MCP tool registration error traceback: {traceback.format_exc()}"
+            )
             self.mcp_tools_enabled = False
 
     def _create_mcp_tool_function(
@@ -906,12 +948,58 @@ class AIAgent:
                 constraint_str = f" ({', '.join(constraints)})" if constraints else ""
                 required_str = " (required)" if is_required else " (optional)"
 
-                docstring_parts.append(f"  {param_name} ({param_type}){required_str}: {param_desc}{constraint_str}")
+                docstring_parts.append(
+                    f"  {param_name} ({param_type}){required_str}: {param_desc}{constraint_str}"
+                )
 
         mcp_tool_wrapper.__doc__ = "\n".join(docstring_parts)
 
         # Register with the agent
-        self._agent.tool_plain(mcp_tool_wrapper)
+        try:
+            # Check if this tool name already exists by trying to register it
+            self._agent.tool_plain(mcp_tool_wrapper)
+        except Exception as e:
+            # If we get a tool name conflict, generate a unique name and try again
+            if "conflicts with existing tool" in str(e) or "Tool name conflicts" in str(
+                e
+            ):
+                logger.warning(f"Tool name conflict for '{tool_name}': {e}")
+                # Generate a unique name with server prefix
+                conflict_resolved_name = f"{server_name}_{original_name}"
+
+                # If still conflicts, add a counter
+                counter = 1
+                base_name = conflict_resolved_name
+                while conflict_resolved_name in getattr(
+                    self, "_registered_tool_names", set()
+                ):
+                    conflict_resolved_name = f"{base_name}_{counter}"
+                    counter += 1
+
+                # Update wrapper name and try again
+                mcp_tool_wrapper.__name__ = conflict_resolved_name
+                logger.info(
+                    f"Resolved tool name conflict: '{tool_name}' -> '{conflict_resolved_name}'"
+                )
+
+                try:
+                    # Track registered tool names to avoid future conflicts
+                    if not hasattr(self, "_registered_tool_names"):
+                        self._registered_tool_names = set()
+                    self._registered_tool_names.add(conflict_resolved_name)
+
+                    self._agent.tool_plain(mcp_tool_wrapper)
+                    logger.info(
+                        f"Successfully registered MCP tool with resolved name: {conflict_resolved_name}"
+                    )
+                except Exception as e2:
+                    logger.error(
+                        f"Failed to register MCP tool even after name resolution: {e2}"
+                    )
+                    raise e2
+            else:
+                logger.error(f"Failed to register MCP tool '{tool_name}': {e}")
+                raise e
 
     async def _call_mcp_tool(
         self, tool_name: str, arguments: dict[str, Any], server_name: str | None = None
@@ -926,42 +1014,141 @@ class AIAgent:
         Returns:
             Tool execution result as formatted string
         """
+        # Generate unique tool call ID
+        tool_call_id = f"mcp_{tool_name}_{uuid.uuid4().hex[:8]}"
+        start_time = time.time()
+
+        # Emit tool call started signal if signal handler is available
+        if self.signal_handler and hasattr(
+            self.signal_handler, "tool_call_started_signal"
+        ):
+            tool_call_data = {
+                "id": tool_call_id,
+                "name": tool_name,
+                "parameters": arguments.copy(),
+                "server": server_name or "auto",
+                "status": "pending",
+            }
+            try:
+                self.signal_handler.tool_call_started_signal.emit(tool_call_data)
+            except Exception as e:
+                logger.warning(f"Failed to emit tool_call_started signal: {e}")
+
         try:
             logger.info(f"🔧 Calling MCP tool: {tool_name} with args: {arguments}")
 
             if not self.mcp_registry:
                 logger.error("MCP registry not available")
-                return "Error: MCP registry not available"
+                error_result = "Error: MCP registry not available"
+
+                # Emit tool call failed signal
+                if self.signal_handler and hasattr(
+                    self.signal_handler, "tool_call_failed_signal"
+                ):
+                    error_data = {
+                        "id": tool_call_id,
+                        "status": "error",
+                        "error": error_result,
+                        "execution_time": time.time() - start_time,
+                    }
+                    try:
+                        self.signal_handler.tool_call_failed_signal.emit(error_data)
+                    except Exception as e:
+                        logger.warning(f"Failed to emit tool_call_failed signal: {e}")
+
+                return error_result
 
             # Check MCP server status before attempting call
             server_statuses = self.mcp_registry.get_all_server_statuses()
-            connected_servers = {name: status for name, status in server_statuses.items() if status.connected}
-            logger.info(f"📊 MCP server status before tool call - Connected: {list(connected_servers.keys())}, Total: {len(server_statuses)}")
+            connected_servers = {
+                name: status
+                for name, status in server_statuses.items()
+                if status.connected
+            }
+            logger.info(
+                f"📊 MCP server status before tool call - Connected: {list(connected_servers.keys())}, Total: {len(server_statuses)}"
+            )
 
             # Ensure MCP servers are connected in current event loop context
             if not await self._ensure_mcp_servers_connected():
                 logger.error("Unable to ensure MCP servers are connected")
-                return "Error: Unable to connect to MCP servers"
+                error_result = "Error: Unable to connect to MCP servers"
+
+                # Emit tool call failed signal
+                if self.signal_handler and hasattr(
+                    self.signal_handler, "tool_call_failed_signal"
+                ):
+                    error_data = {
+                        "id": tool_call_id,
+                        "status": "error",
+                        "error": error_result,
+                        "execution_time": time.time() - start_time,
+                    }
+                    try:
+                        self.signal_handler.tool_call_failed_signal.emit(error_data)
+                    except Exception as e:
+                        logger.warning(f"Failed to emit tool_call_failed signal: {e}")
+
+                return error_result
 
             # Validate arguments against tool schema
             if not isinstance(arguments, dict):
-                logger.error(f"Invalid arguments format for tool {tool_name}: {type(arguments)}")
-                return "Error: Invalid arguments format - expected dictionary"
+                logger.error(
+                    f"Invalid arguments format for tool {tool_name}: {type(arguments)}"
+                )
+                error_result = "Error: Invalid arguments format - expected dictionary"
+
+                # Emit tool call failed signal
+                if self.signal_handler and hasattr(
+                    self.signal_handler, "tool_call_failed_signal"
+                ):
+                    error_data = {
+                        "id": tool_call_id,
+                        "status": "error",
+                        "error": error_result,
+                        "execution_time": time.time() - start_time,
+                    }
+                    try:
+                        self.signal_handler.tool_call_failed_signal.emit(error_data)
+                    except Exception as e:
+                        logger.warning(f"Failed to emit tool_call_failed signal: {e}")
+
+                return error_result
 
             # Check for obviously invalid arguments (like "invalid_arg")
             if "invalid_arg" in arguments:
                 logger.warning(f"Invalid arguments detected for tool {tool_name}")
-                return (
+                error_result = (
                     "Error: Invalid arguments - 'invalid_arg' is not a valid parameter"
                 )
+
+                # Emit tool call failed signal
+                if self.signal_handler and hasattr(
+                    self.signal_handler, "tool_call_failed_signal"
+                ):
+                    error_data = {
+                        "id": tool_call_id,
+                        "status": "error",
+                        "error": error_result,
+                        "execution_time": time.time() - start_time,
+                    }
+                    try:
+                        self.signal_handler.tool_call_failed_signal.emit(error_data)
+                    except Exception as e:
+                        logger.warning(f"Failed to emit tool_call_failed signal: {e}")
+
+                return error_result
 
             # Execute the MCP tool call with proper error handling and reconnection logic
             max_retries = 2
             last_error = None
+            results = None
 
             for attempt in range(max_retries):
                 try:
-                    logger.info(f"🚀 Attempting MCP tool call {tool_name} (attempt {attempt + 1}/{max_retries})")
+                    logger.info(
+                        f"🚀 Attempting MCP tool call {tool_name} (attempt {attempt + 1}/{max_retries})"
+                    )
                     results = await self.mcp_registry.call_tool(
                         tool_name, arguments, server_name
                     )
@@ -971,73 +1158,198 @@ class AIAgent:
                 except Exception as e:
                     last_error = e
                     error_msg = str(e)
-                    logger.warning(f"❌ MCP tool {tool_name} failed (attempt {attempt + 1}): {error_msg}")
+                    logger.warning(
+                        f"❌ MCP tool {tool_name} failed (attempt {attempt + 1}): {error_msg}"
+                    )
 
                     # Handle specific connection issues with reconnection
-                    if any(keyword in error_msg.lower() for keyword in ["event loop", "broken pipe", "connection", "stream", "stdio"]):
-                        logger.warning(f"Connection issue detected for MCP tool {tool_name}: {error_msg}")
+                    if any(
+                        keyword in error_msg.lower()
+                        for keyword in [
+                            "event loop",
+                            "broken pipe",
+                            "connection",
+                            "stream",
+                            "stdio",
+                        ]
+                    ):
+                        logger.warning(
+                            f"Connection issue detected for MCP tool {tool_name}: {error_msg}"
+                        )
 
                         if attempt < max_retries - 1:  # Don't reconnect on last attempt
-                            logger.info(f"🔄 Attempting to reconnect MCP servers for tool {tool_name}")
+                            logger.info(
+                                f"🔄 Attempting to reconnect MCP servers for tool {tool_name}"
+                            )
                             try:
                                 # Force reconnection
                                 await self.mcp_registry.disconnect_all_servers()
                                 await asyncio.sleep(1.0)  # Longer pause for stability
-                                connection_results = await self.mcp_registry.connect_all_servers()
+                                connection_results = (
+                                    await self.mcp_registry.connect_all_servers()
+                                )
 
                                 # Log reconnection results
-                                successful_reconnections = sum(1 for success in connection_results.values() if success)
-                                logger.info(f"🔗 Reconnection completed: {successful_reconnections}/{len(connection_results)} servers connected")
+                                successful_reconnections = sum(
+                                    1
+                                    for success in connection_results.values()
+                                    if success
+                                )
+                                logger.info(
+                                    f"🔗 Reconnection completed: {successful_reconnections}/{len(connection_results)} servers connected"
+                                )
 
-                                await asyncio.sleep(0.5)  # Brief pause after reconnection
+                                await asyncio.sleep(
+                                    0.5
+                                )  # Brief pause after reconnection
                                 continue  # Retry the tool call
                             except Exception as reconnect_error:
-                                logger.error(f"Failed to reconnect MCP servers: {reconnect_error}")
+                                logger.error(
+                                    f"Failed to reconnect MCP servers: {reconnect_error}"
+                                )
 
                         # If we're here, reconnection failed or this is the last attempt
-                        return f"Error: MCP tool {tool_name} failed due to connection issue. Servers may need to be restarted. Last error: {error_msg}"
+                        final_error = f"Error: MCP tool {tool_name} failed due to connection issue. Servers may need to be restarted. Last error: {error_msg}"
+
+                        # Emit tool call failed signal
+                        if self.signal_handler and hasattr(
+                            self.signal_handler, "tool_call_failed_signal"
+                        ):
+                            error_data = {
+                                "id": tool_call_id,
+                                "status": "error",
+                                "error": final_error,
+                                "execution_time": time.time() - start_time,
+                            }
+                            try:
+                                self.signal_handler.tool_call_failed_signal.emit(
+                                    error_data
+                                )
+                            except Exception as e:
+                                logger.warning(
+                                    f"Failed to emit tool_call_failed signal: {e}"
+                                )
+
+                        return final_error
                     else:
                         # Log non-connection errors and re-raise immediately
-                        logger.error(f"Non-connection error in MCP tool {tool_name}: {error_msg}")
+                        logger.error(
+                            f"Non-connection error in MCP tool {tool_name}: {error_msg}"
+                        )
                         raise e
             else:
                 # All retries exhausted
                 logger.error(f"All retry attempts failed for MCP tool {tool_name}")
-                return f"Error: MCP tool {tool_name} failed after {max_retries} attempts. Last error: {last_error}"
+                final_error = f"Error: MCP tool {tool_name} failed after {max_retries} attempts. Last error: {last_error}"
+
+                # Emit tool call failed signal
+                if self.signal_handler and hasattr(
+                    self.signal_handler, "tool_call_failed_signal"
+                ):
+                    error_data = {
+                        "id": tool_call_id,
+                        "status": "error",
+                        "error": final_error,
+                        "execution_time": time.time() - start_time,
+                    }
+                    try:
+                        self.signal_handler.tool_call_failed_signal.emit(error_data)
+                    except Exception as e:
+                        logger.warning(f"Failed to emit tool_call_failed signal: {e}")
+
+                return final_error
 
             # Format the results
             if not results:
                 logger.info(f"MCP tool {tool_name} returned no output")
-                return "Tool executed successfully (no output)"
-
-            # Combine multiple results if present
-            formatted_results = []
-            for result in results:
-                if isinstance(result, dict):
-                    if "text" in result:
-                        formatted_results.append(result["text"])
-                    elif "content" in result:
-                        formatted_results.append(str(result["content"]))
+                final_result = "Tool executed successfully (no output)"
+            else:
+                # Combine multiple results if present
+                formatted_results = []
+                for result in results:
+                    if isinstance(result, dict):
+                        if "text" in result:
+                            formatted_results.append(result["text"])
+                        elif "content" in result:
+                            formatted_results.append(str(result["content"]))
+                        else:
+                            formatted_results.append(str(result))
                     else:
                         formatted_results.append(str(result))
-                else:
-                    formatted_results.append(str(result))
 
-            final_result = (
-                "\n".join(formatted_results)
-                if formatted_results
-                else "Tool executed successfully"
+                final_result = (
+                    "\n".join(formatted_results)
+                    if formatted_results
+                    else "Tool executed successfully"
+                )
+
+            execution_time = time.time() - start_time
+            logger.info(
+                f"📤 MCP tool {tool_name} result length: {len(final_result)} characters"
             )
 
-            logger.info(f"📤 MCP tool {tool_name} result length: {len(final_result)} characters")
+            # Emit tool call completed signal
+            if self.signal_handler and hasattr(
+                self.signal_handler, "tool_call_completed_signal"
+            ):
+                result_data = {
+                    "id": tool_call_id,
+                    "status": "success",
+                    "result": {
+                        "success": True,
+                        "content": final_result,
+                        "execution_time": execution_time,
+                        "content_type": "text",  # Could be enhanced to detect type
+                    },
+                    "execution_time": execution_time,
+                }
+                try:
+                    self.signal_handler.tool_call_completed_signal.emit(result_data)
+                except Exception as e:
+                    logger.warning(f"Failed to emit tool_call_completed signal: {e}")
+
             return final_result
 
         except ValueError as e:
             logger.error(f"Validation error executing MCP tool {tool_name}: {e}")
-            return f"Error: Invalid arguments for tool {tool_name}: {str(e)}"
+            error_result = f"Error: Invalid arguments for tool {tool_name}: {str(e)}"
+
+            # Emit tool call failed signal
+            if self.signal_handler and hasattr(
+                self.signal_handler, "tool_call_failed_signal"
+            ):
+                error_data = {
+                    "id": tool_call_id,
+                    "status": "error",
+                    "error": error_result,
+                    "execution_time": time.time() - start_time,
+                }
+                try:
+                    self.signal_handler.tool_call_failed_signal.emit(error_data)
+                except Exception as e:
+                    logger.warning(f"Failed to emit tool_call_failed signal: {e}")
+
+            return error_result
         except Exception as e:
             logger.error(f"Error executing MCP tool {tool_name}: {e}")
-            return f"Error executing MCP tool {tool_name}: {str(e)}"
+            error_result = f"Error executing MCP tool {tool_name}: {str(e)}"
+
+            # Emit tool call failed signal
+            if self.signal_handler and hasattr(
+                self.signal_handler, "tool_call_failed_signal"
+            ):
+                error_data = {
+                    "id": tool_call_id,
+                    "status": "error",
+                    "error": error_result,
+                    "execution_time": time.time() - start_time,
+                }
+                try:
+                    self.signal_handler.tool_call_failed_signal.emit(error_data)
+                except Exception as e:
+                    logger.warning(f"Failed to emit tool_call_failed signal: {e}")
+
+            return error_result
 
     # MCP Server Management Methods
 
@@ -1055,8 +1367,12 @@ class AIAgent:
 
         # After successful connections, update tools cache and register MCP tools with the agent
         if any(connection_results.values()) and self.mcp_tools_enabled:
-            successful_connections = sum(1 for success in connection_results.values() if success)
-            logger.info(f"Updating MCP tools cache from {successful_connections} connected servers...")
+            successful_connections = sum(
+                1 for success in connection_results.values() if success
+            )
+            logger.info(
+                f"Updating MCP tools cache from {successful_connections} connected servers..."
+            )
 
             # Update tools cache from connected servers
             await self.mcp_registry.update_tools_cache()
@@ -1064,7 +1380,9 @@ class AIAgent:
             # Get tool count for logging
             all_tools = self.mcp_registry.get_all_tools()
             total_tools = sum(len(tools) for tools in all_tools.values())
-            logger.info(f"MCP tools cache updated: {total_tools} tools discovered from {successful_connections} servers")
+            logger.info(
+                f"MCP tools cache updated: {total_tools} tools discovered from {successful_connections} servers"
+            )
 
             # Re-register MCP tools with the agent
             logger.info("Re-registering MCP tools after server connections...")
@@ -1119,6 +1437,7 @@ class AIAgent:
             return
 
         try:
+
             @self._agent.tool_plain
             async def internal_mcp_server_status_check() -> str:
                 """Get the status of all MCP servers and their available tools.
@@ -1141,6 +1460,7 @@ class AIAgent:
             return
 
         try:
+
             @self._agent.tool_plain
             async def internal_get_environment_variable(variable_name: str) -> str:
                 """Get the value of an environment variable.
@@ -1180,32 +1500,44 @@ class AIAgent:
             for server_name, server_info in status["servers"].items():
                 result_lines.append(f"\n📡 Server: {server_name}")
 
-                if hasattr(server_info, 'connected'):
-                    connection_status = "✅ Connected" if server_info.connected else "❌ Disconnected"
+                if hasattr(server_info, "connected"):
+                    connection_status = (
+                        "✅ Connected" if server_info.connected else "❌ Disconnected"
+                    )
                     result_lines.append(f"  Status: {connection_status}")
                     result_lines.append(f"  Tools Available: {server_info.tools_count}")
 
                     # Add more diagnostic info
-                    if hasattr(server_info, 'last_connected'):
-                        result_lines.append(f"  Last Connected: {server_info.last_connected}")
+                    if hasattr(server_info, "last_connected"):
+                        result_lines.append(
+                            f"  Last Connected: {server_info.last_connected}"
+                        )
 
-                    if hasattr(server_info, 'connection_attempts'):
-                        result_lines.append(f"  Connection Attempts: {server_info.connection_attempts}")
+                    if hasattr(server_info, "connection_attempts"):
+                        result_lines.append(
+                            f"  Connection Attempts: {server_info.connection_attempts}"
+                        )
 
                     if server_info.last_error:
                         result_lines.append(f"  Last Error: {server_info.last_error}")
 
-                    if hasattr(server_info, 'tools') and server_info.tools:
+                    if hasattr(server_info, "tools") and server_info.tools:
                         result_lines.append("  Available Tools:")
                         for tool in server_info.tools[:5]:  # Show first 5 tools
-                            result_lines.append(f"    - {tool.name}: {tool.description[:50]}...")
+                            result_lines.append(
+                                f"    - {tool.name}: {tool.description[:50]}..."
+                            )
                         if len(server_info.tools) > 5:
-                            result_lines.append(f"    ... and {len(server_info.tools) - 5} more tools")
+                            result_lines.append(
+                                f"    ... and {len(server_info.tools) - 5} more tools"
+                            )
 
                     # Try to get more detailed connection info
                     try:
-                        if hasattr(self.mcp_registry, 'get_server_connection_info'):
-                            conn_info = self.mcp_registry.get_server_connection_info(server_name)
+                        if hasattr(self.mcp_registry, "get_server_connection_info"):
+                            conn_info = self.mcp_registry.get_server_connection_info(
+                                server_name
+                            )
                             if conn_info:
                                 result_lines.append(f"  Connection Info: {conn_info}")
                     except Exception:
@@ -1213,16 +1545,19 @@ class AIAgent:
 
                 else:
                     # Fallback for dict-style server info
-                    result_lines.append(f"  Status: {server_info.get('status', 'unknown')}")
-                    tools = server_info.get('tools', [])
+                    result_lines.append(
+                        f"  Status: {server_info.get('status', 'unknown')}"
+                    )
+                    tools = server_info.get("tools", [])
                     result_lines.append(f"  Tools Available: {len(tools)}")
 
             # Add summary with diagnostics
             total_servers = len(status["servers"])
             connected_servers = sum(
-                1 for info in status["servers"].values()
-                if (hasattr(info, 'connected') and info.connected) or
-                   (isinstance(info, dict) and info.get('status') == 'connected')
+                1
+                for info in status["servers"].values()
+                if (hasattr(info, "connected") and info.connected)
+                or (isinstance(info, dict) and info.get("status") == "connected")
             )
 
             result_lines.append("\n📊 Summary:")
@@ -1232,7 +1567,7 @@ class AIAgent:
             result_lines.append(f"  Total Tools: {status.get('total_tools', 0)}")
 
             # Add registry statistics if available
-            if hasattr(status, 'stats'):
+            if hasattr(status, "stats"):
                 result_lines.append(f"  Registry Stats: {status['stats']}")
 
             # Add connection troubleshooting info
@@ -1240,9 +1575,13 @@ class AIAgent:
                 result_lines.append("\n⚠️ Troubleshooting:")
                 result_lines.append("  - All servers are disconnected")
                 result_lines.append("  - Check server logs for connection errors")
-                result_lines.append("  - Try reconnecting with: await self._ensure_mcp_servers_connected()")
+                result_lines.append(
+                    "  - Try reconnecting with: await self._ensure_mcp_servers_connected()"
+                )
             elif connected_servers < total_servers:
-                result_lines.append(f"\n⚠️ Warning: {total_servers - connected_servers} servers are disconnected")
+                result_lines.append(
+                    f"\n⚠️ Warning: {total_servers - connected_servers} servers are disconnected"
+                )
 
             return "\n".join(result_lines)
 
@@ -1255,8 +1594,15 @@ class AIAgent:
         try:
             # Security: Only allow access to specific safe environment variables
             allowed_vars = {
-                'GITHUB_USERNAME', 'GITHUB_USER', 'USER', 'USERNAME',
-                'HOME', 'PWD', 'SHELL', 'LANG', 'PATH'
+                "GITHUB_USERNAME",
+                "GITHUB_USER",
+                "USER",
+                "USERNAME",
+                "HOME",
+                "PWD",
+                "SHELL",
+                "LANG",
+                "PATH",
             }
 
             if variable_name not in allowed_vars:
@@ -2607,11 +2953,15 @@ User message: {message}
                         full_content = []
                         chunk_count = 0
 
-                        print(f"🧠 AI Agent: Starting stream for message: '{message[:100]}...'")
+                        print(
+                            f"🧠 AI Agent: Starting stream for message: '{message[:100]}...'"
+                        )
 
                         # Show available tools to the AI
                         available_tools = self.get_available_tools()
-                        print(f"🛠️  Available tools for AI: {len(available_tools)} tools")
+                        print(
+                            f"🛠️  Available tools for AI: {len(available_tools)} tools"
+                        )
                         for tool in available_tools:
                             print(f"   - {tool}")
 
@@ -2691,34 +3041,20 @@ User message: {message}
                         try:
                             final_output = await response.get_output()
 
-                            # Debug: Show the AI's reasoning and tool calls
-                            print("🧠 AI REASONING COMPLETE:")
-                            print(f"   📊 Response type: {type(final_output)}")
-
-                            # Check if there were any tool calls
-                            if hasattr(response, '_messages') and response._messages:
-                                print(f"   💬 Messages in response: {len(response._messages)}")
-                                for i, msg in enumerate(response._messages):
-                                    print(f"      Message {i}: {type(msg)} - {str(msg)[:100]}...")
-
-                            # Check for tool calls in the response
-                            if hasattr(response, '_tool_calls') and response._tool_calls:
-                                print(f"   🔧 Tool calls made: {len(response._tool_calls)}")
-                                for i, tool_call in enumerate(response._tool_calls):
-                                    print(f"      Tool call {i}: {tool_call}")
-
                             # Ensure final_output is a string
                             if hasattr(final_output, "data"):
                                 final_output = str(final_output.data)
                             elif not isinstance(final_output, str):
                                 final_output = str(final_output)
 
-                            print(f"   📝 Final output: '{final_output[:200]}...'")
+                            # Log completion at debug level only
+                            logger.debug(
+                                f"Stream completed with output length: {len(final_output) if final_output else 0}"
+                            )
                         except Exception as output_error:
                             logger.warning(
                                 f"Error getting final output: {output_error}"
                             )
-                            print(f"❌ Error getting final output: {output_error}")
                             final_output = None
 
                         full_text = "".join(str(chunk) for chunk in full_content)
@@ -2860,32 +3196,47 @@ User message: {message}
                 )
 
             # Get conversation context and long-term memories for enhanced prompt
-            context = self._memory_system.get_conversation_context(limit=5)
+            context = self._memory_system.get_conversation_context(
+                limit=50
+            )  # Increased to 50 messages
             long_term_memories = self._memory_system.get_long_term_memories(
-                query=message, limit=3
+                query=message,
+                limit=5,  # Increased long-term memories too
             )
 
             # Enhance message with context if available
             enhanced_parts = []
 
+            # Add memory context with clear labels
             if long_term_memories:
                 memory_text = "\n".join(
-                    [f"- {mem['content']}" for mem in long_term_memories]
-                )
-                enhanced_parts.append(f"Relevant long-term memories:\n{memory_text}")
-
-            if context:
-                context_text = "\n".join(
                     [
-                        f"{msg['role']}: {msg['content']}"
-                        for msg in context[-3:]  # Last 3 messages for context
+                        f"- {mem['content']} (importance: {mem.get('importance_score', 'N/A')}, type: {mem.get('memory_type', 'unknown')})"
+                        for mem in long_term_memories
                     ]
                 )
-                enhanced_parts.append(f"Recent conversation:\n{context_text}")
+                enhanced_parts.append(
+                    f"=== LONG-TERM MEMORY (Persistent facts, preferences, and important information) ===\n{memory_text}"
+                )
+
+            if context:
+                # Reverse the context to show in chronological order (oldest first)
+                context_reversed = list(reversed(context))
+                context_text = "\n".join(
+                    [f"{msg['role']}: {msg['content']}" for msg in context_reversed]
+                )
+                enhanced_parts.append(
+                    f"=== CONVERSATION HISTORY (Recent messages in chronological order - this is your short-term memory) ===\n{context_text}"
+                )
 
             if enhanced_parts:
                 enhanced_message = (
-                    f"{chr(10).join(enhanced_parts)}\n\nCurrent message: {message}"
+                    f"=== MEMORY CONTEXT ===\n"
+                    f"{chr(10).join(enhanced_parts)}\n\n"
+                    f"=== CURRENT USER MESSAGE ===\n{message}\n\n"
+                    f"Please respond to the current user message above, taking into account the conversation history "
+                    f"and any relevant long-term memories. The conversation history shows the complete context of "
+                    f"our recent discussion, so you can reference previous topics and maintain continuity."
                 )
             else:
                 enhanced_message = message
@@ -2929,6 +3280,30 @@ User message: {message}
             logger.error(f"Failed to get memory statistics: {e}")
             return {"memory_enabled": True, "error": str(e)}
 
+    async def clear_all_memory(self) -> bool:
+        """Clear all stored memory data and start fresh.
+
+        This is useful when the memory format has changed or you want to reset
+        the AI agent's memory completely.
+
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.memory_aware_enabled or not self._memory_system:
+            logger.warning("Memory system not enabled - nothing to clear")
+            return False
+
+        try:
+            success = await self._memory_system.clear_all_memory_data()
+            if success:
+                logger.info("Successfully cleared all AI agent memory data")
+            else:
+                logger.error("Failed to clear AI agent memory data")
+            return success
+        except Exception as e:
+            logger.error(f"Error clearing AI agent memory: {e}")
+            return False
+
     async def _ensure_mcp_servers_connected(self) -> bool:
         """Ensure MCP servers are connected in the current event loop context.
 
@@ -2942,10 +3317,14 @@ User message: {message}
 
             # Check if servers are already connected
             server_statuses = self.mcp_registry.get_all_server_statuses()
-            connected_count = sum(1 for status in server_statuses.values() if status.connected)
+            connected_count = sum(
+                1 for status in server_statuses.values() if status.connected
+            )
 
             if connected_count > 0:
-                logger.debug(f"MCP servers already connected: {connected_count}/{len(server_statuses)}")
+                logger.debug(
+                    f"MCP servers already connected: {connected_count}/{len(server_statuses)}"
+                )
                 return True
 
             # Check if we need to connect servers on first use (fallback for lazy connection)
@@ -2961,7 +3340,9 @@ User message: {message}
 
             # Check again after reconnection attempt
             server_statuses = self.mcp_registry.get_all_server_statuses()
-            connected_count = sum(1 for status in server_statuses.values() if status.connected)
+            connected_count = sum(
+                1 for status in server_statuses.values() if status.connected
+            )
 
             return connected_count > 0
 

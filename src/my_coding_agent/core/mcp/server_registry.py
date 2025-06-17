@@ -440,12 +440,18 @@ class MCPServerRegistry:
 
         # Check connection and attempt reconnection if needed
         if not server.is_connected():
-            logger.warning(f"Server '{tool_registry.server_name}' is not connected, attempting reconnection...")
+            logger.warning(
+                f"Server '{tool_registry.server_name}' is not connected, attempting reconnection..."
+            )
             try:
                 await server.reconnect()
             except Exception as e:
-                logger.error(f"Failed to reconnect to server '{tool_registry.server_name}': {e}")
-                raise MCPError(f"Server '{tool_registry.server_name}' is not connected and reconnection failed: {e}")
+                logger.error(
+                    f"Failed to reconnect to server '{tool_registry.server_name}': {e}"
+                )
+                raise MCPError(
+                    f"Server '{tool_registry.server_name}' is not connected and reconnection failed: {e}"
+                )
 
         # Execute the tool call with error handling
         try:
@@ -454,17 +460,25 @@ class MCPServerRegistry:
             # Check if this is an event loop issue
             error_msg = str(e)
             if "loop" in error_msg.lower() or "event" in error_msg.lower():
-                logger.warning(f"Event loop issue calling tool {tool_name} on server {tool_registry.server_name}: {e}")
+                logger.warning(
+                    f"Event loop issue calling tool {tool_name} on server {tool_registry.server_name}: {e}"
+                )
                 # Mark server as disconnected and attempt reconnection
                 server._connected = False
                 try:
-                    logger.info(f"Attempting to reconnect server {tool_registry.server_name} due to event loop issue")
+                    logger.info(
+                        f"Attempting to reconnect server {tool_registry.server_name} due to event loop issue"
+                    )
                     await server.reconnect()
                     # Retry the tool call once after reconnection
                     return await server.call_tool(tool_name, arguments)
                 except Exception as reconnect_error:
-                    logger.error(f"Failed to reconnect and retry tool call: {reconnect_error}")
-                    raise MCPError(f"Tool call failed due to event loop issue and reconnection failed: {reconnect_error}")
+                    logger.error(
+                        f"Failed to reconnect and retry tool call: {reconnect_error}"
+                    )
+                    raise MCPError(
+                        f"Tool call failed due to event loop issue and reconnection failed: {reconnect_error}"
+                    )
             else:
                 # Re-raise other errors
                 raise

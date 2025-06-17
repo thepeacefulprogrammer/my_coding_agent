@@ -34,7 +34,7 @@ async def test_mcp_context_manager():
             allowed_extensions=[".py", ".md", ".txt", ".json", ".yaml", ".yml"],
             max_file_size=10 * 1024 * 1024,  # 10MB
             enable_write_operations=True,
-            enable_directory_operations=True
+            enable_directory_operations=True,
         )
 
         # Record start time
@@ -46,7 +46,7 @@ async def test_mcp_context_manager():
             config=config,
             mcp_config=mcp_config,
             enable_mcp_tools=True,
-            auto_discover_mcp_servers=True
+            auto_discover_mcp_servers=True,
         )
 
         # Record initialization time
@@ -56,9 +56,13 @@ async def test_mcp_context_manager():
         # Test MCP tool calls
         if agent.mcp_registry:
             server_statuses = agent.mcp_registry.get_all_server_statuses()
-            connected_count = sum(1 for status in server_statuses.values() if status.connected)
+            connected_count = sum(
+                1 for status in server_statuses.values() if status.connected
+            )
 
-            logger.info(f"MCP Server Status: {connected_count}/{len(server_statuses)} connected")
+            logger.info(
+                f"MCP Server Status: {connected_count}/{len(server_statuses)} connected"
+            )
 
             if connected_count > 0:
                 # Test a simple tool call
@@ -78,7 +82,9 @@ async def test_mcp_context_manager():
                         if client:
                             # Try to list tools first
                             tools = await client.list_tools()
-                            logger.info(f"Successfully listed {len(tools)} tools from {connected_server}")
+                            logger.info(
+                                f"Successfully listed {len(tools)} tools from {connected_server}"
+                            )
 
                             # Try to call a tool if available
                             if tools:
@@ -89,7 +95,9 @@ async def test_mcp_context_manager():
                                 result = await client.call_tool(tool_name, {})
                                 logger.info(f"Tool call successful: {result}")
 
-                                logger.info("✅ SUCCESS: MCP tools working with context manager!")
+                                logger.info(
+                                    "✅ SUCCESS: MCP tools working with context manager!"
+                                )
                                 return True
                             else:
                                 logger.warning("No tools available to test")
@@ -114,6 +122,7 @@ async def test_mcp_context_manager():
     except Exception as e:
         logger.error(f"❌ FAILURE: Error during test: {e}")
         import traceback
+
         logger.error(f"Traceback: {traceback.format_exc()}")
         return False
 

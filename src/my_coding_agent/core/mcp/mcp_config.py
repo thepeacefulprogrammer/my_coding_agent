@@ -16,7 +16,11 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class MCPServerConfig:
-    """Configuration for a single MCP server."""
+    """Configuration for a single MCP server.
+
+    Servers are enabled by default (disabled=False). If a server is included
+    in the configuration file, it will be used unless explicitly disabled.
+    """
 
     name: str
     transport: str
@@ -27,6 +31,9 @@ class MCPServerConfig:
     headers: dict[str, str] | None = None
     timeout: float | None = None
     keep_alive: bool = True
+    disabled: bool = (
+        False  # Default to enabled - servers are active unless explicitly disabled
+    )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary format."""
@@ -35,6 +42,10 @@ class MCPServerConfig:
             "transport": self.transport,
             "keep_alive": self.keep_alive,
         }
+
+        # Only include disabled field if it's True (since False is the default)
+        if self.disabled:
+            config["disabled"] = self.disabled
 
         if self.command is not None:
             config["command"] = self.command
@@ -53,7 +64,11 @@ class MCPServerConfig:
 
     @classmethod
     def from_dict(cls, name: str, config_dict: "dict[str, Any]") -> "MCPServerConfig":
-        """Create MCPServerConfig from dictionary."""
+        """Create MCPServerConfig from dictionary.
+
+        Servers are enabled by default - if a server is included in the configuration,
+        it will be enabled unless explicitly marked as disabled=true.
+        """
         # Determine transport type
         transport = "stdio"  # default
 
@@ -78,6 +93,7 @@ class MCPServerConfig:
             headers=config_dict.get("headers"),
             timeout=config_dict.get("timeout"),
             keep_alive=config_dict.get("keep_alive", True),
+            disabled=config_dict.get("disabled", False),  # Default to enabled
         )
 
     def validate(self) -> "list[str]":
@@ -197,6 +213,12 @@ class MCPConfig:
         for server_name, server_config in mcp_servers.items():
             try:
                 parsed_config = MCPServerConfig.from_dict(server_name, server_config)
+
+                # Skip disabled servers
+                if parsed_config.disabled:
+                    logger.info(f"Skipping disabled server: {server_name}")
+                    continue
+
                 self._servers[server_name] = parsed_config
                 logger.debug(f"Parsed server configuration: {server_name}")
             except Exception as e:

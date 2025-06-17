@@ -352,12 +352,18 @@ class MessageDisplay(QWidget):
         return self._error_message
 
     def get_message(self) -> ChatMessage:
-        """Get the current message object.
+        """Get the current chat message.
 
         Returns:
-            Current ChatMessage object
+            The chat message object
         """
         return self._message
+
+    def apply_theme(self):
+        """Apply theme to message display."""
+        # Apply theme to message display
+        self._apply_theme_colors()
+        self._update_styling()
 
     def deleteLater(self) -> None:
         """Clean up theme manager connection when widget is deleted."""

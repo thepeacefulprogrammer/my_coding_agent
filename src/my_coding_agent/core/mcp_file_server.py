@@ -215,7 +215,9 @@ class MCPFileServer:
                     # Note: stdio_client() requires server parameters, but for file operations
                     # we'll use direct file access instead of MCP protocol
                     # Skip MCP connection and use direct file operations
-                    raise Exception("MCP file server not implemented - using direct file operations")
+                    raise Exception(
+                        "MCP file server not implemented - using direct file operations"
+                    )
 
                 except Exception as e:
                     # MCP connection failed, but we can still operate without it

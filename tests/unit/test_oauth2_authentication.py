@@ -36,7 +36,7 @@ class TestOAuth2Configuration:
             authorization_url="https://auth.example.com/oauth/authorize",
             token_url="https://auth.example.com/oauth/token",
             scope="read write",
-            redirect_uri="http://localhost:8080/callback"
+            redirect_uri="http://localhost:8080/callback",
         )
 
         assert config.client_id == "test-client-id"
@@ -53,7 +53,7 @@ class TestOAuth2Configuration:
             OAuth2Config(
                 client_id="",
                 authorization_url="https://auth.example.com/oauth/authorize",
-                token_url="https://auth.example.com/oauth/token"
+                token_url="https://auth.example.com/oauth/token",
             )
 
         # Test invalid URLs
@@ -61,7 +61,7 @@ class TestOAuth2Configuration:
             OAuth2Config(
                 client_id="test-client-id",
                 authorization_url="invalid-url",
-                token_url="https://auth.example.com/oauth/token"
+                token_url="https://auth.example.com/oauth/token",
             )
 
     def test_oauth2_config_from_dict(self):
@@ -72,7 +72,7 @@ class TestOAuth2Configuration:
             "authorization_url": "https://auth.example.com/oauth/authorize",
             "token_url": "https://auth.example.com/oauth/token",
             "scope": "read write",
-            "redirect_uri": "http://localhost:8080/callback"
+            "redirect_uri": "http://localhost:8080/callback",
         }
 
         config = OAuth2Config.from_dict(config_dict)
@@ -90,7 +90,7 @@ class TestOAuth2Token:
             token_type="Bearer",
             expires_in=3600,
             refresh_token="test-refresh-token",
-            scope="read write"
+            scope="read write",
         )
 
         assert token.access_token == "test-access-token"
@@ -104,9 +104,7 @@ class TestOAuth2Token:
         """Test OAuth 2.0 token expiry checking."""
         # Test non-expired token
         token = OAuth2Token(
-            access_token="test-access-token",
-            token_type="Bearer",
-            expires_in=3600
+            access_token="test-access-token", token_type="Bearer", expires_in=3600
         )
         assert not token.is_expired()
 
@@ -114,7 +112,7 @@ class TestOAuth2Token:
         expired_token = OAuth2Token(
             access_token="test-access-token",
             token_type="Bearer",
-            expires_in=-3600  # Expired 1 hour ago
+            expires_in=-3600,  # Expired 1 hour ago
         )
         assert expired_token.is_expired()
 
@@ -125,7 +123,7 @@ class TestOAuth2Token:
             access_token="test-access-token",
             token_type="Bearer",
             expires_in=3600,
-            refresh_token="test-refresh-token"
+            refresh_token="test-refresh-token",
         )
         assert not token.needs_refresh()
 
@@ -134,7 +132,7 @@ class TestOAuth2Token:
             access_token="test-access-token",
             token_type="Bearer",
             expires_in=240,  # 4 minutes
-            refresh_token="test-refresh-token"
+            refresh_token="test-refresh-token",
         )
         assert soon_expired_token.needs_refresh()
 
@@ -145,7 +143,7 @@ class TestOAuth2Token:
             "token_type": "Bearer",
             "expires_in": 3600,
             "refresh_token": "test-refresh-token",
-            "scope": "read write"
+            "scope": "read write",
         }
 
         token = OAuth2Token.from_response(response_data)
@@ -155,9 +153,7 @@ class TestOAuth2Token:
     def test_oauth2_token_to_header(self):
         """Test creating authorization header from token."""
         token = OAuth2Token(
-            access_token="test-access-token",
-            token_type="Bearer",
-            expires_in=3600
+            access_token="test-access-token", token_type="Bearer", expires_in=3600
         )
 
         header = token.to_authorization_header()
@@ -176,7 +172,7 @@ class TestOAuth2Authenticator:
             authorization_url="https://auth.example.com/oauth/authorize",
             token_url="https://auth.example.com/oauth/token",
             scope="read write",
-            redirect_uri="http://localhost:8080/callback"
+            redirect_uri="http://localhost:8080/callback",
         )
 
     @pytest.fixture
@@ -184,7 +180,9 @@ class TestOAuth2Authenticator:
         """Create OAuth 2.0 authenticator for testing."""
         return OAuth2Authenticator(oauth2_config)
 
-    def test_oauth2_authenticator_initialization(self, oauth2_authenticator, oauth2_config):
+    def test_oauth2_authenticator_initialization(
+        self, oauth2_authenticator, oauth2_config
+    ):
         """Test OAuth 2.0 authenticator initialization."""
         assert oauth2_authenticator.config == oauth2_config
         assert oauth2_authenticator.current_token is None
@@ -208,7 +206,7 @@ class TestOAuth2Authenticator:
         # Extract state from the URL
         parsed_url = urllib.parse.urlparse(auth_url)
         query_params = urllib.parse.parse_qs(parsed_url.query)
-        state = query_params.get('state', [None])[0]
+        state = query_params.get("state", [None])[0]
 
         # Mock HTTP client
         mock_response = {
@@ -216,14 +214,18 @@ class TestOAuth2Authenticator:
             "token_type": "Bearer",
             "expires_in": 3600,
             "refresh_token": "test-refresh-token",
-            "scope": "read write"
+            "scope": "read write",
         }
 
-        with patch('aiohttp.ClientSession.post') as mock_post:
-            mock_post.return_value.__aenter__.return_value.json = AsyncMock(return_value=mock_response)
+        with patch("aiohttp.ClientSession.post") as mock_post:
+            mock_post.return_value.__aenter__.return_value.json = AsyncMock(
+                return_value=mock_response
+            )
             mock_post.return_value.__aenter__.return_value.status = 200
 
-            token = await oauth2_authenticator.exchange_code_for_token("auth-code-123", state)
+            token = await oauth2_authenticator.exchange_code_for_token(
+                "auth-code-123", state
+            )
 
             assert token.access_token == "test-access-token"
             assert token.token_type == "Bearer"
@@ -236,11 +238,13 @@ class TestOAuth2Authenticator:
             "access_token": "test-access-token",
             "token_type": "Bearer",
             "expires_in": 3600,
-            "scope": "read write"
+            "scope": "read write",
         }
 
-        with patch('aiohttp.ClientSession.post') as mock_post:
-            mock_post.return_value.__aenter__.return_value.json = AsyncMock(return_value=mock_response)
+        with patch("aiohttp.ClientSession.post") as mock_post:
+            mock_post.return_value.__aenter__.return_value.json = AsyncMock(
+                return_value=mock_response
+            )
             mock_post.return_value.__aenter__.return_value.status = 200
 
             token = await oauth2_authenticator.client_credentials_flow()
@@ -256,7 +260,7 @@ class TestOAuth2Authenticator:
             access_token="old-access-token",
             token_type="Bearer",
             expires_in=60,  # Expires soon
-            refresh_token="test-refresh-token"
+            refresh_token="test-refresh-token",
         )
         oauth2_authenticator.current_token = initial_token
 
@@ -265,11 +269,13 @@ class TestOAuth2Authenticator:
             "token_type": "Bearer",
             "expires_in": 3600,
             "refresh_token": "new-refresh-token",
-            "scope": "read write"
+            "scope": "read write",
         }
 
-        with patch('aiohttp.ClientSession.post') as mock_post:
-            mock_post.return_value.__aenter__.return_value.json = AsyncMock(return_value=mock_response)
+        with patch("aiohttp.ClientSession.post") as mock_post:
+            mock_post.return_value.__aenter__.return_value.json = AsyncMock(
+                return_value=mock_response
+            )
             mock_post.return_value.__aenter__.return_value.status = 200
 
             new_token = await oauth2_authenticator.refresh_token()
@@ -285,7 +291,7 @@ class TestOAuth2Authenticator:
             access_token="soon-expired-token",
             token_type="Bearer",
             expires_in=240,  # 4 minutes, needs refresh
-            refresh_token="test-refresh-token"
+            refresh_token="test-refresh-token",
         )
         oauth2_authenticator.current_token = soon_expired_token
 
@@ -293,11 +299,13 @@ class TestOAuth2Authenticator:
             "access_token": "refreshed-access-token",
             "token_type": "Bearer",
             "expires_in": 3600,
-            "refresh_token": "new-refresh-token"
+            "refresh_token": "new-refresh-token",
         }
 
-        with patch('aiohttp.ClientSession.post') as mock_post:
-            mock_post.return_value.__aenter__.return_value.json = AsyncMock(return_value=mock_response)
+        with patch("aiohttp.ClientSession.post") as mock_post:
+            mock_post.return_value.__aenter__.return_value.json = AsyncMock(
+                return_value=mock_response
+            )
             mock_post.return_value.__aenter__.return_value.status = 200
 
             header = await oauth2_authenticator.get_authorization_header()
@@ -307,9 +315,7 @@ class TestOAuth2Authenticator:
     def test_token_storage_and_retrieval(self, oauth2_authenticator):
         """Test token storage and retrieval functionality."""
         token = OAuth2Token(
-            access_token="test-access-token",
-            token_type="Bearer",
-            expires_in=3600
+            access_token="test-access-token", token_type="Bearer", expires_in=3600
         )
 
         # Store token
@@ -323,19 +329,24 @@ class TestOAuth2Authenticator:
     @pytest.mark.asyncio
     async def test_error_handling_invalid_credentials(self, oauth2_authenticator):
         """Test error handling for invalid credentials."""
-        with patch('aiohttp.ClientSession.post') as mock_post:
+        with patch("aiohttp.ClientSession.post") as mock_post:
             mock_post.return_value.__aenter__.return_value.status = 401
             mock_post.return_value.__aenter__.return_value.json = AsyncMock(
-                return_value={"error": "invalid_client", "error_description": "Invalid client credentials"}
+                return_value={
+                    "error": "invalid_client",
+                    "error_description": "Invalid client credentials",
+                }
             )
 
-            with pytest.raises(OAuth2AuthenticationError, match="Invalid client credentials"):
+            with pytest.raises(
+                OAuth2AuthenticationError, match="Invalid client credentials"
+            ):
                 await oauth2_authenticator.client_credentials_flow()
 
     @pytest.mark.asyncio
     async def test_error_handling_network_failure(self, oauth2_authenticator):
         """Test error handling for network failures."""
-        with patch('aiohttp.ClientSession.post') as mock_post:
+        with patch("aiohttp.ClientSession.post") as mock_post:
             mock_post.side_effect = asyncio.TimeoutError("Network timeout")
 
             with pytest.raises(OAuth2Error, match="Network timeout"):
@@ -358,7 +369,7 @@ class TestOAuth2Authenticator:
         # Extract state from URL
         parsed_url = urllib.parse.urlparse(auth_url)
         query_params = urllib.parse.parse_qs(parsed_url.query)
-        state = query_params.get('state', [None])[0]
+        state = query_params.get("state", [None])[0]
 
         assert state is not None
         assert len(state) >= 16  # Minimum secure length
@@ -379,7 +390,7 @@ class TestMCPClientOAuth2Integration:
             client_secret="test-client-secret",
             authorization_url="https://auth.example.com/oauth/authorize",
             token_url="https://auth.example.com/oauth/token",
-            scope="mcp:read mcp:write"
+            scope="mcp:read mcp:write",
         )
 
     @pytest.fixture
@@ -389,7 +400,7 @@ class TestMCPClientOAuth2Integration:
             "server_name": "oauth-protected-server",
             "url": "https://api.example.com/mcp",
             "transport": "http",
-            "oauth2": oauth2_config.to_dict()
+            "oauth2": oauth2_config.to_dict(),
         }
 
     def test_mcp_client_with_oauth2_config(self, mcp_config_with_oauth2):
@@ -409,18 +420,23 @@ class TestMCPClientOAuth2Integration:
             "access_token": "test-access-token",
             "token_type": "Bearer",
             "expires_in": 3600,
-            "scope": "mcp:read mcp:write"
+            "scope": "mcp:read mcp:write",
         }
 
-        with patch('aiohttp.ClientSession.post') as mock_post:
-            mock_post.return_value.__aenter__.return_value.json = AsyncMock(return_value=mock_token_response)
+        with patch("aiohttp.ClientSession.post") as mock_post:
+            mock_post.return_value.__aenter__.return_value.json = AsyncMock(
+                return_value=mock_token_response
+            )
             mock_post.return_value.__aenter__.return_value.status = 200
 
             # Authenticate using client credentials flow
             await client.authenticate_oauth2()
 
             assert client.oauth2_authenticator.current_token is not None
-            assert client.oauth2_authenticator.current_token.access_token == "test-access-token"
+            assert (
+                client.oauth2_authenticator.current_token.access_token
+                == "test-access-token"
+            )
 
     @pytest.mark.asyncio
     async def test_mcp_client_authenticated_requests(self, mcp_config_with_oauth2):
@@ -429,9 +445,7 @@ class TestMCPClientOAuth2Integration:
 
         # Set up authenticated token
         token = OAuth2Token(
-            access_token="test-access-token",
-            token_type="Bearer",
-            expires_in=3600
+            access_token="test-access-token", token_type="Bearer", expires_in=3600
         )
         client.oauth2_authenticator.current_token = token
 
@@ -453,7 +467,7 @@ class TestMCPClientOAuth2Integration:
             access_token="old-access-token",
             token_type="Bearer",
             expires_in=60,
-            refresh_token="test-refresh-token"
+            refresh_token="test-refresh-token",
         )
         client.oauth2_authenticator.current_token = old_token
 
@@ -462,11 +476,13 @@ class TestMCPClientOAuth2Integration:
             "access_token": "new-access-token",
             "token_type": "Bearer",
             "expires_in": 3600,
-            "refresh_token": "new-refresh-token"
+            "refresh_token": "new-refresh-token",
         }
 
-        with patch('aiohttp.ClientSession.post') as mock_post:
-            mock_post.return_value.__aenter__.return_value.json = AsyncMock(return_value=mock_refresh_response)
+        with patch("aiohttp.ClientSession.post") as mock_post:
+            mock_post.return_value.__aenter__.return_value.json = AsyncMock(
+                return_value=mock_refresh_response
+            )
             mock_post.return_value.__aenter__.return_value.status = 200
 
             # This should trigger token refresh
@@ -483,8 +499,8 @@ class TestMCPClientOAuth2Integration:
             "transport": "http",
             "oauth2": {
                 "client_id": "",  # Invalid empty client_id
-                "token_url": "https://auth.example.com/oauth/token"
-            }
+                "token_url": "https://auth.example.com/oauth/token",
+            },
         }
 
         with pytest.raises(ValueError, match="client_id is required"):
@@ -496,10 +512,12 @@ class TestMCPClientOAuth2Integration:
         client = MCPClient(mcp_config_with_oauth2)
 
         # Mock network failure during authentication
-        with patch('aiohttp.ClientSession.post') as mock_post:
+        with patch("aiohttp.ClientSession.post") as mock_post:
             mock_post.side_effect = ConnectionError("Network unreachable")
 
-            with pytest.raises(MCPConnectionError, match="OAuth 2.0 authentication failed"):
+            with pytest.raises(
+                MCPConnectionError, match="OAuth 2.0 authentication failed"
+            ):
                 await client.authenticate_oauth2()
 
     def test_oauth2_security_best_practices(self, oauth2_config):

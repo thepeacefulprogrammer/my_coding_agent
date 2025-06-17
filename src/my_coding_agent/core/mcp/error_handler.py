@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 class ErrorCategory(Enum):
     """Categories of MCP errors for targeted handling."""
+
     NETWORK = "network"
     TIMEOUT = "timeout"
     AUTHENTICATION = "authentication"
@@ -40,6 +41,7 @@ class ErrorCategory(Enum):
 
 class ErrorSeverity(Enum):
     """Severity levels for error assessment."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -48,6 +50,7 @@ class ErrorSeverity(Enum):
 
 class ErrorRecoveryStrategy(Enum):
     """Recovery strategies for different error types."""
+
     RETRY_IMMEDIATE = "retry_immediate"
     RETRY_WITH_BACKOFF = "retry_with_backoff"
     CIRCUIT_BREAKER = "circuit_breaker"
@@ -59,6 +62,7 @@ class ErrorRecoveryStrategy(Enum):
 
 class CircuitBreakerState(Enum):
     """Circuit breaker states."""
+
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
@@ -67,6 +71,7 @@ class CircuitBreakerState(Enum):
 @dataclass
 class MCPErrorContext:
     """Context information for MCP errors."""
+
     error: Exception
     server_name: str
     operation: str
@@ -80,10 +85,15 @@ class MCPErrorContext:
 @dataclass
 class MCPErrorMetrics:
     """Metrics for tracking MCP errors."""
+
     total_errors: int = 0
-    errors_by_category: dict[ErrorCategory, int] = field(default_factory=lambda: defaultdict(int))
+    errors_by_category: dict[ErrorCategory, int] = field(
+        default_factory=lambda: defaultdict(int)
+    )
     errors_by_server: dict[str, int] = field(default_factory=lambda: defaultdict(int))
-    errors_by_severity: dict[ErrorSeverity, int] = field(default_factory=lambda: defaultdict(int))
+    errors_by_severity: dict[ErrorSeverity, int] = field(
+        default_factory=lambda: defaultdict(int)
+    )
     recent_errors: deque = field(default_factory=lambda: deque(maxlen=100))
     first_error_time: datetime | None = None
     last_error_time: datetime | None = None
@@ -106,7 +116,9 @@ class MCPErrorMetrics:
             return 0.0
 
         cutoff_time = datetime.now() - timedelta(minutes=window_minutes)
-        recent_count = sum(1 for error in self.recent_errors if error.timestamp >= cutoff_time)
+        recent_count = sum(
+            1 for error in self.recent_errors if error.timestamp >= cutoff_time
+        )
 
         return recent_count / window_minutes if window_minutes > 0 else 0.0
 
@@ -115,14 +127,17 @@ class MCPErrorMetrics:
         cutoff_time = datetime.now() - window
         return [error for error in self.recent_errors if error.timestamp >= cutoff_time]
 
-    def get_server_error_rate(self, server_name: str, window_minutes: int = 60) -> float:
+    def get_server_error_rate(
+        self, server_name: str, window_minutes: int = 60
+    ) -> float:
         """Get error rate for a specific server."""
         if not self.recent_errors:
             return 0.0
 
         cutoff_time = datetime.now() - timedelta(minutes=window_minutes)
         server_errors = sum(
-            1 for error in self.recent_errors
+            1
+            for error in self.recent_errors
             if error.server_name == server_name and error.timestamp >= cutoff_time
         )
 
@@ -136,7 +151,7 @@ class MCPCircuitBreaker:
         self,
         failure_threshold: int = 5,
         recovery_timeout: float = 60.0,
-        half_open_max_calls: int = 3
+        half_open_max_calls: int = 3,
     ):
         """
         Initialize circuit breaker.
@@ -161,8 +176,11 @@ class MCPCircuitBreaker:
             return True
         elif self.state == CircuitBreakerState.OPEN:
             # Check if recovery timeout has passed
-            if (self.last_failure_time and
-                datetime.now() - self.last_failure_time >= timedelta(seconds=self.recovery_timeout)):
+            if (
+                self.last_failure_time
+                and datetime.now() - self.last_failure_time
+                >= timedelta(seconds=self.recovery_timeout)
+            ):
                 self.state = CircuitBreakerState.HALF_OPEN
                 self.half_open_calls = 0
                 return True
@@ -185,7 +203,10 @@ class MCPCircuitBreaker:
         self.failure_count += 1
         self.last_failure_time = datetime.now()
 
-        if self.state == CircuitBreakerState.HALF_OPEN or self.failure_count >= self.failure_threshold:
+        if (
+            self.state == CircuitBreakerState.HALF_OPEN
+            or self.failure_count >= self.failure_threshold
+        ):
             self.state = CircuitBreakerState.OPEN
 
         if self.state == CircuitBreakerState.HALF_OPEN:
@@ -216,19 +237,17 @@ class MCPErrorHandler:
         circuit_breaker_config = config.get("circuit_breaker", {})
 
         # Handle both nested and flat configuration
-        failure_threshold = (
-            circuit_breaker_config.get("failure_threshold") or
-            config.get("circuit_breaker_threshold", 5)
-        )
-        recovery_timeout = (
-            circuit_breaker_config.get("recovery_timeout") or
-            config.get("recovery_timeout", 60.0)
+        failure_threshold = circuit_breaker_config.get(
+            "failure_threshold"
+        ) or config.get("circuit_breaker_threshold", 5)
+        recovery_timeout = circuit_breaker_config.get("recovery_timeout") or config.get(
+            "recovery_timeout", 60.0
         )
 
         self.circuit_breaker = MCPCircuitBreaker(
             failure_threshold=failure_threshold,
             recovery_timeout=recovery_timeout,
-            half_open_max_calls=circuit_breaker_config.get("half_open_max_calls", 3)
+            half_open_max_calls=circuit_breaker_config.get("half_open_max_calls", 3),
         )
 
         # Fallback configuration
@@ -268,7 +287,10 @@ class MCPErrorHandler:
             return ErrorCategory.PROTOCOL
         elif "server" in str(error).lower() or "unavailable" in str(error).lower():
             return ErrorCategory.SERVER
-        elif "rate limit" in str(error).lower() or "too many requests" in str(error).lower():
+        elif (
+            "rate limit" in str(error).lower()
+            or "too many requests" in str(error).lower()
+        ):
             return ErrorCategory.RATE_LIMIT
         elif "resource" in str(error).lower() or "memory" in str(error).lower():
             return ErrorCategory.RESOURCE
@@ -280,21 +302,35 @@ class MCPErrorHandler:
         error_str = str(error).lower()
 
         # Critical errors
-        if any(keyword in error_str for keyword in [
-            "permanently", "fatal", "critical", "corrupted", "invalid credentials"
-        ]):
+        if any(
+            keyword in error_str
+            for keyword in [
+                "permanently",
+                "fatal",
+                "critical",
+                "corrupted",
+                "invalid credentials",
+            ]
+        ):
             return ErrorSeverity.CRITICAL
 
         # High severity errors
-        elif any(keyword in error_str for keyword in [
-            "authentication", "authorization", "forbidden", "unauthorized"
-        ]):
+        elif any(
+            keyword in error_str
+            for keyword in [
+                "authentication",
+                "authorization",
+                "forbidden",
+                "unauthorized",
+            ]
+        ):
             return ErrorSeverity.HIGH
 
         # Medium severity errors
-        elif any(keyword in error_str for keyword in [
-            "timeout", "unavailable", "connection", "network"
-        ]):
+        elif any(
+            keyword in error_str
+            for keyword in ["timeout", "unavailable", "connection", "network"]
+        ):
             return ErrorSeverity.MEDIUM
 
         # Low severity errors
@@ -323,7 +359,7 @@ class MCPErrorHandler:
         server_name: str,
         operation: str,
         attempt_count: int = 1,
-        metadata: dict[str, Any] | None = None
+        metadata: dict[str, Any] | None = None,
     ) -> MCPErrorContext:
         """Create error context with metadata."""
         category = self.categorize_error(error)
@@ -337,14 +373,14 @@ class MCPErrorHandler:
             severity=severity,
             timestamp=datetime.now(),
             attempt_count=attempt_count,
-            metadata=metadata or {}
+            metadata=metadata or {},
         )
 
     def calculate_backoff(self, attempt: int) -> float:
         """Calculate backoff time with exponential backoff and jitter."""
         backoff = min(
             self.base_backoff * (self.backoff_multiplier ** (attempt - 1)),
-            self.max_backoff
+            self.max_backoff,
         )
 
         if self.jitter:
@@ -360,7 +396,7 @@ class MCPErrorHandler:
         server_name: str,
         operation_name: str,
         max_attempts: int | None = None,
-        **kwargs
+        **kwargs,
     ) -> Any:
         """Execute operation with retry logic."""
         max_attempts = max_attempts if max_attempts is not None else self.max_retries
@@ -372,7 +408,10 @@ class MCPErrorHandler:
         for attempt in range(1, max_attempts + 1):
             try:
                 # Check circuit breaker
-                if self.enable_circuit_breaker and not self.circuit_breaker.can_execute():
+                if (
+                    self.enable_circuit_breaker
+                    and not self.circuit_breaker.can_execute()
+                ):
                     raise Exception("Circuit breaker is open")
 
                 # Execute operation
@@ -392,7 +431,7 @@ class MCPErrorHandler:
                     error=error,
                     server_name=server_name,
                     operation=operation_name,
-                    attempt_count=attempt
+                    attempt_count=attempt,
                 )
 
                 # Record error in metrics
@@ -421,14 +460,16 @@ class MCPErrorHandler:
         if last_error:
             raise last_error
         else:
-            raise Exception(f"Operation {operation_name} failed after {max_attempts} attempts")
+            raise Exception(
+                f"Operation {operation_name} failed after {max_attempts} attempts"
+            )
 
     async def execute_recovery(
         self,
         strategy: ErrorRecoveryStrategy,
         context: MCPErrorContext,
         recovery_func: Callable,
-        max_attempts: int = 3
+        max_attempts: int = 3,
     ) -> Any:
         """Execute recovery strategy."""
         if strategy == ErrorRecoveryStrategy.RETRY_WITH_BACKOFF:
@@ -436,7 +477,7 @@ class MCPErrorHandler:
                 operation=recovery_func,
                 server_name=context.server_name,
                 operation_name=context.operation,
-                max_attempts=max_attempts
+                max_attempts=max_attempts,
             )
 
         elif strategy == ErrorRecoveryStrategy.RETRY_IMMEDIATE:
@@ -468,7 +509,7 @@ class MCPErrorHandler:
                 operation=recovery_func,
                 server_name=context.server_name,
                 operation_name=context.operation,
-                max_attempts=max_attempts
+                max_attempts=max_attempts,
             )
 
     def _extract_rate_limit_wait_time(self, error: Exception) -> float:
@@ -478,10 +519,11 @@ class MCPErrorHandler:
 
         # Look for common patterns
         import re
+
         patterns = [
             r"retry after (\d+)",
             r"wait (\d+) seconds",
-            r"rate limit reset in (\d+)"
+            r"rate limit reset in (\d+)",
         ]
 
         for pattern in patterns:
@@ -499,7 +541,7 @@ class MCPErrorHandler:
             "list_resources": [],
             "call_tool": [],
             "read_resource": [],
-            "ping": None
+            "ping": None,
         }
 
         return fallback_results.get(operation)
@@ -527,7 +569,7 @@ class MCPErrorHandler:
                     "operation": error.operation,
                     "category": error.category.value,
                     "severity": error.severity.value,
-                    "message": str(error.error)
+                    "message": str(error.error),
                 }
                 for error in list(self.metrics.recent_errors)[-10:]  # Last 10 errors
             ],
@@ -536,8 +578,8 @@ class MCPErrorHandler:
                 "base_backoff": self.base_backoff,
                 "max_backoff": self.max_backoff,
                 "circuit_breaker_enabled": self.enable_circuit_breaker,
-                "fallback_enabled": self.enable_fallback
-            }
+                "fallback_enabled": self.enable_fallback,
+            },
         }
 
     def reset_metrics(self) -> None:
@@ -569,8 +611,7 @@ class MCPErrorHandler:
         # Check for recent critical errors
         recent_errors = self.metrics.get_errors_in_window(timedelta(minutes=5))
         critical_errors = [
-            error for error in recent_errors
-            if error.severity == ErrorSeverity.CRITICAL
+            error for error in recent_errors if error.severity == ErrorSeverity.CRITICAL
         ]
 
         if len(critical_errors) > 0:
