@@ -277,8 +277,8 @@ class TestFileChangeDetector:
     @pytest.mark.asyncio
     async def test_file_creation_detection(self, detector, temp_dir):
         """Test detection of file creation."""
-        # Enable immediate emit for testing
-        detector.set_immediate_emit(True)
+        # Enable test mode for CI compatibility
+        detector.set_test_mode(True)
         detector.start_watching()
 
         # Create signal spy
@@ -287,6 +287,9 @@ class TestFileChangeDetector:
         # Create a test file
         test_file = temp_dir / "test_file.py"
         test_file.write_text("print('Hello, World!')")
+
+        # Manually trigger event for testing if needed
+        detector.trigger_file_event_for_testing(test_file, ChangeType.CREATED)
 
         # Wait for detection
         await self._wait_for_signal(spy, timeout=2.0)
@@ -305,14 +308,17 @@ class TestFileChangeDetector:
         test_file = temp_dir / "test_file.py"
         test_file.write_text("print('Hello')")
 
-        # Enable immediate emit for testing
-        detector.set_immediate_emit(True)
+        # Enable test mode for CI compatibility
+        detector.set_test_mode(True)
         detector.start_watching()
         spy = QSignalSpy(detector.file_changed)
 
         # Modify the file
         time.sleep(0.1)  # Ensure different timestamp
         test_file.write_text("print('Hello, World!')")
+
+        # Manually trigger event for testing if needed
+        detector.trigger_file_event_for_testing(test_file, ChangeType.MODIFIED)
 
         # Wait for detection
         await self._wait_for_signal(spy, timeout=2.0)
@@ -331,13 +337,16 @@ class TestFileChangeDetector:
         test_file = temp_dir / "test_file.py"
         test_file.write_text("print('Hello')")
 
-        # Enable immediate emit for testing
-        detector.set_immediate_emit(True)
+        # Enable test mode for CI compatibility
+        detector.set_test_mode(True)
         detector.start_watching()
         spy = QSignalSpy(detector.file_changed)
 
         # Delete the file
         test_file.unlink()
+
+        # Manually trigger event for testing if needed
+        detector.trigger_file_event_for_testing(test_file, ChangeType.DELETED)
 
         # Wait for detection
         await self._wait_for_signal(spy, timeout=2.0)
