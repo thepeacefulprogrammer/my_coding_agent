@@ -510,6 +510,150 @@ class ChromaRAGEngine:
             logger.error(f"Failed to get memory statistics: {e}")
             return {"error": str(e)}
 
+    def delete_old_project_history(self, retention_cutoff_timestamp: float) -> int:
+        """Delete old project history entries from ChromaDB.
+
+        Args:
+            retention_cutoff_timestamp: Timestamp cutoff for deletion
+
+        Returns:
+            Number of entries deleted
+        """
+        try:
+            # Get all project history entries
+            all_results = self.project_history_collection.get(
+                include=["metadatas", "documents"]
+            )
+
+            if not all_results["ids"]:
+                return 0
+
+            # Find entries older than cutoff
+            ids_to_delete = []
+            metadatas = all_results["metadatas"]
+            if metadatas:
+                for i, metadata in enumerate(metadatas):
+                    timestamp_val = metadata.get("timestamp", 0) if metadata else 0
+                    try:
+                        timestamp = (
+                            float(timestamp_val) if timestamp_val is not None else 0
+                        )
+                        if timestamp < retention_cutoff_timestamp:
+                            ids_to_delete.append(all_results["ids"][i])
+                    except (ValueError, TypeError):
+                        continue
+
+            if not ids_to_delete:
+                return 0
+
+            # Delete the old entries
+            self.project_history_collection.delete(ids=ids_to_delete)
+
+            logger.info(f"Deleted {len(ids_to_delete)} old project history entries")
+            return len(ids_to_delete)
+
+        except Exception as e:
+            logger.error(f"Failed to delete old project history: {e}")
+            return 0
+
+    def delete_old_conversations(self, retention_cutoff_timestamp: float) -> int:
+        """Delete old conversation entries from ChromaDB.
+
+        Args:
+            retention_cutoff_timestamp: Timestamp cutoff for deletion
+
+        Returns:
+            Number of entries deleted
+        """
+        try:
+            # Get all conversation entries
+            all_results = self.conversations_collection.get(
+                include=["metadatas", "documents"]
+            )
+
+            if not all_results["ids"]:
+                return 0
+
+            # Find entries older than cutoff
+            ids_to_delete = []
+            metadatas = all_results["metadatas"]
+            if metadatas:
+                for i, metadata in enumerate(metadatas):
+                    timestamp_val = metadata.get("timestamp", 0) if metadata else 0
+                    try:
+                        timestamp = (
+                            float(timestamp_val) if timestamp_val is not None else 0
+                        )
+                        if timestamp < retention_cutoff_timestamp:
+                            ids_to_delete.append(all_results["ids"][i])
+                    except (ValueError, TypeError):
+                        continue
+
+            if not ids_to_delete:
+                return 0
+
+            # Delete the old entries
+            self.conversations_collection.delete(ids=ids_to_delete)
+
+            logger.info(f"Deleted {len(ids_to_delete)} old conversation entries")
+            return len(ids_to_delete)
+
+        except Exception as e:
+            logger.error(f"Failed to delete old conversations: {e}")
+            return 0
+
+    def delete_old_memories(self, retention_cutoff_timestamp: float) -> int:
+        """Delete old memory entries from ChromaDB.
+
+        Args:
+            retention_cutoff_timestamp: Timestamp cutoff for deletion
+
+        Returns:
+            Number of entries deleted
+        """
+        try:
+            # Get all memory entries
+            all_results = self.memories_collection.get(
+                include=["metadatas", "documents"]
+            )
+
+            if not all_results["ids"]:
+                return 0
+
+            # Find entries older than cutoff (use created_at or updated_at)
+            ids_to_delete = []
+            metadatas = all_results["metadatas"]
+            if metadatas:
+                for i, metadata in enumerate(metadatas):
+                    # Try multiple timestamp fields
+                    timestamp = 0
+                    for field in ["timestamp", "created_at", "updated_at"]:
+                        if field in metadata and metadata[field]:
+                            try:
+                                field_value = metadata[field]
+                                timestamp = (
+                                    float(field_value) if field_value is not None else 0
+                                )
+                                break
+                            except (ValueError, TypeError):
+                                continue
+
+                    if timestamp > 0 and timestamp < retention_cutoff_timestamp:
+                        ids_to_delete.append(all_results["ids"][i])
+
+            if not ids_to_delete:
+                return 0
+
+            # Delete the old entries
+            self.memories_collection.delete(ids=ids_to_delete)
+
+            logger.info(f"Deleted {len(ids_to_delete)} old memory entries")
+            return len(ids_to_delete)
+
+        except Exception as e:
+            logger.error(f"Failed to delete old memories: {e}")
+            return 0
+
     def clear_all_memories(self) -> bool:
         """Clear all memories from ChromaDB collections.
 

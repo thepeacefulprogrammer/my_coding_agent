@@ -234,8 +234,8 @@ Based on the [AI Agent Chat Enhancements PRD](ai_agent_enhancements_prd.md)
     - [x] Create project learning system that builds understanding from historical changes
   - [x] 9.7 Add project history management and configuration ✅ COMPLETED
     - [x] Create settings for project history tracking (enable/disable, retention period, file filters)
-    - [x] Implement project history cleanup and archiving for old entries
-    - [x] Add project history export functionality for backup and analysis
+    - [x] Implement project history cleanup using ChromaDB native capabilities
+- [x] ~~Add project history export functionality for backup and analysis~~ **REMOVED** - ChromaDB-only architecture
     - [x] Create project history import system for migrating from git logs or other sources
   - [x] 9.8 Create comprehensive test suite for project history system ✅ COMPLETED
     - [x] Write unit tests for file change detection and event classification ✅ COMPLETED
