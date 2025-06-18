@@ -617,12 +617,13 @@ class FileChangeDetector(QObject):
                 self.observer = None
 
             self.event_handler = None
-            self.is_watching = False
-
             print("Stopped file watching")
 
         except Exception as e:
             print(f"Error stopping file watching: {e}")
+        finally:
+            # Always mark as not watching, even if cleanup failed
+            self.is_watching = False
 
     def connect_to_file_tree(self, file_tree_widget: Any) -> None:
         """Connect to file tree widget for signal integration."""
