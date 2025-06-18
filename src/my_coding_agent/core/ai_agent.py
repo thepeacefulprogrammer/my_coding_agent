@@ -22,6 +22,16 @@ from .mcp import MCPClient, MCPServerRegistry
 from .mcp_file_server import FileOperationError, MCPFileConfig, MCPFileServer
 from .streaming import StreamHandler
 
+# Foundation services
+try:
+    from .ai_services.configuration_service import ConfigurationService
+    from .ai_services.error_handling_service import ErrorCategory, ErrorHandlingService
+except ImportError:
+    # Handle case where services aren't available yet during development
+    ConfigurationService = None
+    ErrorHandlingService = None
+    ErrorCategory = None
+
 # Load environment variables
 load_dotenv()
 
@@ -110,7 +120,7 @@ class AIAgent:
 
     def __init__(
         self,
-        config: AIAgentConfig,
+        config: AIAgentConfig | None = None,
         mcp_config: MCPFileConfig | None = None,
         enable_filesystem_tools: bool | None = None,
         enable_memory_awareness: bool = False,
@@ -118,12 +128,15 @@ class AIAgent:
         enable_mcp_tools: bool = False,
         auto_discover_mcp_servers: bool = False,
         signal_handler=None,
+        # Foundation services (new service-oriented architecture)
+        config_service: ConfigurationService | None = None,
+        error_service: ErrorHandlingService | None = None,
     ) -> None:
         """
         Initialize the AI Agent.
 
         Args:
-            config: Configuration for the AI Agent
+            config: Legacy configuration for the AI Agent (backwards compatibility)
             mcp_config: Optional MCP file server configuration
             enable_filesystem_tools: Whether to enable filesystem tools (auto-detected if None)
             enable_memory_awareness: Whether to enable memory-aware conversations
@@ -131,8 +144,21 @@ class AIAgent:
             enable_mcp_tools: Whether to enable MCP tools integration
             auto_discover_mcp_servers: Whether to auto-discover MCP servers from configuration
             signal_handler: Object that can emit signals for UI updates (e.g., MainWindow)
+            config_service: ConfigurationService for service-oriented architecture
+            error_service: ErrorHandlingService for centralized error handling
         """
-        self.config = config
+        # Handle service-oriented vs legacy configuration
+        if config_service is not None:
+            self.config_service = config_service
+            self.config = None  # Legacy config not used when service is provided
+        elif config is not None:
+            self.config = config
+            self.config_service = None  # Create from legacy config if needed
+        else:
+            raise ValueError("Either config or config_service must be provided")
+
+        # Initialize foundation services
+        self.error_service = error_service or ErrorHandlingService()
         self.mcp_config = mcp_config
         self.signal_handler = signal_handler
         self.filesystem_tools_enabled = enable_filesystem_tools
@@ -360,26 +386,44 @@ class AIAgent:
         try:
             from pydantic_ai.providers.azure import AzureProvider
 
+            # Use config service if available, otherwise fall back to legacy config
+            if self.config_service:
+                azure_endpoint = self.config_service.azure_endpoint
+                api_version = self.config_service.api_version
+                azure_api_key = self.config_service.azure_api_key
+                deployment_name = self.config_service.deployment_name
+            else:
+                azure_endpoint = self.config.azure_endpoint
+                api_version = self.config.api_version
+                azure_api_key = self.config.azure_api_key
+                deployment_name = self.config.deployment_name
+
             provider = AzureProvider(
-                azure_endpoint=self.config.azure_endpoint,
-                api_version=self.config.api_version,
-                api_key=self.config.azure_api_key,
+                azure_endpoint=azure_endpoint,
+                api_version=api_version,
+                api_key=azure_api_key,
             )
 
-            self._model = OpenAIModel(
-                model_name=self.config.deployment_name, provider=provider
-            )
+            self._model = OpenAIModel(model_name=deployment_name, provider=provider)
             logger.info(
                 "Azure OpenAI model created successfully: %s (endpoint: %s)",
-                self.config.deployment_name,
-                self.config.azure_endpoint,
+                deployment_name,
+                azure_endpoint,
             )
         except Exception as e:
+            # Get values for error logging
+            if self.config_service:
+                azure_endpoint = self.config_service.azure_endpoint
+                deployment_name = self.config_service.deployment_name
+            else:
+                azure_endpoint = self.config.azure_endpoint
+                deployment_name = self.config.deployment_name
+
             logger.error(
                 "Failed to create Azure OpenAI model: %s (endpoint: %s, deployment: %s)",
                 e,
-                self.config.azure_endpoint,
-                self.config.deployment_name,
+                azure_endpoint,
+                deployment_name,
             )
             raise
 
@@ -459,14 +503,21 @@ class AIAgent:
                 base_prompt + memory_prompt + project_history_prompt + mcp_prompt
             )
 
+            # Use config service if available, otherwise fall back to legacy config
+            max_retries = (
+                self.config_service.max_retries
+                if self.config_service
+                else self.config.max_retries
+            )
+
             self._agent = Agent(
                 model=self._model,
                 system_prompt=system_prompt,
-                retries=self.config.max_retries,
+                retries=max_retries,
             )
             logger.info(
                 "Pydantic AI Agent created successfully with %d max retries%s",
-                self.config.max_retries,
+                max_retries,
                 " and memory awareness" if self.memory_aware_enabled else "",
             )
         except Exception as e:
@@ -2411,12 +2462,12 @@ class AIAgent:
         last_exception = None
 
         # Retry logic for transient errors
-        while retry_count <= self.config.max_retries:
+        while retry_count <= self.max_retries:
             try:
                 # Use asyncio.wait_for to handle timeouts
                 result = await asyncio.wait_for(
                     self._agent.run(message.strip()),
-                    timeout=self.config.request_timeout,
+                    timeout=self.request_timeout,
                 )
 
                 usage = result.usage()
@@ -2445,24 +2496,30 @@ class AIAgent:
 
             except Exception as e:
                 last_exception = e
-                error_type, error_msg = self._categorize_error(e)
 
-                # Check if this is a retryable error
-                retryable_errors = {
-                    "connection",
-                    "server_error",
-                    "rate_limit",
-                    "timeout",
-                }
-                is_retryable = error_type in retryable_errors
+                # Use error service if available, otherwise fall back to internal method
+                if hasattr(self, "error_service") and self.error_service is not None:
+                    error_category, error_msg = self.error_service.categorize_error(e)
+                    error_type = error_category.name.lower()
+                    is_retryable = self.error_service.is_retryable_error(error_category)
+                else:
+                    error_type, error_msg = self._categorize_error(e)
+                    # Check if this is a retryable error using legacy logic
+                    retryable_errors = {
+                        "connection",
+                        "server_error",
+                        "rate_limit",
+                        "timeout",
+                    }
+                    is_retryable = error_type in retryable_errors
 
-                if is_retryable and retry_count < self.config.max_retries:
+                if is_retryable and retry_count < self.max_retries:
                     retry_count += 1
                     wait_time = min(2**retry_count, 30)  # Exponential backoff, max 30s
                     logger.warning(
                         "Retryable error occurred (attempt %d/%d): %s. Retrying in %ds...",
                         retry_count,
-                        self.config.max_retries,
+                        self.max_retries,
                         error_msg,
                         wait_time,
                     )
@@ -2470,10 +2527,10 @@ class AIAgent:
                     continue
                 else:
                     # Non-retryable error or max retries reached
-                    if retry_count >= self.config.max_retries:
+                    if retry_count >= self.max_retries:
                         logger.error(
                             "Max retries (%d) exceeded for message. Final error: %s",
-                            self.config.max_retries,
+                            self.max_retries,
                             error_msg,
                         )
                     else:
@@ -2519,7 +2576,46 @@ class AIAgent:
         Returns:
             str: Information about the model.
         """
+        if self.config_service:
+            return f"Azure OpenAI model: {self.config_service.deployment_name} (endpoint: {self.config_service.azure_endpoint})"
         return f"Azure OpenAI model: {self.config.deployment_name} (endpoint: {self.config.azure_endpoint})"
+
+    # Configuration properties that work with both service and legacy modes
+    @property
+    def max_tokens(self) -> int:
+        """Maximum tokens per response."""
+        return (
+            self.config_service.max_tokens
+            if self.config_service
+            else self.config.max_tokens
+        )
+
+    @property
+    def temperature(self) -> float:
+        """Temperature for response generation."""
+        return (
+            self.config_service.temperature
+            if self.config_service
+            else self.config.temperature
+        )
+
+    @property
+    def request_timeout(self) -> int:
+        """Request timeout in seconds."""
+        return (
+            self.config_service.request_timeout
+            if self.config_service
+            else self.config.request_timeout
+        )
+
+    @property
+    def max_retries(self) -> int:
+        """Maximum number of retries for failed requests."""
+        return (
+            self.config_service.max_retries
+            if self.config_service
+            else self.config.max_retries
+        )
 
     def get_health_status(self) -> dict:
         """Get the health status of the AI Agent.
@@ -2548,6 +2644,45 @@ class AIAgent:
             health_status["mcp_enabled"] = False
 
         return health_status
+
+    # Foundation Services Integration Methods
+
+    def get_error_statistics(self) -> dict[str, Any]:
+        """Get error statistics from ErrorHandlingService.
+
+        Returns:
+            dict: Error statistics if error service is available
+        """
+        if hasattr(self, "error_service") and self.error_service is not None:
+            return self.error_service.get_error_statistics()
+        return {
+            "total_errors": 0,
+            "total_retries": 0,
+            "error_categories": {},
+            "retryable_errors": 0,
+            "non_retryable_errors": 0,
+        }
+
+    def safe_execute(self, func, *args, **kwargs) -> tuple[Any, str | None]:
+        """Execute a function safely using ErrorHandlingService.
+
+        Args:
+            func: Function to execute
+            *args: Positional arguments
+            **kwargs: Keyword arguments
+
+        Returns:
+            tuple: (result, error_info) or (None, None) if service not available
+        """
+        if hasattr(self, "error_service") and self.error_service is not None:
+            return self.error_service.safe_execute(func, *args, **kwargs)
+
+        # Fallback to direct execution if no error service
+        try:
+            result = func(*args, **kwargs)
+            return result, None
+        except Exception as e:
+            return None, str(e)
 
     # MCP File Server Integration Methods
 

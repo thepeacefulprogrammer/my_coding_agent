@@ -10,9 +10,12 @@ from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, TypeVar
 
 logger = logging.getLogger(__name__)
+
+# Type variable for generic return types
+T = TypeVar("T")
 
 
 class ErrorCategory(Enum):
@@ -303,11 +306,11 @@ class ErrorHandlingService:
 
     async def execute_with_retry(
         self,
-        func: Callable[..., Any],
-        *args: Any,
+        func: Callable[..., T],
+        *args: object,
         max_retries: int | None = None,
-        **kwargs: Any,
-    ) -> Any:
+        **kwargs: object,
+    ) -> T:
         """Execute a function with automatic retry on retryable errors.
 
         Args:
@@ -372,8 +375,8 @@ class ErrorHandlingService:
         raise RuntimeError("Unexpected state in retry logic")
 
     def safe_execute(
-        self, func: Callable[..., Any], *args: Any, **kwargs: Any
-    ) -> tuple[Any, ErrorInfo | None]:
+        self, func: Callable[..., T], *args: object, **kwargs: object
+    ) -> tuple[T | None, ErrorInfo | None]:
         """Execute a function safely, capturing any errors.
 
         Args:
