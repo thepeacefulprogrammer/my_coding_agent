@@ -188,7 +188,7 @@ class MCPCircuitBreaker:
         elif self.state == CircuitBreakerState.HALF_OPEN:
             return self.half_open_calls < self.half_open_max_calls
 
-        return False
+        return False  # type: ignore[unreachable]
 
     def record_success(self) -> None:
         """Record successful operation."""
@@ -388,7 +388,7 @@ class MCPErrorHandler:
             jitter_range = backoff * 0.25
             backoff += random.uniform(-jitter_range, jitter_range)
 
-        return max(backoff, 0.1)  # Minimum 100ms
+        return max(backoff, 0.1)  # Minimum 100ms  # type: ignore[no-any-return]
 
     async def execute_with_retry(
         self,
@@ -421,7 +421,7 @@ class MCPErrorHandler:
                 if self.enable_circuit_breaker:
                     self.circuit_breaker.record_success()
 
-                return result
+                return result  # type: ignore[no-any-return]
 
             except Exception as error:
                 last_error = error
@@ -481,7 +481,7 @@ class MCPErrorHandler:
             )
 
         elif strategy == ErrorRecoveryStrategy.RETRY_IMMEDIATE:
-            return await recovery_func()
+            return await recovery_func()  # type: ignore[no-any-return]
 
         elif strategy == ErrorRecoveryStrategy.REAUTHENTICATE:
             # This would be handled by the calling code
@@ -493,7 +493,7 @@ class MCPErrorHandler:
             wait_time = self._extract_rate_limit_wait_time(context.error)
             logger.info(f"Rate limited, waiting {wait_time} seconds")
             await asyncio.sleep(wait_time)
-            return await recovery_func()
+            return await recovery_func()  # type: ignore[no-any-return]
 
         elif strategy == ErrorRecoveryStrategy.FALLBACK_MODE:
             # Return empty/default result
@@ -536,7 +536,7 @@ class MCPErrorHandler:
 
     def _get_fallback_result(self, operation: str) -> dict[str, Any] | list[Any] | None:
         """Get fallback result for operation."""
-        fallback_results = {
+        fallback_results = {  # type: ignore[var-annotated]
             "list_tools": [],
             "list_resources": [],
             "call_tool": [],

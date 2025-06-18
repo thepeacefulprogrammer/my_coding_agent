@@ -54,7 +54,7 @@ class OAuth2Config:
     redirect_uri: str | None = None
     audience: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         self._validate()
 
@@ -122,7 +122,7 @@ class OAuth2Token:
     scope: str | None = None
     expires_at: datetime = field(init=False)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Calculate expiration time after initialization."""
         if self.expires_in:
             self.expires_at = datetime.now() + timedelta(seconds=self.expires_in)
@@ -196,12 +196,12 @@ class OAuth2Authenticator:
             f"OAuth 2.0 authenticator initialized for client: {config.client_id}"
         )
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "OAuth2Authenticator":
         """Async context manager entry."""
         self._session = aiohttp.ClientSession()
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit."""
         if self._session:
             await self._session.close()

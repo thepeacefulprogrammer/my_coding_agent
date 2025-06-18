@@ -114,6 +114,7 @@ class AIAgent:
         mcp_config: MCPFileConfig | None = None,
         enable_filesystem_tools: bool | None = None,
         enable_memory_awareness: bool = False,
+        enable_project_history: bool = False,
         enable_mcp_tools: bool = False,
         auto_discover_mcp_servers: bool = False,
         signal_handler=None,
@@ -126,6 +127,7 @@ class AIAgent:
             mcp_config: Optional MCP file server configuration
             enable_filesystem_tools: Whether to enable filesystem tools (auto-detected if None)
             enable_memory_awareness: Whether to enable memory-aware conversations
+            enable_project_history: Whether to enable project history integration
             enable_mcp_tools: Whether to enable MCP tools integration
             auto_discover_mcp_servers: Whether to auto-discover MCP servers from configuration
             signal_handler: Object that can emit signals for UI updates (e.g., MainWindow)
@@ -135,6 +137,7 @@ class AIAgent:
         self.signal_handler = signal_handler
         self.filesystem_tools_enabled = enable_filesystem_tools
         self.memory_aware_enabled = enable_memory_awareness
+        self.project_history_enabled = enable_project_history
         self.mcp_tools_enabled = enable_mcp_tools
         self.mcp_file_server = None
         self.mcp_registry = None
@@ -161,6 +164,10 @@ class AIAgent:
         self._mcp_tool_prefix = (
             "mcp_"  # Prefix for MCP tools when they conflict with filesystem tools
         )
+
+        # Initialize project history cache
+        self._project_history_cache = {}
+        self._project_understanding_cache = {}
 
         # Initialize memory system if requested
         if enable_memory_awareness:
@@ -193,6 +200,10 @@ class AIAgent:
 
         # Register tools
         self._register_tools()
+
+        # Register project history tools if enabled
+        if self.project_history_enabled and self.memory_aware_enabled:
+            self._register_project_history_tools()
 
         # Register MCP tools if enabled
         if self.mcp_tools_enabled and self.mcp_registry:
@@ -398,6 +409,27 @@ class AIAgent:
                     "Remember user preferences, previous discussions, and project-specific context to enhance your assistance."
                 )
 
+            # Add project history capabilities to system prompt
+            project_history_prompt = ""
+            if self.project_history_enabled:
+                project_history_prompt = (
+                    "\n\nProject History Integration:\n"
+                    "You have access to comprehensive project history tracking that provides deep insights into codebase evolution. "
+                    "This includes:\n"
+                    "- File change history: Track modifications, additions, and deletions across all files\n"
+                    "- Development patterns: Understand how the codebase has evolved over time\n"
+                    "- Change impact analysis: See how changes in one file affect related components\n"
+                    "- Project timeline: View chronological development activities and decision points\n"
+                    "- Code evolution awareness: Understand the context behind current implementations\n"
+                    "\nWhen users ask about files, features, or code changes, automatically incorporate relevant project history. "
+                    "Use this information to:\n"
+                    "- Explain why code was written a certain way based on historical context\n"
+                    "- Suggest improvements informed by past development patterns\n"
+                    "- Help users understand the evolution and design decisions of the codebase\n"
+                    "- Identify related changes that might be relevant to current work\n"
+                    "\nBe proactive in using project history tools when discussing files or code evolution."
+                )
+
             # Add MCP capabilities to system prompt
             mcp_prompt = ""
             if self.mcp_tools_enabled:
@@ -423,7 +455,9 @@ class AIAgent:
                     "- Use reasonable defaults for optional parameters based on the tool's schema constraints"
                 )
 
-            system_prompt = base_prompt + memory_prompt + mcp_prompt
+            system_prompt = (
+                base_prompt + memory_prompt + project_history_prompt + mcp_prompt
+            )
 
             self._agent = Agent(
                 model=self._model,
@@ -548,6 +582,79 @@ class AIAgent:
                     "MCP registry not available, but status tool registered for debugging"
                 )
 
+    def _register_project_history_tools(self) -> None:
+        """Register project history tools with the AI Agent."""
+        if not self.memory_aware_enabled or not hasattr(self, "_memory_system"):
+            logger.warning("Project history tools require memory system")
+            return
+
+        try:
+            # Project history for specific file tool
+            @self._agent.tool_plain
+            async def get_file_project_history(file_path: str, limit: int = 20) -> str:
+                """Get project history for a specific file.
+
+                Args:
+                    file_path: Path to the file to get history for
+                    limit: Maximum number of history events to return (default: 20)
+
+                Returns:
+                    Formatted project history for the file
+                """
+                return await self._tool_get_file_project_history(file_path, limit)
+
+            # Search project history tool
+            @self._agent.tool_plain
+            async def search_project_history(query: str, limit: int = 25) -> str:
+                """Search project history using semantic and text search.
+
+                Args:
+                    query: Search query for project history
+                    limit: Maximum number of results to return (default: 25)
+
+                Returns:
+                    Formatted search results from project history
+                """
+                return await self._tool_search_project_history(query, limit)
+
+            # Get recent project changes tool
+            @self._agent.tool_plain
+            async def get_recent_project_changes(
+                hours: int = 24, limit: int = 15
+            ) -> str:
+                """Get recent project changes within specified time period.
+
+                Args:
+                    hours: Number of hours to look back (default: 24)
+                    limit: Maximum number of changes to return (default: 15)
+
+                Returns:
+                    Formatted list of recent project changes
+                """
+                return await self._tool_get_recent_project_changes(hours, limit)
+
+            # Project timeline tool
+            @self._agent.tool_plain
+            async def get_project_timeline(
+                file_path: str = "", days_back: int = 7
+            ) -> str:
+                """Get project timeline showing chronological development.
+
+                Args:
+                    file_path: Optional file path to focus timeline on (default: all files)
+                    days_back: Number of days to look back (default: 7)
+
+                Returns:
+                    Formatted project timeline
+                """
+                return await self._tool_get_project_timeline(file_path, days_back)
+
+            logger.info("Project history tools registered successfully")
+
+        except Exception as e:
+            logger.error(f"Failed to register project history tools: {e}")
+            self.project_history_enabled = False
+
     def get_available_tools(self) -> list[str]:
         """Get list of available tool names.
 
@@ -575,6 +682,17 @@ class AIAgent:
             tools.extend(mcp_tools)
             # Add MCP status tool
             tools.append("get_mcp_server_status")
+
+        # Add project history tools
+        if self.project_history_enabled and self.memory_aware_enabled:
+            tools.extend(
+                [
+                    "get_file_project_history",
+                    "search_project_history",
+                    "get_recent_project_changes",
+                    "get_project_timeline",
+                ]
+            )
 
         return tools
 
@@ -606,6 +724,17 @@ class AIAgent:
             # Add MCP status tool description
             descriptions["get_mcp_server_status"] = (
                 "Get the status of all MCP servers and their available tools"
+            )
+
+        # Add project history tool descriptions
+        if self.project_history_enabled and self.memory_aware_enabled:
+            descriptions.update(
+                {
+                    "get_file_project_history": "Get project history and evolution for a specific file",
+                    "search_project_history": "Search project history using semantic and text search",
+                    "get_recent_project_changes": "Get recent project changes within specified time period",
+                    "get_project_timeline": "Get project timeline showing chronological development",
+                }
             )
 
         return descriptions
@@ -735,6 +864,364 @@ class AIAgent:
                 f"Unexpected error searching files with pattern {pattern}: {e}"
             )
             return f"Error: {e}"
+
+    # Project History Tool Implementation Methods
+
+    async def _tool_get_file_project_history(
+        self, file_path: str, limit: int = 20
+    ) -> str:
+        """Get project history for a specific file."""
+        try:
+            if not hasattr(self, "_memory_system") or not self._memory_system:
+                return "Error: Memory system not available for project history"
+
+            # Use cached result if available
+            cache_key = f"file_history_{file_path}_{limit}"
+            if cache_key in self._project_history_cache:
+                return self._project_history_cache[cache_key]
+
+            # Get project history for the file
+            history = self._memory_system.get_project_history_for_file(file_path, limit)
+
+            if not history:
+                result = f"No project history found for file: {file_path}"
+            else:
+                result_lines = [f"Project History for {file_path}:"]
+                result_lines.append("=" * 50)
+
+                for event in history:
+                    timestamp = event.get("timestamp", 0)
+                    if isinstance(timestamp, int | float):
+                        from datetime import datetime
+
+                        time_str = datetime.fromtimestamp(timestamp).strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        )
+                    else:
+                        time_str = str(timestamp)
+
+                    event_type = event.get("event_type", "unknown")
+                    summary = event.get("summary", "No summary available")
+                    content = event.get("content", "")
+
+                    result_lines.append(f"[{time_str}] {event_type.upper()}")
+                    result_lines.append(f"Summary: {summary}")
+                    if content:
+                        result_lines.append(f"Details: {content[:200]}...")
+                    result_lines.append("-" * 30)
+
+                result = "\n".join(result_lines)
+
+            # Cache the result
+            self._project_history_cache[cache_key] = result
+            return result
+
+        except Exception as e:
+            logger.error(f"Error getting file project history: {e}")
+            return f"Error retrieving project history for {file_path}: {e}"
+
+    async def _tool_search_project_history(self, query: str, limit: int = 25) -> str:
+        """Search project history using semantic and text search."""
+        try:
+            if not hasattr(self, "_memory_system") or not self._memory_system:
+                return "Error: Memory system not available for project history search"
+
+            # Search project history
+            results = self._memory_system.search_project_history(query, limit)
+
+            if not results:
+                return f"No project history found matching query: {query}"
+
+            result_lines = [f"Project History Search Results for '{query}':"]
+            result_lines.append("=" * 60)
+
+            for event in results:
+                timestamp = event.get("timestamp", 0)
+                if isinstance(timestamp, int | float):
+                    from datetime import datetime
+
+                    time_str = datetime.fromtimestamp(timestamp).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                else:
+                    time_str = str(timestamp)
+
+                file_path = event.get("file_path", "unknown")
+                event_type = event.get("event_type", "unknown")
+                summary = event.get("summary", "No summary available")
+
+                result_lines.append(f"[{time_str}] {file_path}")
+                result_lines.append(f"Type: {event_type} | Summary: {summary}")
+                result_lines.append("-" * 40)
+
+            return "\n".join(result_lines)
+
+        except Exception as e:
+            logger.error(f"Error searching project history: {e}")
+            return f"Error searching project history for '{query}': {e}"
+
+    async def _tool_get_recent_project_changes(
+        self, hours: int = 24, limit: int = 15
+    ) -> str:
+        """Get recent project changes within specified time period."""
+        try:
+            if not hasattr(self, "_memory_system") or not self._memory_system:
+                return "Error: Memory system not available for recent changes"
+
+            # Calculate time range
+            from datetime import datetime, timedelta
+
+            datetime.now().timestamp()
+            (datetime.now() - timedelta(hours=hours)).timestamp()
+
+            # Get recent project history
+            context = self._memory_system.get_project_context_for_ai(
+                recent_hours=hours, max_events=limit
+            )
+
+            if not context or context.strip() == "":
+                return f"No project changes found in the last {hours} hours"
+
+            return (
+                f"Recent Project Changes (Last {hours} hours):\n"
+                + "=" * 50
+                + "\n"
+                + context
+            )
+
+        except Exception as e:
+            logger.error(f"Error getting recent project changes: {e}")
+            return f"Error retrieving recent changes: {e}"
+
+    async def _tool_get_project_timeline(
+        self, file_path: str = "", days_back: int = 7
+    ) -> str:
+        """Get project timeline showing chronological development."""
+        try:
+            if not hasattr(self, "_memory_system") or not self._memory_system:
+                return "Error: Memory system not available for project timeline"
+
+            # Calculate time range
+            from datetime import datetime, timedelta
+
+            end_time = datetime.now().timestamp()
+            start_time = (datetime.now() - timedelta(days=days_back)).timestamp()
+
+            if file_path:
+                # Generate timeline for specific file
+                timeline = self._memory_system.generate_file_timeline(
+                    file_path, limit=30
+                )
+                title = f"Timeline for {file_path} (Last {days_back} days)"
+            else:
+                # Generate general project timeline
+                timeline = self._memory_system.generate_project_timeline(
+                    start_time, end_time
+                )
+                title = f"Project Timeline (Last {days_back} days)"
+
+            if not timeline:
+                return "No timeline data found for the specified period"
+
+            # Format timeline
+            formatted_timeline = self._memory_system.format_timeline_for_ai(timeline)
+
+            return f"{title}:\n" + "=" * 60 + "\n" + formatted_timeline
+
+        except Exception as e:
+            logger.error(f"Error getting project timeline: {e}")
+            return f"Error generating project timeline: {e}"
+
+    # Helper methods for project history functionality
+
+    def _should_lookup_project_history(self, message: str) -> bool:
+        """Determine if a message should trigger project history lookup."""
+        if not self.project_history_enabled:
+            return False
+
+        # Keywords that suggest file-related queries
+        file_keywords = [
+            "history",
+            "changes",
+            "modified",
+            "evolution",
+            "development",
+            "timeline",
+            "when",
+            "how",
+            "why",
+            "what happened",
+            "recent",
+            ".py",
+            ".js",
+            ".ts",
+            ".json",
+            ".md",
+            ".txt",
+            ".yaml",
+            ".yml",
+        ]
+
+        message_lower = message.lower()
+        return any(keyword in message_lower for keyword in file_keywords)
+
+    def _get_recent_project_history(self, limit: int = 50) -> list[dict]:
+        """Get recent project history with caching."""
+        try:
+            if not hasattr(self, "_memory_system") or not self._memory_system:
+                return []
+
+            cache_key = f"recent_history_{limit}"
+            if cache_key in self._project_history_cache:
+                return self._project_history_cache[cache_key]
+
+            history = self._memory_system.get_project_history(limit=limit)
+            self._project_history_cache[cache_key] = history
+            return history
+
+        except Exception as e:
+            logger.error(f"Error getting recent project history: {e}")
+            return []
+
+    def _generate_project_evolution_context(self, file_path: str = "") -> str:
+        """Generate project evolution context for AI responses."""
+        try:
+            if not hasattr(self, "_memory_system") or not self._memory_system:
+                return ""
+
+            if file_path:
+                context = self._memory_system.get_project_context_for_ai(
+                    file_path=file_path
+                )
+            else:
+                context = self._memory_system.get_project_context_for_ai(
+                    recent_hours=72
+                )
+
+            return context or ""
+
+        except Exception as e:
+            logger.error(f"Error generating project evolution context: {e}")
+            return ""
+
+    def _build_project_understanding(self, file_path: str = "") -> dict:
+        """Build project understanding from historical changes."""
+        try:
+            cache_key = f"understanding_{file_path}"
+            if cache_key in self._project_understanding_cache:
+                return self._project_understanding_cache[cache_key]
+
+            if not hasattr(self, "_memory_system") or not self._memory_system:
+                return {}
+
+            # Get recent project history
+            if file_path:
+                history = self._memory_system.get_project_history_for_file(
+                    file_path, limit=20
+                )
+            else:
+                history = self._memory_system.get_project_history(limit=50)
+
+            # Analyze patterns
+            understanding = {
+                "patterns": [],
+                "key_changes": [],
+                "development_focus": [],
+                "recent_activities": [],
+            }
+
+            if history:
+                # Extract development patterns
+                event_types = [event.get("event_type", "") for event in history]
+                understanding["patterns"] = list(set(event_types))
+
+                # Identify key changes (high impact)
+                key_changes = [
+                    event
+                    for event in history
+                    if event.get("metadata", {}).get("impact_score", 0) > 0.7
+                ]
+                understanding["key_changes"] = key_changes[:5]  # Top 5 key changes
+
+                # Extract focus areas from summaries
+                summaries = [event.get("summary", "") for event in history]
+                focus_keywords = []
+                for summary in summaries:
+                    words = summary.lower().split()
+                    focus_keywords.extend([word for word in words if len(word) > 5])
+
+                # Count common keywords to identify focus areas
+                from collections import Counter
+
+                common_keywords = Counter(focus_keywords).most_common(5)
+                understanding["development_focus"] = [
+                    keyword for keyword, count in common_keywords
+                ]
+
+                # Recent activities (last 5)
+                understanding["recent_activities"] = history[:5]
+
+            # Cache the understanding
+            self._project_understanding_cache[cache_key] = understanding
+            return understanding
+
+        except Exception as e:
+            logger.error(f"Error building project understanding: {e}")
+            return {}
+
+    def _enhance_message_with_project_context(self, message: str) -> str:
+        """Enhance user message with relevant project context."""
+        try:
+            if (
+                not self.project_history_enabled
+                or not self._should_lookup_project_history(message)
+            ):
+                return message
+
+            # Extract file paths from message
+            import re
+
+            file_patterns = re.findall(r"[\w/\-\.]+\.\w+", message)
+
+            context_parts = []
+            for file_path in file_patterns:
+                context = self._generate_project_evolution_context(file_path)
+                if context:
+                    context_parts.append(f"Project Context for {file_path}:\n{context}")
+
+            # If no specific files, add general context
+            if not context_parts:
+                general_context = self._generate_project_evolution_context()
+                if general_context:
+                    context_parts.append(f"Recent Project Context:\n{general_context}")
+
+            if context_parts:
+                enhanced_message = message + "\n\n" + "\n\n".join(context_parts)
+                return enhanced_message
+
+            return message
+
+        except Exception as e:
+            logger.error(f"Error enhancing message with project context: {e}")
+            return message
+
+    def _generate_file_evolution_timeline(self, file_path: str) -> list:
+        """Generate evolution timeline for a specific file."""
+        try:
+            if not hasattr(self, "_memory_system") or not self._memory_system:
+                return []
+
+            timeline = self._memory_system.generate_file_timeline(file_path, limit=20)
+
+            # Sort by timestamp (most recent first)
+            if timeline:
+                timeline.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+
+            return timeline
+
+        except Exception as e:
+            logger.error(f"Error generating file evolution timeline: {e}")
+            return []
 
     # MCP Tools Integration Methods
 

@@ -45,12 +45,18 @@ def get_azure_embedding_function(
     if not azure_endpoint or not api_key:
         raise ValueError("Azure endpoint and API key are required")
 
+    # Set environment variables for ChromaDB embedding function
+    # This avoids the deprecation warning about direct api_key configuration
+    if api_key:
+        os.environ["OPENAI_API_KEY"] = api_key
+
     return embedding_functions.OpenAIEmbeddingFunction(
-        api_key=api_key,
         api_base=azure_endpoint,
         api_type="azure",
         api_version=api_version,
         deployment_id=deployment_name,
+        # Use api_key_env_var instead of api_key to avoid deprecation warning
+        api_key_env_var="OPENAI_API_KEY",
     )
 
 

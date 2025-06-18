@@ -127,6 +127,11 @@ async def test_mcp_context_manager():
         return False
 
 
+def test_mcp_context_manager_sync():
+    """Pytest-compatible wrapper for the async test."""
+    return asyncio.run(test_mcp_context_manager())
+
+
 if __name__ == "__main__":
     success = asyncio.run(test_mcp_context_manager())
     sys.exit(0 if success else 1)

@@ -41,10 +41,11 @@ class ThemeManager(QObject):
         if saved_theme not in self._available_themes:
             saved_theme = "dark"
 
+            # Initialize current theme
         self._current_theme = saved_theme
 
-        # Apply the initial theme
-        self.set_theme(self._current_theme)
+        # Apply the initial theme by forcing a stylesheet load
+        self._apply_theme_stylesheet(saved_theme)
 
     def get_current_theme(self) -> str:
         """Get the currently active theme.
@@ -74,10 +75,28 @@ class ThemeManager(QObject):
         if theme_name not in self._available_themes:
             return False
 
-        # Skip if already the current theme to avoid unnecessary processing
+        # Check if we need to do anything (but still verify the theme is properly applied)
         if theme_name == self._current_theme:
-            return True
+            # Verify the stylesheet is actually applied
+            if self.app and theme_name == "dark":
+                current_stylesheet = self.app.styleSheet()
+                if len(current_stylesheet) > 0:
+                    return True
+                # If stylesheet is empty but should be dark, re-apply
+            elif theme_name == "light":
+                return True
 
+        return self._apply_theme_stylesheet(theme_name)
+
+    def _apply_theme_stylesheet(self, theme_name: str) -> bool:
+        """Apply the stylesheet for the given theme.
+
+        Args:
+            theme_name: Name of the theme to apply
+
+        Returns:
+            True if theme was successfully applied, False otherwise
+        """
         try:
             # Load and apply stylesheet
             stylesheet = self._load_stylesheet(theme_name)
@@ -86,7 +105,7 @@ class ThemeManager(QObject):
             if self.app:
                 self.app.setStyleSheet(stylesheet)
 
-            # Update current theme
+            # Only update current theme after successful application
             self._current_theme = theme_name
 
             # Save to settings with error handling
@@ -101,7 +120,7 @@ class ThemeManager(QObject):
 
             return True
         except Exception:
-            # If theme loading fails, fall back to previous theme
+            # If theme loading fails, keep the previous theme
             return False
 
     def toggle_theme(self) -> str:

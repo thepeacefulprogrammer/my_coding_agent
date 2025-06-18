@@ -7,7 +7,7 @@ showing parameters, results, execution time, and status indicators.
 
 import json
 import re
-from typing import Any
+from typing import Any, cast
 
 # Import pygments components for syntax highlighting
 from pygments.lexers import (  # type: ignore
@@ -332,22 +332,22 @@ class MCPToolCallWidget(QWidget):
         # Fallback to plain text
         return "text"
 
-    def _get_lexer_for_language(self, language: str) -> object | None:
+    def _get_lexer_for_language(self, language: str) -> Any | None:
         """Get appropriate Pygments lexer for the detected language."""
         try:
             if language == "python":
-                return PythonLexer()
+                return cast(object, PythonLexer())
             elif language == "javascript":
-                return JavascriptLexer()
+                return cast(object, JavascriptLexer())
             elif language == "json":
-                return JsonLexer()
+                return cast(object, JsonLexer())
             elif language in ["html", "css", "yaml", "xml", "bash", "sql"]:
-                return get_lexer_by_name(language)
+                return cast(object, get_lexer_by_name(language))
             else:
-                return TextLexer()
+                return cast(object, TextLexer())
         except Exception:
             # Fallback to text lexer if anything goes wrong
-            return TextLexer()
+            return cast(object, TextLexer())
 
     def _setup_result_syntax_highlighting(
         self, content: str, content_type: str | None = None
