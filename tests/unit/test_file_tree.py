@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import QTreeView
 from my_coding_agent.core.file_tree import FileTreeModel, FileTreeWidget
 
 
+@pytest.mark.qt
 class TestFileTreeWidget:
     """Test cases for FileTreeWidget class."""
 
@@ -1029,6 +1030,7 @@ class TestFileTreeWidget:
         assert widget is not None
 
 
+@pytest.mark.qt
 class TestFileTreeModel:
     """Test cases for FileTreeModel class."""
 
@@ -1185,6 +1187,7 @@ class TestFileTreeModel:
         assert icon is not None
 
 
+@pytest.mark.qt
 class TestFileTreeModelWidgetInteraction:
     """Test cases for FileTreeModel and FileTreeWidget interactions."""
 

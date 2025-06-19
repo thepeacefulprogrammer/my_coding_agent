@@ -22,6 +22,7 @@ def chat_widget(app):
     return widget
 
 
+@pytest.mark.qt
 class TestMessageStylingVerification:
     """Test suite to verify message styling differences."""
 

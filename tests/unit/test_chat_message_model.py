@@ -16,6 +16,7 @@ from my_coding_agent.gui.chat_message_model import (
 )
 
 
+@pytest.mark.qt
 class TestMessageRole:
     """Test the MessageRole enum."""
 
@@ -32,6 +33,7 @@ class TestMessageRole:
         assert str(MessageRole.SYSTEM) == "system"
 
 
+@pytest.mark.qt
 class TestMessageStatus:
     """Test the MessageStatus enum."""
 
@@ -54,6 +56,7 @@ class TestMessageStatus:
         assert str(MessageStatus.TYPING) == "typing"
 
 
+@pytest.mark.qt
 class TestChatMessage:
     """Test the ChatMessage data class."""
 
@@ -211,6 +214,7 @@ class TestChatMessage:
         assert ":" in formatted  # Should contain time separator
 
 
+@pytest.mark.qt
 class TestChatMessageModel:
     """Test the ChatMessageModel class."""
 

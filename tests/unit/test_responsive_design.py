@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import QApplication, QMainWindow
 from my_coding_agent.gui.chat_widget_v2 import SimplifiedChatWidget
 
 
+@pytest.mark.qt
 class TestResponsiveDesign:
     """Test cases for responsive design functionality."""
 

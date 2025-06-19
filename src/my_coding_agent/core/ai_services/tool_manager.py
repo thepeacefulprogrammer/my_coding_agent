@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class ToolManager:
     """Manages tool registration and availability for AI services."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the tool manager."""
         self._available_tools: list[str] = []
         self._tool_descriptions: dict[str, str] = {}

@@ -37,6 +37,7 @@ def sample_assistant_message():
     return ChatMessage.create_assistant_message("Test assistant message")
 
 
+@pytest.mark.qt
 class TestThemeAwareStylingSuite:
     """Test suite for automatic theme adaptation functionality."""
 

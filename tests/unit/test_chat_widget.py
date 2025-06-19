@@ -24,6 +24,7 @@ from my_coding_agent.gui.chat_widget import (
 )
 
 
+@pytest.mark.qt
 class TestMessageBubble:
     """Test the MessageBubble widget for individual chat messages."""
 
@@ -211,6 +212,7 @@ class TestMessageBubble:
         assert not bubble.is_metadata_visible()
 
 
+@pytest.mark.qt
 class TestMessageDisplayArea:
     """Test the MessageDisplayArea widget for displaying chat messages."""
 
@@ -402,6 +404,7 @@ class TestMessageDisplayArea:
         assert dark_style != light_style
 
 
+@pytest.mark.qt
 class TestChatWidget:
     """Test the main ChatWidget class."""
 

@@ -16,6 +16,7 @@ from src.my_coding_agent.assets import (
 )
 
 
+@pytest.mark.qt
 class TestAssetsStructure:
     """Test cases for assets directory structure and organization."""
 
@@ -182,6 +183,7 @@ class TestAssetsStructure:
                 assert selector in content, f"Missing {selector} in {theme_name}.qss"
 
 
+@pytest.mark.qt
 class TestAssetsResourceManagement:
     """Test cases for assets resource management and loading."""
 
@@ -238,6 +240,7 @@ class TestAssetsResourceManagement:
             assert hasattr(assets, func_name), f"Missing function: {func_name}"
 
 
+@pytest.mark.qt
 class TestFileTypeIcons:
     """Test cases for file type icon functionality."""
 

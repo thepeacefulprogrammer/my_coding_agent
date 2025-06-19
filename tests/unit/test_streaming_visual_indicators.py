@@ -33,6 +33,7 @@ def chat_widget(app):
     return widget
 
 
+@pytest.mark.qt
 class TestStreamingVisualIndicators:
     """Test visual indicators for streaming status."""
 

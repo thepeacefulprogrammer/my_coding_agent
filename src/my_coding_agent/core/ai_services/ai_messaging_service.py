@@ -9,9 +9,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .core_ai_service import AIResponse, CoreAIService
+
+if TYPE_CHECKING:
+    from ..ai_agent import AIAgentConfig
+    from .mcp_connection_service import MCPConnectionService
+    from .workspace_service import WorkspaceService
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +25,10 @@ class AIMessagingService(CoreAIService):
     """Enhanced AI messaging service with tool support and context awareness."""
 
     def __init__(
-        self, config, mcp_connection_service=None, workspace_service=None
+        self,
+        config: AIAgentConfig,
+        mcp_connection_service: MCPConnectionService | None = None,
+        workspace_service: WorkspaceService | None = None,
     ) -> None:
         """Initialize the AI messaging service.
 

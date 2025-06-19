@@ -11,7 +11,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from typing import Any as ChatWidget
+    from typing import Any as MemorySystem
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +35,7 @@ class MemoryContextService:
             memory_db_path: Path to the ChromaDB database directory
         """
         self._memory_aware_enabled = enable_memory_awareness
-        self._memory_system = None
+        self._memory_system: MemorySystem | None = None
 
         if enable_memory_awareness:
             self._initialize_memory_system(memory_db_path)
@@ -56,7 +60,7 @@ class MemoryContextService:
         return self._memory_aware_enabled and self._memory_system is not None
 
     @property
-    def memory_system(self):
+    def memory_system(self) -> MemorySystem | None:  # noqa: ANN401  # noqa: ANN401
         """Get the underlying memory system."""
         return self._memory_system
 
@@ -305,20 +309,29 @@ class MemoryContextService:
             logger.error(f"Failed to get current session ID: {e}")
             return None
 
-    def load_conversation_history(self, chat_widget) -> bool:
+    def load_conversation_history(self, chat_widget: ChatWidget) -> bool:  # noqa: ANN401
         """Load conversation history into a chat widget.
 
         Args:
             chat_widget: The chat widget to load history into
 
         Returns:
-            True if successful, False otherwise
+            bool: True if successful, False otherwise
         """
         if not self.memory_aware_enabled:
             return False
 
         try:
-            self._memory_system.load_conversation_history(chat_widget)
+            # Get recent conversation history
+            context = self.get_conversation_context(limit=100)
+
+            # Load messages into chat widget
+            for message in context:
+                if hasattr(chat_widget, "add_message"):
+                    chat_widget.add_message(
+                        message["role"], message["content"], message.get("timestamp")
+                    )
+
             return True
         except Exception as e:
             logger.error(f"Failed to load conversation history: {e}")

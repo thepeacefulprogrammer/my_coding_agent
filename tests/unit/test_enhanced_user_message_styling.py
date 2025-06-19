@@ -13,6 +13,7 @@ from src.my_coding_agent.gui.chat_widget import (
 )
 
 
+@pytest.mark.qt
 class TestEnhancedUserMessageStyling:
     """Test enhanced user message styling with bordered distinction."""
 

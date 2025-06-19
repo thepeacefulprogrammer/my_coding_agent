@@ -25,6 +25,7 @@ from src.my_coding_agent.core.file_change_detector import (
 )
 
 
+@pytest.mark.qt
 class TestFileChangeEvent:
     """Test FileChangeEvent data class."""
 
@@ -57,6 +58,7 @@ class TestFileChangeEvent:
         assert event.new_content is None
 
 
+@pytest.mark.qt
 class TestFileChangeFilter:
     """Test FileChangeFilter for filtering unwanted files."""
 
@@ -137,6 +139,7 @@ class TestFileChangeFilter:
         assert filter_instance.should_ignore(Path("/test/normal.txt")) is False
 
 
+@pytest.mark.qt
 class TestFileChangeAnalyzer:
     """Test FileChangeAnalyzer for analyzing file changes."""
 
@@ -243,6 +246,7 @@ class TestFileChangeAnalyzer:
         assert analysis["code_elements"]["classes_added"] == 1
 
 
+@pytest.mark.qt
 class TestFileChangeDetector:
     """Test FileChangeDetector main class."""
 
@@ -402,6 +406,7 @@ class TestFileChangeDetector:
             await asyncio.sleep(0.01)
 
 
+@pytest.mark.qt
 class TestFileChangeDetectorIntegration:
     """Integration tests for FileChangeDetector."""
 

@@ -10,6 +10,7 @@ from PyQt6.QtGui import QColor, QTextDocument
 from my_coding_agent.core.code_viewer import PygmentsSyntaxHighlighter
 
 
+@pytest.mark.qt
 class TestPygmentsSyntaxHighlighter:
     """Test cases for PygmentsSyntaxHighlighter class."""
 

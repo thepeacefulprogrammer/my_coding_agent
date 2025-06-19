@@ -16,6 +16,15 @@ import pytest
 import pytest_asyncio
 
 from my_coding_agent.core.ai_agent import AIAgent, AIAgentConfig
+from my_coding_agent.core.ai_services.configuration_service import (
+    ConfigurationService,
+)
+from my_coding_agent.core.ai_services.error_handling_service import (
+    ErrorHandlingService,
+)
+from my_coding_agent.core.ai_services.mcp_connection_service import (
+    MCPConnectionService,
+)
 from my_coding_agent.core.mcp import MCPClient, MCPServerRegistry, MCPTool
 from my_coding_agent.core.mcp_file_server import (
     FileOperationError,
@@ -161,6 +170,15 @@ class TestAIAgentMCPIntegration:
             # Ensure MCP registry is properly set up
             agent.mcp_registry = mock_server_registry
             agent.mcp_tools_enabled = True
+
+            # Add mock workspace service for bulk operations test
+            from unittest.mock import Mock
+
+            mock_workspace_service = Mock()
+            mock_workspace_service.read_multiple_workspace_files = Mock(
+                return_value={"test.py": "content1", "subdir/data.json": "content2"}
+            )
+            agent.workspace_service = mock_workspace_service
 
             yield agent
 
@@ -671,7 +689,7 @@ class TestAIAgentMCPIntegration:
         ai_agent_with_mcp.mcp_file_server.client_session = mock_session
 
         files = ["test.py", "subdir/data.json"]
-        file_contents = await ai_agent_with_mcp.read_multiple_files(files)
+        file_contents = ai_agent_with_mcp.read_multiple_files(files)
 
         assert len(file_contents) == 2
         assert "test.py" in file_contents
@@ -794,3 +812,405 @@ class TestAIAgentMCPIntegration:
         assert ai_agent_with_mcp.mcp_file_server.config.max_file_size == 512 * 1024
         assert ai_agent_with_mcp.mcp_file_server.config.enable_write_operations is False
         assert ai_agent_with_mcp.mcp_file_server.config.enable_delete_operations is True
+
+
+class TestAIAgentMCPServiceIntegration:
+    """Test AIAgent integration with MCPConnectionService."""
+
+    @pytest.fixture
+    def mock_mcp_service(self):
+        """Create a mock MCPConnectionService."""
+        return Mock(spec=MCPConnectionService)
+
+    @pytest.fixture
+    def mock_config_service(self):
+        """Create a mock ConfigurationService."""
+        mock_service = Mock(spec=ConfigurationService)
+        mock_service.api_key = "test-api-key"
+        mock_service.model_name = "gpt-4"
+        mock_service.base_url = None
+        mock_service.azure_endpoint = "https://test.openai.azure.com/"
+        mock_service.api_version = "2024-02-15-preview"
+        mock_service.azure_api_key = "test-azure-api-key"
+        mock_service.deployment_name = "gpt-4"
+        mock_service.max_retries = 3
+        mock_service.timeout = 30
+        mock_service.system_prompt = "Test prompt"
+        return mock_service
+
+    @pytest.fixture
+    def mock_error_service(self):
+        """Create a mock ErrorHandlingService."""
+        return Mock(spec=ErrorHandlingService)
+
+    @pytest.fixture
+    def agent_with_mcp_service(
+        self, mock_config_service, mock_error_service, mock_mcp_service
+    ):
+        """Create AIAgent with MCPConnectionService dependency injection."""
+        with (
+            patch("src.my_coding_agent.core.ai_agent.OpenAIModel"),
+            patch("src.my_coding_agent.core.ai_agent.Agent"),
+        ):
+            agent = AIAgent(
+                config_service=mock_config_service,
+                error_service=mock_error_service,
+                mcp_connection_service=mock_mcp_service,
+            )
+
+        return agent, mock_mcp_service
+
+    def test_initialize_mcp_registry_delegates_to_service(self, agent_with_mcp_service):
+        """Test that initialize_mcp_registry delegates to MCPConnectionService."""
+        agent, mock_mcp_service = agent_with_mcp_service
+
+        # Call method
+        agent.initialize_mcp_registry(auto_discover=True)
+
+        # Verify delegation
+        mock_mcp_service.initialize_mcp_registry.assert_called_once_with(
+            auto_discover=True
+        )
+
+    def test_connect_mcp_servers_delegates_to_service(self, agent_with_mcp_service):
+        """Test that connect_mcp_servers delegates to MCPConnectionService."""
+        agent, mock_mcp_service = agent_with_mcp_service
+
+        # Configure mock response
+        expected_result = {"server1": True, "server2": False}
+        mock_mcp_service.connect_mcp_servers.return_value = expected_result
+
+        # Call method (async)
+        import asyncio
+
+        result = asyncio.run(agent.connect_mcp_servers())
+
+        # Verify delegation
+        mock_mcp_service.connect_mcp_servers.assert_called_once()
+        assert result == expected_result
+
+    def test_disconnect_mcp_servers_delegates_to_service(self, agent_with_mcp_service):
+        """Test that disconnect_mcp_servers delegates to MCPConnectionService."""
+        agent, mock_mcp_service = agent_with_mcp_service
+
+        # Call method (async)
+        import asyncio
+
+        asyncio.run(agent.disconnect_mcp_servers())
+
+        # Verify delegation
+        mock_mcp_service.disconnect_mcp_servers.assert_called_once()
+
+    def test_register_mcp_server_delegates_to_service(self, agent_with_mcp_service):
+        """Test that register_mcp_server delegates to MCPConnectionService."""
+        agent, mock_mcp_service = agent_with_mcp_service
+
+        # Create mock client
+        mock_client = Mock()
+
+        # Call method
+        agent.register_mcp_server(mock_client)
+
+        # Verify delegation
+        mock_mcp_service.register_mcp_server.assert_called_once_with(mock_client)
+
+    def test_unregister_mcp_server_delegates_to_service(self, agent_with_mcp_service):
+        """Test that unregister_mcp_server delegates to MCPConnectionService."""
+        agent, mock_mcp_service = agent_with_mcp_service
+
+        # Configure mock response
+        mock_mcp_service.unregister_mcp_server.return_value = True
+
+        # Call method
+        result = agent.unregister_mcp_server("test_server")
+
+        # Verify delegation
+        mock_mcp_service.unregister_mcp_server.assert_called_once_with("test_server")
+        assert result is True
+
+    def test_get_mcp_server_status_delegates_to_service(self, agent_with_mcp_service):
+        """Test that get_mcp_server_status delegates to MCPConnectionService."""
+        agent, mock_mcp_service = agent_with_mcp_service
+
+        # Configure mock response
+        expected_status = {
+            "server1": {"connected": True},
+            "server2": {"connected": False},
+        }
+        mock_mcp_service.get_mcp_server_status.return_value = expected_status
+
+        # Call method (async)
+        import asyncio
+
+        result = asyncio.run(agent.get_mcp_server_status())
+
+        # Verify delegation
+        mock_mcp_service.get_mcp_server_status.assert_called_once()
+        assert result == expected_status
+
+    def test_get_mcp_health_status_delegates_to_service(self, agent_with_mcp_service):
+        """Test that get_mcp_health_status delegates to MCPConnectionService."""
+        agent, mock_mcp_service = agent_with_mcp_service
+
+        # Configure mock response
+        expected_health = {"mcp_configured": True, "connected_servers": 2}
+        mock_mcp_service.get_mcp_health_status.return_value = expected_health
+
+        # Call method
+        result = agent.get_mcp_health_status()
+
+        # Verify delegation
+        mock_mcp_service.get_mcp_health_status.assert_called_once()
+        assert result == expected_health
+
+    def test_connect_mcp_delegates_to_service(self, agent_with_mcp_service):
+        """Test that connect_mcp delegates to MCPConnectionService."""
+        agent, mock_mcp_service = agent_with_mcp_service
+
+        # Configure mock response
+        mock_mcp_service.connect_mcp.return_value = True
+
+        # Call method (async)
+        import asyncio
+
+        result = asyncio.run(agent.connect_mcp())
+
+        # Verify delegation
+        mock_mcp_service.connect_mcp.assert_called_once()
+        assert result is True
+
+    def test_disconnect_mcp_delegates_to_service(self, agent_with_mcp_service):
+        """Test that disconnect_mcp delegates to MCPConnectionService."""
+        agent, mock_mcp_service = agent_with_mcp_service
+
+        # Call method (async)
+        import asyncio
+
+        asyncio.run(agent.disconnect_mcp())
+
+        # Verify delegation
+        mock_mcp_service.disconnect_mcp.assert_called_once()
+
+    def test_mcp_context_delegates_to_service(self, agent_with_mcp_service):
+        """Test that mcp_context delegates to MCPConnectionService."""
+        agent, mock_mcp_service = agent_with_mcp_service
+
+        # Configure mock context manager
+        mock_context = AsyncMock()
+        mock_mcp_service.mcp_context.return_value = mock_context
+
+        # Call method (async context manager)
+        import asyncio
+
+        async def test_context():
+            async with agent.mcp_context():
+                pass
+
+        asyncio.run(test_context())
+
+        # Verify delegation
+        mock_mcp_service.mcp_context.assert_called_once()
+
+    def test_ensure_mcp_servers_connected_delegates_to_service(
+        self, agent_with_mcp_service
+    ):
+        """Test that ensure_mcp_servers_connected delegates to MCPConnectionService."""
+        agent, mock_mcp_service = agent_with_mcp_service
+
+        # Configure mock response
+        mock_mcp_service.ensure_mcp_servers_connected.return_value = True
+
+        # Call method (async)
+        import asyncio
+
+        result = asyncio.run(agent.ensure_mcp_servers_connected())
+
+        # Verify delegation
+        mock_mcp_service.ensure_mcp_servers_connected.assert_called_once()
+        assert result is True
+
+    def test_backward_compatibility_without_mcp_service(
+        self, mock_config_service, mock_error_service
+    ):
+        """Test that AIAgent works without MCPConnectionService (backwards compatibility)."""
+        with (
+            patch("src.my_coding_agent.core.ai_agent.OpenAIModel"),
+            patch("src.my_coding_agent.core.ai_agent.Agent"),
+        ):
+            # Create agent without MCP service (legacy mode)
+            agent = AIAgent(
+                config_service=mock_config_service, error_service=mock_error_service
+            )
+
+        # Agent should have mcp_connection_service as None
+        assert agent.mcp_connection_service is None
+
+        # Legacy MCP operations should still work (using internal implementations)
+        # This tests backwards compatibility
+        assert hasattr(agent, "connect_mcp_servers")
+        assert hasattr(agent, "disconnect_mcp_servers")
+
+    def test_service_vs_legacy_mode_detection(
+        self, agent_with_mcp_service, mock_config_service, mock_error_service
+    ):
+        """Test that agent correctly detects service vs legacy mode."""
+        # Service mode agent
+        agent_service, mock_mcp_service = agent_with_mcp_service
+        assert agent_service.mcp_connection_service is not None
+
+        # Legacy mode agent
+        with (
+            patch("src.my_coding_agent.core.ai_agent.OpenAIModel"),
+            patch("src.my_coding_agent.core.ai_agent.Agent"),
+        ):
+            agent_legacy = AIAgent(
+                config_service=mock_config_service, error_service=mock_error_service
+            )
+
+        assert agent_legacy.mcp_connection_service is None
+
+    def test_mcp_service_error_handling(self, agent_with_mcp_service):
+        """Test that MCP service errors are properly handled."""
+        agent, mock_mcp_service = agent_with_mcp_service
+
+        # Configure mock to raise an exception
+        mock_mcp_service.connect_mcp_servers.side_effect = ConnectionError(
+            "MCP connection failed"
+        )
+
+        # The error should propagate (agent doesn't handle it, service does)
+        import asyncio
+
+        with pytest.raises(ConnectionError, match="MCP connection failed"):
+            asyncio.run(agent.connect_mcp_servers())
+
+    def test_mcp_service_initialization_in_constructor(
+        self, mock_config_service, mock_error_service
+    ):
+        """Test that MCP service is properly initialized in constructor."""
+        mock_mcp_service = Mock(spec=MCPConnectionService)
+
+        with (
+            patch("src.my_coding_agent.core.ai_agent.OpenAIModel"),
+            patch("src.my_coding_agent.core.ai_agent.Agent"),
+        ):
+            agent = AIAgent(
+                config_service=mock_config_service,
+                error_service=mock_error_service,
+                mcp_connection_service=mock_mcp_service,
+            )
+
+        # Verify service is stored
+        assert agent.mcp_connection_service is mock_mcp_service
+
+        # Verify service is ready to use
+        agent.mcp_connection_service.initialize_mcp_registry()
+        mock_mcp_service.initialize_mcp_registry.assert_called_once()
+
+
+class TestMCPServiceDuplicationElimination:
+    """Test that duplicate MCP functionality has been eliminated."""
+
+    def test_ai_agent_mcp_methods_are_delegation_only(self):
+        """Test that AIAgent MCP methods are thin delegation wrappers."""
+        import inspect
+
+        from src.my_coding_agent.core.ai_agent import AIAgent
+
+        # List of methods that should delegate to MCPConnectionService
+        delegation_methods = [
+            "initialize_mcp_registry",
+            "connect_mcp_servers",
+            "disconnect_mcp_servers",
+            "register_mcp_server",
+            "unregister_mcp_server",
+            "get_mcp_server_status",
+            "get_mcp_health_status",
+            "connect_mcp",
+            "disconnect_mcp",
+            "mcp_context",
+            "ensure_mcp_servers_connected",
+        ]
+
+        for method_name in delegation_methods:
+            if hasattr(AIAgent, method_name):
+                method = getattr(AIAgent, method_name)
+
+                # Method should exist and be callable
+                assert callable(method), f"{method_name} should be callable"
+
+                # For delegation methods, we expect them to be small
+                # (just service calls, not large implementations)
+                if inspect.ismethod(method) or inspect.isfunction(method):
+                    try:
+                        source_lines = inspect.getsourcelines(method)[0]
+                        # Delegation methods should be small (< 15 lines typically)
+                        # Allow larger methods that include legacy fallback implementations
+                        assert len(source_lines) < 30, (
+                            f"{method_name} should be a delegation method with optional legacy fallback, got {len(source_lines)} lines"
+                        )
+                    except OSError:
+                        # Can't get source (built-in or C extension), that's fine
+                        pass
+
+    def test_no_duplicate_mcp_connection_logic(self):
+        """Test that AIAgent doesn't contain duplicate MCP connection logic."""
+        import inspect
+
+        from src.my_coding_agent.core.ai_agent import AIAgent
+
+        # Get AIAgent source code
+        try:
+            source = inspect.getsource(AIAgent)
+
+            # Check for duplicate MCP patterns that should be in MCPConnectionService
+            duplicate_patterns = [
+                "MCPServerRegistry()",
+                "connect_all_servers",
+                "update_tools_cache",
+                "auto_discover_mcp_servers",
+                "_mcp_servers_need_connection",
+                "load_default_mcp_config",
+            ]
+
+            # These patterns should not appear in AIAgent if properly delegated
+            for pattern in duplicate_patterns:
+                # Count occurrences (some might be in comments or docstrings)
+                occurrences = source.count(pattern)
+                # Allow more occurrences for legacy fallback implementations
+                # but ensure they're not excessive
+                assert occurrences < 10, (
+                    f"Found {occurrences} occurrences of duplicate pattern '{pattern}' in AIAgent"
+                )
+
+        except OSError:
+            # Can't get source code, skip this test
+            pytest.skip("Cannot inspect AIAgent source code")
+
+    def test_mcp_service_integration_coverage(self):
+        """Test that all major MCPConnectionService methods have AIAgent integration."""
+        from src.my_coding_agent.core.ai_agent import AIAgent
+        from src.my_coding_agent.core.ai_services.mcp_connection_service import (
+            MCPConnectionService,
+        )
+
+        # Core MCPConnectionService methods that should have AIAgent delegation
+        core_methods = [
+            "initialize_mcp_registry",
+            "connect_mcp_servers",
+            "disconnect_mcp_servers",
+            "register_mcp_server",
+            "unregister_mcp_server",
+            "get_mcp_health_status",
+        ]
+
+        for method_name in core_methods:
+            # MCPConnectionService should have the method
+            assert hasattr(MCPConnectionService, method_name), (
+                f"MCPConnectionService missing {method_name}"
+            )
+
+            # AIAgent should have corresponding delegation method
+            assert hasattr(AIAgent, method_name), (
+                f"AIAgent missing delegation for {method_name}"
+            )

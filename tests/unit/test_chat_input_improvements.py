@@ -22,6 +22,7 @@ def chat_widget(app):
     return widget
 
 
+@pytest.mark.qt
 class TestChatInputImprovements:
     """Test suite for chat input improvements."""
 

@@ -29,6 +29,7 @@ def main_window(app, temp_directory):
     return window
 
 
+@pytest.mark.qt
 class TestNewChatFunctionalitySuite:
     """Test suite for "New Chat" button functionality."""
 

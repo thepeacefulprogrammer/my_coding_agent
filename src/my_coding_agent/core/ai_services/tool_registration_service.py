@@ -4,8 +4,15 @@ This service handles all tool registration and management functionality for the 
 including filesystem tools, MCP tools, status tools, and environment tools.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from typing import Any as Agent
+    from typing import Any as MCPFileServer
+    from typing import Any as MCPRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +24,8 @@ class ToolRegistrationService:
         self,
         filesystem_tools_enabled: bool = False,
         mcp_tools_enabled: bool = False,
-        mcp_file_server=None,
-        mcp_registry=None,
+        mcp_file_server: MCPFileServer | None = None,  # noqa: ANN401
+        mcp_registry: MCPRegistry | None = None,  # noqa: ANN401
     ) -> None:
         """Initialize the ToolRegistrationService.
 
@@ -44,7 +51,7 @@ class ToolRegistrationService:
             f"mcp: {mcp_tools_enabled}"
         )
 
-    def register_all_tools(self, agent) -> None:
+    def register_all_tools(self, agent: Agent) -> None:  # noqa: ANN401
         """Register all enabled tools with the agent.
 
         Args:
@@ -62,7 +69,7 @@ class ToolRegistrationService:
         # Always register environment tool
         self.register_environment_tool(agent)
 
-    def register_filesystem_tools(self, agent) -> None:
+    def register_filesystem_tools(self, agent: Agent) -> None:  # noqa: ANN401
         """Register filesystem tools with the agent.
 
         Args:
@@ -158,7 +165,7 @@ class ToolRegistrationService:
             logger.error(f"Failed to register filesystem tools: {e}")
             self.filesystem_tools_enabled = False
 
-    def register_mcp_tools(self, agent) -> None:
+    def register_mcp_tools(self, agent: Agent) -> None:  # noqa: ANN401
         """Register MCP tools with the agent.
 
         Args:
@@ -235,7 +242,7 @@ class ToolRegistrationService:
             )
             self.mcp_tools_enabled = False
 
-    def register_mcp_status_tool(self, agent) -> None:
+    def register_mcp_status_tool(self, agent: Agent) -> None:  # noqa: ANN401
         """Register MCP server status tool with the agent.
 
         Args:
@@ -262,7 +269,7 @@ class ToolRegistrationService:
         except Exception as e:
             logger.error(f"Failed to register MCP server status tool: {e}")
 
-    def register_environment_tool(self, agent) -> None:
+    def register_environment_tool(self, agent: Agent) -> None:  # noqa: ANN401
         """Register environment variable tool with the agent.
 
         Args:
@@ -438,56 +445,31 @@ class ToolRegistrationService:
 
     def _create_mcp_tool_function(
         self,
-        agent,
+        agent: Agent,  # noqa: ANN401
         tool_name: str,
         original_name: str,
         description: str,
         input_schema: dict[str, Any],
         server_name: str,
     ) -> None:
-        """Create a dynamic tool function for an MCP tool.
+        """Create and register an MCP tool function with the agent.
 
         Args:
             agent: The Pydantic AI agent instance
-            tool_name: Final tool name (with conflict resolution)
+            tool_name: Name to register the tool with
             original_name: Original tool name from MCP server
             description: Tool description
             input_schema: Tool input schema
-            server_name: Name of the MCP server
+            server_name: Name of the MCP server providing the tool
         """
 
-        async def mcp_tool_wrapper(**kwargs) -> str:
+        async def mcp_tool_wrapper(**kwargs: Any) -> str:  # noqa: ANN401
             """Dynamic wrapper for MCP tool calls."""
             try:
-                # Validate arguments against schema
-                properties = input_schema.get("properties", {})
-                required = input_schema.get("required", [])
-
-                # Check required arguments
-                for req_arg in required:
-                    if req_arg not in kwargs:
-                        return f"Error: Missing required argument '{req_arg}'"
-
-                # Filter and validate arguments
-                validated_args = {}
-                for arg_name, arg_value in kwargs.items():
-                    if arg_name in properties:
-                        validated_args[arg_name] = arg_value
-                    else:
-                        logger.warning(
-                            f"Unknown argument '{arg_name}' for tool '{tool_name}'"
-                        )
-
-                # Call the MCP tool
-                result = await self._call_mcp_tool(
-                    original_name, validated_args, server_name
-                )
-                return result
-
+                return await self._call_mcp_tool(original_name, kwargs, server_name)
             except Exception as e:
-                error_msg = f"Error calling MCP tool '{tool_name}': {e}"
-                logger.error(error_msg)
-                return error_msg
+                logger.error(f"Error calling MCP tool {original_name}: {e}")
+                return f"Error calling tool {original_name}: {e}"
 
         # Register the tool with proper type hints and description
         agent.tool_plain(mcp_tool_wrapper, name=tool_name, description=description)

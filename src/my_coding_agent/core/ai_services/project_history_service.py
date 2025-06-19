@@ -10,6 +10,11 @@ import logging
 import re
 from collections import Counter
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any as Agent
+    from typing import Any as MemorySystem
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +22,11 @@ logger = logging.getLogger(__name__)
 class ProjectHistoryService:
     """Service for managing project history functionality."""
 
-    def __init__(self, memory_system=None, enable_project_history: bool = False):
+    def __init__(
+        self,
+        memory_system: MemorySystem | None = None,  # noqa: ANN401
+        enable_project_history: bool = False,
+    ) -> None:
         """Initialize the ProjectHistoryService.
 
         Args:
@@ -70,7 +79,7 @@ class ProjectHistoryService:
             "get_project_timeline": "Get project timeline showing chronological development",
         }
 
-    def register_tools(self, agent) -> None:
+    def register_tools(self, agent: Agent) -> None:  # noqa: ANN401
         """Register project history tools with the AI Agent.
 
         Args:
@@ -354,11 +363,7 @@ class ProjectHistoryService:
                 return True
 
         # Check for contextual patterns
-        for pattern in context_patterns:
-            if re.search(pattern, message_lower):
-                return True
-
-        return False
+        return any(re.search(pattern, message_lower) for pattern in context_patterns)
 
     def get_recent_project_history(self, limit: int = 50) -> list[dict]:
         """Get recent project history with caching.

@@ -204,7 +204,7 @@ class TestAdvancedConnectionLogic:
             return_value={"server1": ["tool1"], "server2": ["tool2"]}
         )
 
-        with patch("asyncio.get_running_loop") as mock_loop:
+        with patch("asyncio.get_running_loop"):
             result = await service.connect_mcp_servers()
 
             assert result == mock_connection_results

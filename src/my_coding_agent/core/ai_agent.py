@@ -5,11 +5,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import re
 import time
 import uuid
-from collections.abc import AsyncGenerator, Callable
-from contextlib import asynccontextmanager, suppress
+from collections.abc import AsyncGenerator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
@@ -20,17 +19,20 @@ from pydantic_ai.models.openai import OpenAIModel
 
 from .mcp import MCPClient, MCPServerRegistry
 from .mcp_file_server import FileOperationError, MCPFileConfig, MCPFileServer
-from .streaming import StreamHandler
 
 # Foundation services
 try:
     from .ai_services.configuration_service import ConfigurationService
     from .ai_services.error_handling_service import ErrorCategory, ErrorHandlingService
+    from .ai_services.mcp_connection_service import MCPConnectionService
+    from .ai_services.workspace_service import WorkspaceService
 except ImportError:
     # Handle case where services aren't available yet during development
     ConfigurationService = None
     ErrorHandlingService = None
     ErrorCategory = None
+    WorkspaceService = None
+    MCPConnectionService = None
 
 # Load environment variables
 load_dotenv()
@@ -131,6 +133,11 @@ class AIAgent:
         # Foundation services (new service-oriented architecture)
         config_service: ConfigurationService | None = None,
         error_service: ErrorHandlingService | None = None,
+        workspace_service: WorkspaceService | None = None,
+        mcp_connection_service: MCPConnectionService | None = None,
+        streaming_response_service=None,  # StreamingResponseService for streaming functionality
+        ai_messaging_service=None,  # AIMessagingService for enhanced messaging
+        tool_registration_service=None,  # ToolRegistrationService for tool management
     ) -> None:
         """
         Initialize the AI Agent.
@@ -146,6 +153,11 @@ class AIAgent:
             signal_handler: Object that can emit signals for UI updates (e.g., MainWindow)
             config_service: ConfigurationService for service-oriented architecture
             error_service: ErrorHandlingService for centralized error handling
+            workspace_service: WorkspaceService for file operations (service-oriented architecture)
+            mcp_connection_service: MCPConnectionService for MCP server management (service-oriented architecture)
+            streaming_response_service: StreamingResponseService for streaming functionality
+            ai_messaging_service: AIMessagingService for enhanced messaging capabilities
+            tool_registration_service: ToolRegistrationService for tool management
         """
         # Handle service-oriented vs legacy configuration
         if config_service is not None:
@@ -159,6 +171,18 @@ class AIAgent:
 
         # Initialize foundation services
         self.error_service = error_service or ErrorHandlingService()
+        self.workspace_service = workspace_service  # Can be None for legacy mode
+        self.mcp_connection_service = (
+            mcp_connection_service  # Can be None for legacy mode
+        )
+        self.streaming_response_service = (
+            streaming_response_service  # Can be None for legacy mode
+        )
+        self.ai_messaging_service = ai_messaging_service  # Can be None for legacy mode
+        self.tool_registration_service = (
+            tool_registration_service  # Can be None for legacy mode
+        )
+
         self.mcp_config = mcp_config
         self.signal_handler = signal_handler
         self.filesystem_tools_enabled = enable_filesystem_tools
@@ -218,7 +242,7 @@ class AIAgent:
 
         # Initialize MCP registry and auto-discover servers if enabled
         if self.mcp_tools_enabled:
-            self._initialize_mcp_registry(auto_discover=auto_discover_mcp_servers)
+            self.initialize_mcp_registry(auto_discover=auto_discover_mcp_servers)
 
         # Auto-detect filesystem tools if not explicitly set
         if self.filesystem_tools_enabled is None:
@@ -264,12 +288,23 @@ class AIAgent:
             # Fall back to lazy connection
             self._mcp_servers_need_connection = True
 
-    def _initialize_mcp_registry(self, auto_discover: bool = False) -> None:
+    def initialize_mcp_registry(self, auto_discover: bool = False) -> None:
         """Initialize MCP server registry and optionally auto-discover servers.
 
         Args:
             auto_discover: Whether to automatically discover servers from configuration.
         """
+        # Delegate to MCPConnectionService if available (service-oriented mode)
+        if self.mcp_connection_service is not None:
+            return self.mcp_connection_service.initialize_mcp_registry(
+                auto_discover=auto_discover
+            )
+
+        # Legacy implementation for backwards compatibility
+        return self._initialize_mcp_registry_legacy(auto_discover=auto_discover)
+
+    def _initialize_mcp_registry_legacy(self, auto_discover: bool = False) -> None:
+        """Legacy MCP registry initialization for backwards compatibility."""
         try:
             self.mcp_registry = MCPServerRegistry()
 
@@ -712,6 +747,11 @@ class AIAgent:
         Returns:
             List of tool names
         """
+        # Delegate to tool registration service if available
+        if self.tool_registration_service is not None:
+            return self.tool_registration_service.get_available_tools()
+
+        # Legacy implementation for backwards compatibility
         tools = []
 
         # Add filesystem tools
@@ -1608,7 +1648,7 @@ class AIAgent:
             )
 
             # Ensure MCP servers are connected in current event loop context
-            if not await self._ensure_mcp_servers_connected():
+            if not await self.ensure_mcp_servers_connected():
                 logger.error("Unable to ensure MCP servers are connected")
                 error_result = "Error: Unable to connect to MCP servers"
 
@@ -1897,6 +1937,15 @@ class AIAgent:
         Returns:
             Dictionary mapping server names to connection success status
         """
+        # Delegate to MCPConnectionService if available (service-oriented mode)
+        if self.mcp_connection_service is not None:
+            return await self.mcp_connection_service.connect_mcp_servers()
+
+        # Legacy implementation for backwards compatibility
+        return await self._connect_mcp_servers_legacy()
+
+    async def _connect_mcp_servers_legacy(self) -> dict[str, bool]:
+        """Legacy implementation of connect_mcp_servers for backwards compatibility."""
         if not self.mcp_registry:
             return {}
 
@@ -1930,6 +1979,11 @@ class AIAgent:
 
     async def disconnect_mcp_servers(self) -> None:
         """Disconnect from all MCP servers."""
+        # Delegate to MCPConnectionService if available (service-oriented mode)
+        if self.mcp_connection_service is not None:
+            return await self.mcp_connection_service.disconnect_mcp_servers()
+
+        # Legacy implementation for backwards compatibility
         if self.mcp_registry:
             await self.mcp_registry.disconnect_all_servers()
 
@@ -1939,6 +1993,11 @@ class AIAgent:
         Args:
             client: MCPClient instance to register
         """
+        # Delegate to MCPConnectionService if available (service-oriented mode)
+        if self.mcp_connection_service is not None:
+            return self.mcp_connection_service.register_mcp_server(client)
+
+        # Legacy implementation for backwards compatibility
         if not self.mcp_registry:
             self.mcp_registry = MCPServerRegistry()
 
@@ -1957,6 +2016,11 @@ class AIAgent:
         Returns:
             True if server was unregistered, False if not found
         """
+        # Delegate to MCPConnectionService if available (service-oriented mode)
+        if self.mcp_connection_service is not None:
+            return self.mcp_connection_service.unregister_mcp_server(server_name)
+
+        # Legacy implementation for backwards compatibility
         if not self.mcp_registry:
             return False
 
@@ -2114,7 +2178,7 @@ class AIAgent:
                 result_lines.append("  - All servers are disconnected")
                 result_lines.append("  - Check server logs for connection errors")
                 result_lines.append(
-                    "  - Try reconnecting with: await self._ensure_mcp_servers_connected()"
+                    "  - Try reconnecting with: await self.ensure_mcp_servers_connected()"
                 )
             elif connected_servers < total_servers:
                 result_lines.append(
@@ -2156,22 +2220,80 @@ class AIAgent:
             logger.error(f"Error getting environment variable {variable_name}: {e}")
             return f"Error retrieving environment variable: {str(e)}"
 
-    def get_mcp_server_status(self) -> dict[str, Any]:
-        """Get status of all MCP servers.
+    # Enhanced conversation methods with tool support
+
+    async def send_message_with_tools_stream(
+        self,
+        message: str,
+        on_chunk: Callable[[str, bool], Awaitable[None]],
+        on_error: Callable[[Exception], None] = None,
+        enable_filesystem: bool = True,
+    ) -> AIResponse:
+        """Send a message with tools and stream the response.
+
+        Args:
+            message: The message to send
+            on_chunk: Callback function for streaming chunks
+            on_error: Optional callback function for handling errors
+            enable_filesystem: Whether to enable filesystem tools
 
         Returns:
-            Dictionary containing MCP server status information
+            AIResponse: The complete response after streaming
         """
-        if not self.mcp_registry:
-            return {"mcp_enabled": False, "servers": {}}
+        # Delegate to streaming service if available
+        if (
+            hasattr(self, "streaming_response_service")
+            and self.streaming_response_service is not None
+        ):
+            return await self.streaming_response_service.send_message_with_tools_stream(
+                message, on_chunk, on_error, enable_filesystem
+            )
 
-        return {
-            "mcp_enabled": self.mcp_tools_enabled,
-            "servers": self.mcp_registry.get_all_server_statuses(),
-            "stats": self.mcp_registry.get_registry_stats(),
-        }
+        # Legacy implementation for backwards compatibility
+        return await self._send_message_with_tools_stream_legacy(
+            message, on_chunk, on_error, enable_filesystem
+        )
 
-    # Enhanced conversation methods with tool support
+    async def _send_message_with_tools_stream_legacy(
+        self,
+        message: str,
+        on_chunk: Callable[[str, bool], Awaitable[None]],
+        on_error: Callable[[Exception], None] = None,
+        enable_filesystem: bool = True,
+    ) -> AIResponse:
+        """Legacy streaming implementation for backwards compatibility."""
+        try:
+            # Get the regular response first
+            response = await self.send_message_with_tools(message, enable_filesystem)
+
+            # Simulate streaming by sending the content in chunks
+            if response.success and response.content:
+                content = response.content
+                chunk_size = max(1, len(content) // 5)  # Split into ~5 chunks
+
+                for i in range(0, len(content), chunk_size):
+                    chunk = content[i : i + chunk_size]
+                    is_final = i + chunk_size >= len(content)
+
+                    # Handle both sync and async callbacks
+                    result = on_chunk(chunk, is_final)
+                    if hasattr(result, "__await__"):
+                        await result
+            else:
+                # Send error or empty response
+                result = on_chunk(response.content or "No response", True)
+                if hasattr(result, "__await__"):
+                    await result
+
+            return response
+        except Exception as e:
+            # Call error callback if provided
+            if on_error:
+                on_error(e)
+            # Return error response
+            return AIResponse(
+                success=False, content=f"Error: {e}", error_type=type(e).__name__
+            )
 
     async def send_message_with_tools(
         self, message: str, enable_filesystem: bool = True
@@ -2633,7 +2755,8 @@ class AIAgent:
 
         # Add MCP status if enabled
         if self.mcp_tools_enabled:
-            mcp_status = self.get_mcp_server_status()
+            # Use sync version for health status (non-async context)
+            mcp_status = self._get_mcp_server_status_sync()
             health_status.update(
                 {
                     "mcp_enabled": mcp_status["mcp_enabled"],
@@ -2644,6 +2767,18 @@ class AIAgent:
             health_status["mcp_enabled"] = False
 
         return health_status
+
+    def _get_mcp_server_status_sync(self) -> dict[str, Any]:
+        """Sync version of get_mcp_server_status for use in non-async contexts."""
+        # Only use legacy implementation for sync context
+        if not self.mcp_registry:
+            return {"mcp_enabled": False, "servers": {}, "stats": {}}
+
+        return {
+            "mcp_enabled": self.mcp_tools_enabled,
+            "servers": self.mcp_registry.get_all_server_statuses(),
+            "stats": self.mcp_registry.get_registry_stats(),
+        }
 
     # Foundation Services Integration Methods
 
@@ -2695,6 +2830,11 @@ class AIAgent:
         Raises:
             FileOperationError: If MCP server is not configured.
         """
+        # Delegate to MCPConnectionService if available (service-oriented mode)
+        if self.mcp_connection_service is not None:
+            return await self.mcp_connection_service.connect_mcp()
+
+        # Legacy implementation for backwards compatibility
         if not self.mcp_file_server:
             raise FileOperationError("MCP file server not configured")
 
@@ -2703,6 +2843,11 @@ class AIAgent:
 
     async def disconnect_mcp(self) -> None:
         """Disconnect from the MCP file server."""
+        # Delegate to MCPConnectionService if available (service-oriented mode)
+        if self.mcp_connection_service is not None:
+            return await self.mcp_connection_service.disconnect_mcp()
+
+        # Legacy implementation for backwards compatibility
         if self.mcp_file_server:
             logger.info("Disconnecting from MCP file server...")
             await self.mcp_file_server.disconnect()
@@ -2710,11 +2855,17 @@ class AIAgent:
     @asynccontextmanager
     async def mcp_context(self) -> AsyncGenerator[None, None]:
         """Context manager for MCP file server operations."""
-        if not self.mcp_file_server:
-            raise FileOperationError("MCP file server not configured")
+        # Delegate to MCPConnectionService if available (service-oriented mode)
+        if self.mcp_connection_service is not None:
+            async with self.mcp_connection_service.mcp_context():
+                yield
+        else:
+            # Legacy implementation for backwards compatibility
+            if not self.mcp_file_server:
+                raise FileOperationError("MCP file server not configured")
 
-        async with self.mcp_file_server:
-            yield
+            async with self.mcp_file_server:
+                yield
 
     def _ensure_mcp_connected(self) -> None:
         """Ensure MCP server is connected and configured.
@@ -2844,7 +2995,7 @@ class AIAgent:
         assert self.mcp_file_server is not None  # Type guard
         return await self.mcp_file_server.search_files(pattern, directory)
 
-    async def read_multiple_files(self, file_paths: list[str]) -> dict[str, str]:
+    async def read_multiple_files_mcp(self, file_paths: list[str]) -> dict[str, str]:
         """Read multiple files through MCP server.
 
         Args:
@@ -2919,6 +3070,11 @@ User message: {message}
         Returns:
             AIResponse: The response from the AI.
         """
+        # Delegate to messaging service if available
+        if self.ai_messaging_service is not None:
+            return await self.ai_messaging_service.send_enhanced_message(message)
+
+        # Legacy implementation for backwards compatibility
         # Simple pattern matching for file operation requests
         # In a more sophisticated implementation, this could use the AI to understand intent
         if "read" in message.lower() and any(
@@ -2945,6 +3101,11 @@ User message: {message}
         Returns:
             Dict[str, Any]: MCP health status information.
         """
+        # Delegate to MCPConnectionService if available (service-oriented mode)
+        if self.mcp_connection_service is not None:
+            return self.mcp_connection_service.get_mcp_health_status()
+
+        # Legacy implementation for backwards compatibility
         if not self.mcp_file_server:
             return {
                 "mcp_configured": False,
@@ -2989,9 +3150,42 @@ User message: {message}
 
         Args:
             workspace_path: Path to the workspace root directory.
+
+        Raises:
+            ValueError: If WorkspaceService not configured.
         """
-        self.workspace_root = Path(workspace_path).resolve()
-        logger.info(f"Workspace root set to: {self.workspace_root}")
+        if self.workspace_service is None:
+            raise ValueError(
+                "WorkspaceService not configured. Use service-oriented architecture or legacy AIAgentConfig."
+            )
+
+        # Update the legacy attribute for backwards compatibility
+        self.workspace_root = workspace_path
+
+        return self.workspace_service.set_workspace_root(workspace_path)
+
+    @property
+    def workspace_root(self) -> Path | None:
+        """Get the current workspace root directory.
+
+        Returns:
+            Path: Current workspace root path, or None if not set.
+        """
+        # Delegate to WorkspaceService if available
+        if self.workspace_service is not None:
+            return getattr(self.workspace_service, "workspace_root", None)
+
+        # Fallback to legacy attribute
+        return getattr(self, "_workspace_root", None)
+
+    @workspace_root.setter
+    def workspace_root(self, value: Path | None) -> None:
+        """Set the workspace root directory (legacy attribute).
+
+        Args:
+            value: Workspace root path to set.
+        """
+        self._workspace_root = value
 
     def resolve_workspace_path(self, file_path: str) -> Path:
         """Resolve and validate a path within the workspace.
@@ -3003,31 +3197,13 @@ User message: {message}
             Path: Resolved absolute path within workspace.
 
         Raises:
-            ValueError: If workspace root not set or path is outside workspace.
+            ValueError: If WorkspaceService not configured or path is outside workspace.
         """
-        if self.workspace_root is None:
-            raise ValueError("Workspace root not set")
-
-        # Convert to Path object
-        path = Path(file_path)
-
-        # If relative path, make it relative to workspace root
-        if not path.is_absolute():
-            path = self.workspace_root / path
-
-        # Resolve the path (handles .., ., symlinks)
-        try:
-            resolved_path = path.resolve()
-        except (OSError, RuntimeError) as e:
-            raise ValueError(f"Invalid path: {e}") from e
-
-        # Check if the resolved path is within workspace
-        try:
-            resolved_path.relative_to(self.workspace_root)
-        except ValueError as e:
-            raise ValueError(f"Path is outside workspace: {resolved_path}") from e
-
-        return resolved_path
+        if self.workspace_service is None:
+            raise ValueError(
+                "WorkspaceService not configured. Use service-oriented architecture or legacy AIAgentConfig."
+            )
+        return self.workspace_service.resolve_workspace_path(file_path)
 
     def read_workspace_file(self, file_path: str) -> str:
         """Read file content from workspace.
@@ -3039,18 +3215,14 @@ User message: {message}
             str: File content.
 
         Raises:
-            ValueError: If path is outside workspace.
+            ValueError: If WorkspaceService not configured or path is outside workspace.
             FileNotFoundError: If file does not exist.
         """
-        resolved_path = self.resolve_workspace_path(file_path)
-
-        if not resolved_path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
-
-        if not resolved_path.is_file():
-            raise ValueError(f"Path is not a file: {file_path}")
-
-        return resolved_path.read_text(encoding="utf-8")
+        if self.workspace_service is None:
+            raise ValueError(
+                "WorkspaceService not configured. Use service-oriented architecture or legacy AIAgentConfig."
+            )
+        return self.workspace_service.read_workspace_file(file_path)
 
     def write_workspace_file(self, file_path: str, content: str) -> None:
         """Write content to file in workspace.
@@ -3060,14 +3232,13 @@ User message: {message}
             content: Content to write to file.
 
         Raises:
-            ValueError: If path is outside workspace.
+            ValueError: If WorkspaceService not configured or path is outside workspace.
         """
-        resolved_path = self.resolve_workspace_path(file_path)
-
-        # Create parent directories if they don't exist
-        resolved_path.parent.mkdir(parents=True, exist_ok=True)
-
-        resolved_path.write_text(content, encoding="utf-8")
+        if self.workspace_service is None:
+            raise ValueError(
+                "WorkspaceService not configured. Use service-oriented architecture or legacy AIAgentConfig."
+            )
+        return self.workspace_service.write_workspace_file(file_path, content)
 
     def list_workspace_directory(self, dir_path: str = ".") -> list[str]:
         """List files and directories in workspace directory.
@@ -3079,18 +3250,14 @@ User message: {message}
             List[str]: List of file and directory names.
 
         Raises:
-            ValueError: If path is outside workspace.
+            ValueError: If WorkspaceService not configured or path is outside workspace.
             FileNotFoundError: If directory does not exist.
         """
-        resolved_path = self.resolve_workspace_path(dir_path)
-
-        if not resolved_path.exists():
-            raise FileNotFoundError(f"Directory not found: {dir_path}")
-
-        if not resolved_path.is_dir():
-            raise ValueError(f"Path is not a directory: {dir_path}")
-
-        return [item.name for item in resolved_path.iterdir()]
+        if self.workspace_service is None:
+            raise ValueError(
+                "WorkspaceService not configured. Use service-oriented architecture or legacy AIAgentConfig."
+            )
+        return self.workspace_service.list_workspace_directory(dir_path)
 
     def workspace_file_exists(self, file_path: str) -> bool:
         """Check if file exists in workspace.
@@ -3102,10 +3269,13 @@ User message: {message}
             bool: True if file exists, False otherwise.
 
         Raises:
-            ValueError: If path is outside workspace.
+            ValueError: If WorkspaceService not configured or path is outside workspace.
         """
-        resolved_path = self.resolve_workspace_path(file_path)
-        return resolved_path.exists()
+        if self.workspace_service is None:
+            raise ValueError(
+                "WorkspaceService not configured. Use service-oriented architecture or legacy AIAgentConfig."
+            )
+        return self.workspace_service.workspace_file_exists(file_path)
 
     def create_workspace_directory(self, dir_path: str) -> None:
         """Create directory in workspace.
@@ -3114,10 +3284,13 @@ User message: {message}
             dir_path: Relative path to directory within workspace.
 
         Raises:
-            ValueError: If path is outside workspace.
+            ValueError: If WorkspaceService not configured or path is outside workspace.
         """
-        resolved_path = self.resolve_workspace_path(dir_path)
-        resolved_path.mkdir(parents=True, exist_ok=True)
+        if self.workspace_service is None:
+            raise ValueError(
+                "WorkspaceService not configured. Use service-oriented architecture or legacy AIAgentConfig."
+            )
+        return self.workspace_service.create_workspace_directory(dir_path)
 
     def delete_workspace_file(self, file_path: str) -> None:
         """Delete file from workspace.
@@ -3126,22 +3299,15 @@ User message: {message}
             file_path: Relative path to file within workspace.
 
         Raises:
-            ValueError: If path is outside workspace.
+            ValueError: If WorkspaceService not configured or path is outside workspace.
             FileNotFoundError: If file does not exist.
         """
-        resolved_path = self.resolve_workspace_path(file_path)
+        if self.workspace_service is None:
+            raise ValueError(
+                "WorkspaceService not configured. Use service-oriented architecture or legacy AIAgentConfig."
+            )
+        return self.workspace_service.delete_workspace_file(file_path)
 
-        if not resolved_path.exists():
-            raise FileNotFoundError(f"File not found: {file_path}")
-
-        if resolved_path.is_file():
-            resolved_path.unlink()
-        elif resolved_path.is_dir():
-            resolved_path.rmdir()  # Only removes empty directories
-        else:
-            raise ValueError(f"Path is neither file nor directory: {file_path}")
-
-    # Validation methods
     def validate_file_path(self, file_path: str) -> None:
         """Validate file path for security and correctness.
 
@@ -3149,140 +3315,13 @@ User message: {message}
             file_path: File path to validate.
 
         Raises:
-            ValueError: If file path is invalid.
+            ValueError: If WorkspaceService not configured or file path is invalid.
         """
-        if not file_path or not file_path.strip():
-            raise ValueError("File path cannot be empty")
-
-        file_path = file_path.strip()
-
-        # Check for invalid characters
-        invalid_chars = ["\x00", "<", ">", "|", '"', "*", "?"]
-        for char in invalid_chars:
-            if char in file_path:
-                raise ValueError(f"Invalid characters in file path: {char}")
-
-        # Check path length
-        if len(file_path) > 255:
-            raise ValueError("File path too long (max 255 characters)")
-
-        # Check for reserved names (Windows compatibility)
-        reserved_names = [
-            "CON",
-            "PRN",
-            "AUX",
-            "NUL",
-            "COM1",
-            "COM2",
-            "COM3",
-            "COM4",
-            "COM5",
-            "COM6",
-            "COM7",
-            "COM8",
-            "COM9",
-            "LPT1",
-            "LPT2",
-            "LPT3",
-            "LPT4",
-            "LPT5",
-            "LPT6",
-            "LPT7",
-            "LPT8",
-            "LPT9",
-        ]
-
-        path_parts = Path(file_path).parts
-        for part in path_parts:
-            name_without_ext = part.split(".")[0].upper()
-            if name_without_ext in reserved_names:
-                raise ValueError(f"Reserved file name: {part}")
-
-    def validate_file_extension(self, file_path: str) -> None:
-        """Validate file extension for security.
-
-        Args:
-            file_path: File path to validate.
-
-        Raises:
-            ValueError: If file extension is not allowed.
-        """
-        path = Path(file_path)
-
-        # Blocked extensions for security
-        blocked_extensions = [
-            ".exe",
-            ".bat",
-            ".cmd",
-            ".scr",
-            ".pif",
-            ".dll",
-            ".vbs",
-            ".js",
-            ".jar",
-            ".msi",
-            ".app",
-            ".deb",
-            ".rpm",
-        ]
-
-        if path.suffix.lower() in blocked_extensions:
-            raise ValueError(f"File extension not allowed: {path.suffix}")
-
-        # Files without extension - only allow specific known files
-        if not path.suffix:
-            allowed_no_ext = [
-                "Makefile",
-                "Dockerfile",
-                "Jenkinsfile",
-                "Rakefile",
-                "Gemfile",
-                "Procfile",
-                "LICENSE",
-                "CHANGELOG",
-                "README",
-            ]
-            if path.name not in allowed_no_ext:
-                raise ValueError("File extension required for this file type")
-
-    def validate_file_size(self, content: str) -> None:
-        """Validate file size is within limits.
-
-        Args:
-            content: File content to validate.
-
-        Raises:
-            ValueError: If file size exceeds limits.
-        """
-        content_bytes = content.encode("utf-8")
-        max_size = (
-            self.mcp_file_server.config.max_file_size
-            if self.mcp_file_server
-            else 10 * 1024 * 1024
-        )
-
-        if len(content_bytes) > max_size:
+        if self.workspace_service is None:
             raise ValueError(
-                f"File size exceeds maximum allowed: {len(content_bytes)} > {max_size} bytes"
+                "WorkspaceService not configured. Use service-oriented architecture or legacy AIAgentConfig."
             )
-
-    def validate_directory_path(self, dir_path: str) -> None:
-        """Validate directory path exists and is accessible.
-
-        Args:
-            dir_path: Directory path to validate.
-
-        Raises:
-            ValueError: If path is invalid.
-            FileNotFoundError: If directory does not exist.
-        """
-        resolved_path = self.resolve_workspace_path(dir_path)
-
-        if not resolved_path.exists():
-            raise FileNotFoundError(f"Directory does not exist: {dir_path}")
-
-        if not resolved_path.is_dir():
-            raise ValueError(f"Path is not a directory: {dir_path}")
+        return self.workspace_service.validate_file_path(file_path)
 
     def validate_file_content(self, content: str) -> None:
         """Validate file content for security and encoding.
@@ -3291,29 +3330,30 @@ User message: {message}
             content: File content to validate.
 
         Raises:
-            ValueError: If content is invalid or potentially dangerous.
+            ValueError: If WorkspaceService not configured or content is invalid.
         """
-        # Check encoding
-        try:
-            content.encode("utf-8")
-        except UnicodeEncodeError as e:
-            raise ValueError("Invalid file content encoding (must be UTF-8)") from e
+        if self.workspace_service is None:
+            raise ValueError(
+                "WorkspaceService not configured. Use service-oriented architecture or legacy AIAgentConfig."
+            )
+        return self.workspace_service.validate_file_content(content)
 
-        # Check for potentially dangerous patterns
-        dangerous_patterns = [
-            r"eval\s*\(",
-            r"exec\s*\(",
-            r"__import__",
-            r"subprocess\.call",
-            r"os\.system",
-            r'open\s*\([^)]*["\']w["\']',  # Writing to files
-        ]
+    def validate_directory_path(self, dir_path: str) -> None:
+        """Validate directory path exists and is accessible.
 
-        for pattern in dangerous_patterns:
-            if re.search(pattern, content, re.IGNORECASE):
-                raise ValueError("Potentially dangerous content detected")
+        Args:
+            dir_path: Directory path to validate.
 
-    # Enhanced file operations with validation
+        Raises:
+            ValueError: If WorkspaceService not configured or path is invalid.
+            FileNotFoundError: If directory does not exist.
+        """
+        if self.workspace_service is None:
+            raise ValueError(
+                "WorkspaceService not configured. Use service-oriented architecture or legacy AIAgentConfig."
+            )
+        return self.workspace_service.validate_directory_path(dir_path)
+
     def read_workspace_file_validated(self, file_path: str) -> str:
         """Read file with comprehensive validation.
 
@@ -3324,34 +3364,23 @@ User message: {message}
             str: File content.
 
         Raises:
-            ValueError: If validation fails.
+            ValueError: If WorkspaceService not configured or validation fails.
             FileNotFoundError: If file does not exist.
         """
-        self.validate_file_path(file_path)
-        self.validate_file_extension(file_path)
-        return self.read_workspace_file(file_path)
+        if self.workspace_service is None:
+            raise ValueError(
+                "WorkspaceService not configured. Use service-oriented architecture or legacy AIAgentConfig."
+            )
+        return self.workspace_service.read_workspace_file_validated(file_path)
 
-    def write_workspace_file_validated(self, file_path: str, content: str) -> None:
-        """Write file with comprehensive validation.
-
-        Args:
-            file_path: Relative path to file within workspace.
-            content: Content to write to file.
-
-        Raises:
-            ValueError: If validation fails.
-        """
-        self.validate_file_path(file_path)
-        self.validate_file_extension(file_path)
-        self.validate_file_size(content)
-        self.validate_file_content(content)
-        self.write_workspace_file(file_path, content)
-
-    # Batch operations
-    def read_multiple_workspace_files(
+    def read_multiple_files(
         self, file_paths: list[str], fail_fast: bool = False
     ) -> dict[str, str]:
-        """Read multiple files with error handling.
+        """Read multiple files with intelligent routing.
+
+        Routes to either MCP or workspace implementation based on configuration.
+        If workspace service is available, uses workspace implementation (sync).
+        Otherwise, tries to use MCP implementation (async, but called synchronously).
 
         Args:
             file_paths: List of file paths to read.
@@ -3361,613 +3390,268 @@ User message: {message}
             Dict[str, str]: Mapping of file paths to content (or error messages).
 
         Raises:
-            FileNotFoundError: If fail_fast=True and a file is not found.
+            ValueError: If neither WorkspaceService nor MCP is configured.
         """
-        results = {}
-
-        for file_path in file_paths:
-            try:
-                content = self.read_workspace_file(file_path)
-                results[file_path] = content
-            except Exception as e:
-                if fail_fast:
-                    raise
-                results[file_path] = f"Error: {str(e)}"
-
-        return results
-
-    # Retry mechanisms
-    async def read_file_with_retry(self, file_path: str, max_retries: int = 3) -> str:
-        """Read file with automatic retry on transient errors.
-
-        Args:
-            file_path: Path to file to read.
-            max_retries: Maximum number of retry attempts.
-
-        Returns:
-            str: File content.
-
-        Raises:
-            FileOperationError: If all retries are exhausted.
-        """
-        last_error: Exception | None = None
-
-        for attempt in range(max_retries + 1):
-            try:
-                return await self.read_file(file_path)
-            except FileOperationError as e:
-                last_error = e
-                if attempt < max_retries:
-                    # Wait before retry (exponential backoff)
-                    wait_time = 2**attempt
-                    await asyncio.sleep(wait_time)
-                    logger.warning(
-                        f"Read failed (attempt {attempt + 1}), retrying in {wait_time}s: {e}"
-                    )
-                else:
-                    logger.error(f"Read failed after {max_retries} retries: {e}")
-                    break
-
-        if last_error:
-            raise last_error
-        raise RuntimeError("Unexpected error in retry logic")
-
-    async def write_file_with_retry(
-        self, file_path: str, content: str, max_retries: int = 3
-    ) -> bool:
-        """Write file with automatic retry on transient errors.
-
-        Args:
-            file_path: Path to file to write.
-            content: Content to write.
-            max_retries: Maximum number of retry attempts.
-
-        Returns:
-            bool: True if successful.
-
-        Raises:
-            FileOperationError: If all retries are exhausted.
-        """
-        last_error: Exception | None = None
-
-        for attempt in range(max_retries + 1):
-            try:
-                return await self.write_file(file_path, content)
-            except FileOperationError as e:
-                last_error = e
-                if attempt < max_retries:
-                    wait_time = 2**attempt
-                    await asyncio.sleep(wait_time)
-                    logger.warning(
-                        f"Write failed (attempt {attempt + 1}), retrying in {wait_time}s: {e}"
-                    )
-                else:
-                    logger.error(f"Write failed after {max_retries} retries: {e}")
-                    break
-
-        if last_error:
-            raise last_error
-        raise RuntimeError("Unexpected error in retry logic")
-
-    # Enhanced error handling for workspace operations
-    def safe_read_workspace_file(self, file_path: str) -> tuple[str | None, str | None]:
-        """Safely read workspace file with error capture.
-
-        Args:
-            file_path: Relative path to file within workspace.
-
-        Returns:
-            Tuple[Optional[str], Optional[str]]: (content, error_message)
-        """
-        try:
-            content = self.read_workspace_file(file_path)
-            return content, None
-        except Exception as e:
-            return None, str(e)
-
-    def safe_write_workspace_file(self, file_path: str, content: str) -> str | None:
-        """Safely write workspace file with error capture.
-
-        Args:
-            file_path: Relative path to file within workspace.
-            content: Content to write to file.
-
-        Returns:
-            Optional[str]: Error message if failed, None if successful.
-        """
-        try:
-            self.write_workspace_file(file_path, content)
-            return None
-        except Exception as e:
-            return str(e)
-
-    # Health checks and diagnostics
-    def check_workspace_health(self) -> dict[str, Any]:
-        """Check workspace health and accessibility.
-
-        Returns:
-            Dict[str, Any]: Health status information.
-        """
-        health: dict[str, Any] = {
-            "workspace_set": self.workspace_root is not None,
-            "workspace_accessible": False,
-            "workspace_writable": False,
-            "mcp_configured": self.mcp_file_server is not None,
-            "mcp_connected": False,
-            "errors": [],
-        }
-
-        if self.workspace_root:
-            try:
-                health["workspace_accessible"] = (
-                    self.workspace_root.exists() and self.workspace_root.is_dir()
-                )
-
-                # Test write permissions
-                test_file = self.workspace_root / ".write_test"
-                try:
-                    test_file.write_text("test")
-                    test_file.unlink()
-                    health["workspace_writable"] = True
-                except Exception as e:
-                    health["errors"].append(f"Workspace not writable: {e}")
-
-            except Exception as e:
-                health["errors"].append(f"Workspace access error: {e}")
-
-        if self.mcp_file_server:
-            health["mcp_connected"] = self.mcp_file_server.is_connected
-            if not health["mcp_connected"]:
-                health["errors"].append("MCP server not connected")
-
-        return health
-
-    async def send_message_with_tools_stream(
-        self,
-        message: str,
-        on_chunk: ChunkCallback,
-        on_error: ErrorCallback = None,
-        enable_filesystem: bool = True,
-    ) -> AIResponse:
-        """Send a message with tool support and streaming output.
-
-        Args:
-            message: The message to send to the AI
-            on_chunk: Callback function called for each chunk (chunk: str, is_final: bool)
-            on_error: Optional callback function called on errors (error: Exception)
-            enable_filesystem: Whether to enable filesystem tools for this conversation
-
-        Returns:
-            AIResponse: The response from the AI with stream_id populated
-        """
-        max_retries = self.config.max_retries
-        retry_count = 0
-        last_error: Exception | None = None
-
-        for attempt in range(max_retries + 1):
-            try:
-                if (
-                    enable_filesystem
-                    and self.filesystem_tools_enabled
-                    and self.mcp_file_server
-                    and not self.mcp_file_server.is_connected
-                ):
-                    # Ensure MCP connection
-                    await self.connect_mcp()
-
-                # Create and track stream handler
-                if not hasattr(self, "_stream_handler"):
-                    self._stream_handler = StreamHandler()
-
-                stream_handler = self._stream_handler
-                self.current_stream_handler = stream_handler
-
-                # Start streaming with our handler
-                stream_id = await stream_handler.start_stream(
-                    on_chunk, on_error=on_error
-                )
-                self.current_stream_id = stream_id
-
-                try:
-                    # Use Pydantic AI's streaming capabilities
-                    async with self._agent.run_stream(message) as response:
-                        # Stream the response text in real-time
-                        full_content = []
-                        chunk_count = 0
-
-                        print(
-                            f"🧠 AI Agent: Starting stream for message: '{message[:100]}...'"
-                        )
-
-                        # Show available tools to the AI
-                        available_tools = self.get_available_tools()
-                        print(
-                            f"🛠️  Available tools for AI: {len(available_tools)} tools"
-                        )
-                        for tool in available_tools:
-                            print(f"   - {tool}")
-
-                        # Get the stream text generator
-                        stream_text = response.stream_text()
-
-                        # Handle both async iterators and coroutines (for testing compatibility)
-                        if hasattr(stream_text, "__aiter__"):
-                            # This is an async iterator
-                            async for chunk in stream_text:
-                                full_content.append(chunk)
-                                chunk_count += 1
-
-                                print(f"🔤 AI Chunk #{chunk_count}: '{chunk}'")
-
-                                # Call the external callback directly for each chunk
-                                try:
-                                    # We don't know if this is the final chunk yet, so pass False
-                                    callback_result = on_chunk(chunk, False)
-                                    if hasattr(callback_result, "__await__"):
-                                        await callback_result
-                                except Exception as callback_error:
-                                    logger.error(
-                                        f"Error in streaming callback: {callback_error}"
-                                    )
-                                    if on_error:
-                                        with suppress(Exception):
-                                            on_error(callback_error)
-                        else:
-                            # This might be a coroutine (in tests), await it
-                            try:
-                                chunks = await stream_text
-                                if isinstance(chunks, list | tuple):
-                                    for chunk in chunks:
-                                        full_content.append(chunk)
-                                        chunk_count += 1
-
-                                        # Call the external callback directly for each chunk
-                                        try:
-                                            callback_result = on_chunk(chunk, False)
-                                            if hasattr(callback_result, "__await__"):
-                                                await callback_result
-                                        except Exception as callback_error:
-                                            logger.error(
-                                                f"Error in streaming callback: {callback_error}"
-                                            )
-                                            if on_error:
-                                                with suppress(Exception):
-                                                    on_error(callback_error)
-                                else:
-                                    # Single chunk
-                                    full_content.append(str(chunks))
-                                    chunk_count += 1
-                                    callback_result = on_chunk(str(chunks), False)
-                                    if hasattr(callback_result, "__await__"):
-                                        await callback_result
-                            except Exception as stream_await_error:
-                                logger.error(
-                                    f"Error awaiting stream: {stream_await_error}"
-                                )
-                                # Fallback - treat as empty stream
-                                pass
-
-                        # After all chunks are streamed, send a final empty chunk to mark completion
-                        try:
-                            callback_result = on_chunk(
-                                "", True
-                            )  # Empty chunk with is_final=True
-                            if hasattr(callback_result, "__await__"):
-                                await callback_result
-                        except Exception as callback_error:
-                            logger.error(
-                                f"Error in final streaming callback: {callback_error}"
-                            )
-
-                        # Get the final output
-                        try:
-                            final_output = await response.get_output()
-
-                            # Ensure final_output is a string
-                            if hasattr(final_output, "data"):
-                                final_output = str(final_output.data)
-                            elif not isinstance(final_output, str):
-                                final_output = str(final_output)
-
-                            # Log completion at debug level only
-                            logger.debug(
-                                f"Stream completed with output length: {len(final_output) if final_output else 0}"
-                            )
-                        except Exception as output_error:
-                            logger.warning(
-                                f"Error getting final output: {output_error}"
-                            )
-                            final_output = None
-
-                        full_text = "".join(str(chunk) for chunk in full_content)
-
-                        # Complete the stream in our handler (for internal tracking only)
-                        if stream_handler:
-                            await stream_handler.complete_stream(stream_id)
-
-                        # Clear current stream tracking
-                        self.current_stream_handler = None
-                        self.current_stream_id = None
-
-                        # Ensure we have valid string content
-                        content = final_output or full_text or "Response completed"
-
-                        return AIResponse(
-                            success=True,
-                            content=content,
-                            stream_id=stream_id,
-                            retry_count=retry_count,
-                        )
-
-                except Exception as stream_error:
-                    # Handle streaming errors
-                    await stream_handler.handle_error(stream_id, stream_error)
-                    # Clear current stream tracking on error
-                    self.current_stream_handler = None
-                    self.current_stream_id = None
-                    raise stream_error
-
-            except Exception as e:
-                last_error = e
-                retry_count = attempt
-
-                # Don't retry on the last attempt
-                if attempt < max_retries:
-                    # Calculate exponential backoff: 2^attempt seconds
-                    backoff_time = 2**attempt
-                    logger.warning(
-                        f"Streaming attempt {attempt + 1} failed: {e}. "
-                        f"Retrying in {backoff_time}s (attempt {attempt + 2}/{max_retries + 1})"
-                    )
-
-                    # Wait before retrying with exponential backoff
-                    await asyncio.sleep(backoff_time)
-
-                    # Check if stream was interrupted during backoff
-                    if (
-                        hasattr(self, "current_stream_handler")
-                        and self.current_stream_handler
-                        and hasattr(self.current_stream_handler, "_interrupt_event")
-                        and self.current_stream_handler._interrupt_event.is_set()
-                    ):
-                        logger.info("Stream was interrupted during retry backoff")
-                        break
-                else:
-                    logger.error(
-                        f"All streaming attempts failed after {max_retries} retries. Final error: {e}"
-                    )
-
-        # All retries exhausted - return failure response
-        if last_error:
-            error_type, error_message = self._categorize_error(last_error)
-
-            # Call error callback if provided
-            if on_error:
-                try:
-                    on_error(last_error)
-                except Exception as callback_error:
-                    logger.error(f"Error in error callback: {callback_error}")
-
-            return AIResponse(
-                success=False,
-                content=error_message,
-                error=str(last_error),
-                error_type=error_type,
-                retry_count=retry_count,
-                stream_id=getattr(locals(), "stream_id", None),
+        # Prefer workspace service if available (service-oriented architecture)
+        if self.workspace_service is not None:
+            return self.workspace_service.read_multiple_workspace_files(
+                file_paths, fail_fast
             )
 
-        # This should not be reached, but handle edge case
-        return AIResponse(
-            success=False,
-            content="Unexpected error in retry logic",
-            error="No error captured in retry loop",
-            error_type="unknown",
-            retry_count=retry_count,
+        # Fallback to MCP if available (legacy architecture)
+        if self.mcp_file_server is not None:
+            # Note: This is a sync wrapper around async MCP method
+            # In practice, this should be avoided - use read_multiple_files_mcp directly for async code
+            import asyncio
+
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If we're already in an async context, we can't use asyncio.run
+                    # This is a limitation - async code should call read_multiple_files_mcp directly
+                    raise ValueError(
+                        "Cannot call sync read_multiple_files from async context when using MCP. Use read_multiple_files_mcp instead."
+                    )
+                else:
+                    return asyncio.run(self.read_multiple_files_mcp(file_paths))
+            except RuntimeError:
+                # No event loop running, safe to create one
+                return asyncio.run(self.read_multiple_files_mcp(file_paths))
+
+        raise ValueError(
+            "Neither WorkspaceService nor MCP is configured. Use service-oriented architecture or legacy AIAgentConfig."
         )
 
-    async def interrupt_current_stream(self) -> bool:
-        """Interrupt the current stream if it exists.
+    async def ensure_mcp_servers_connected(self) -> bool:
+        """Ensure MCP servers are connected.
 
         Returns:
-            bool: True if a stream was interrupted, False if no active stream
+            bool: True if servers are connected, False otherwise.
         """
-        if self.current_stream_handler and self.current_stream_id:
-            await self.current_stream_handler.interrupt_stream(self.current_stream_id)
-            self.current_stream_handler = None
-            self.current_stream_id = None
-            return True
+        # Delegate to MCPConnectionService if available (service-oriented mode)
+        if self.mcp_connection_service is not None:
+            return await self.mcp_connection_service.ensure_mcp_servers_connected()
+
+        # Legacy implementation for backwards compatibility
+        return await self._ensure_mcp_servers_connected_legacy()
+
+    async def _ensure_mcp_servers_connected_legacy(self) -> bool:
+        """Legacy implementation for ensuring MCP servers are connected."""
+        if not self.mcp_registry:
+            logger.warning("No MCP registry available for connection check")
+            return False
+
+        try:
+            # Check if any servers are connected
+            server_statuses = self.mcp_registry.get_all_server_statuses()
+            connected_servers = [
+                name
+                for name, status in server_statuses.items()
+                if hasattr(status, "connected") and status.connected
+            ]
+
+            if connected_servers:
+                logger.debug(f"MCP servers connected: {connected_servers}")
+                return True
+            else:
+                logger.warning("No MCP servers are currently connected")
+                return False
+
+        except Exception as e:
+            logger.error(f"Error checking MCP server connection status: {e}")
+            return False
+
+    async def get_mcp_server_status(self) -> dict[str, Any]:
+        """Get status of all MCP servers.
+
+        Returns:
+            Dictionary containing MCP server status information
+        """
+        # Delegate to MCPConnectionService if available (service-oriented mode)
+        if self.mcp_connection_service is not None:
+            return await self.mcp_connection_service.get_mcp_server_status()
+
+        # Legacy implementation for backwards compatibility
+        if not self.mcp_registry:
+            return {"mcp_enabled": False, "servers": {}}
+
+        return {
+            "mcp_enabled": self.mcp_tools_enabled,
+            "servers": self.mcp_registry.get_all_server_statuses(),
+            "stats": self.mcp_registry.get_registry_stats(),
+        }
+
+    async def interrupt_current_stream(self) -> bool:
+        """Interrupt the current streaming response.
+
+        Returns:
+            bool: True if stream was interrupted, False otherwise
+        """
+        # Delegate to streaming service if available
+        if (
+            hasattr(self, "streaming_response_service")
+            and self.streaming_response_service is not None
+        ):
+            return await self.streaming_response_service.interrupt_current_stream()
+
+        # Legacy implementation - no streaming to interrupt
         return False
 
     async def send_memory_aware_message_stream(
         self,
         message: str,
-        on_chunk: ChunkCallback,
-        on_error: ErrorCallback = None,
+        on_chunk: Callable[[str, bool], Awaitable[None]],
         enable_filesystem: bool = True,
     ) -> AIResponse:
-        """Send a message with memory awareness and streaming output.
+        """Send a memory-aware message with streaming response.
 
         Args:
-            message: The message to send to the AI
-            on_chunk: Callback function called for each chunk (chunk: str, is_final: bool)
-            on_error: Optional callback function called on errors (error: Exception)
-            enable_filesystem: Whether to enable filesystem tools for this conversation
+            message: The message to send
+            on_chunk: Callback function for streaming chunks
+            enable_filesystem: Whether to enable filesystem tools
 
         Returns:
-            AIResponse: The response from the AI with memory context
+            AIResponse: The complete response after streaming
         """
-        if not self.memory_aware_enabled or not self._memory_system:
-            # Fall back to regular streaming if memory not enabled
-            return await self.send_message_with_tools_stream(
-                message, on_chunk, on_error, enable_filesystem
+        # Delegate to streaming service if available
+        if (
+            hasattr(self, "streaming_response_service")
+            and self.streaming_response_service is not None
+        ):
+            return (
+                await self.streaming_response_service.send_memory_aware_message_stream(
+                    message, on_chunk, enable_filesystem=enable_filesystem
+                )
             )
 
-        try:
-            # Store the user message in memory
-            self._memory_system.store_user_message(message)
+        # Fallback to regular streaming
+        return await self.send_message_with_tools_stream(
+            message, on_chunk, enable_filesystem
+        )
 
-            # Check if this message contains information to remember long-term
-            if any(
-                keyword in message.lower()
-                for keyword in ["my name is", "i am", "call me", "remember that"]
-            ):
-                # Extract and store long-term memory
-                self._memory_system.store_long_term_memory(
-                    content=message, memory_type="user_info", importance_score=0.9
-                )
-
-            # Get conversation context and long-term memories for enhanced prompt
-            context = self._memory_system.get_conversation_context(
-                limit=50
-            )  # Increased to 50 messages
-            long_term_memories = self._memory_system.get_long_term_memories(
-                query=message,
-                limit=5,  # Increased long-term memories too
-            )
-
-            # Enhance message with context if available
-            enhanced_parts = []
-
-            # Add memory context with clear labels
-            if long_term_memories:
-                memory_text = "\n".join(
-                    [
-                        f"- {mem['content']} (importance: {mem.get('importance_score', 'N/A')}, type: {mem.get('memory_type', 'unknown')})"
-                        for mem in long_term_memories
-                    ]
-                )
-                enhanced_parts.append(
-                    f"=== LONG-TERM MEMORY (Persistent facts, preferences, and important information) ===\n{memory_text}"
-                )
-
-            if context:
-                # Reverse the context to show in chronological order (oldest first)
-                context_reversed = list(reversed(context))
-                context_text = "\n".join(
-                    [f"{msg['role']}: {msg['content']}" for msg in context_reversed]
-                )
-                enhanced_parts.append(
-                    f"=== CONVERSATION HISTORY (Recent messages in chronological order - this is your short-term memory) ===\n{context_text}"
-                )
-
-            if enhanced_parts:
-                enhanced_message = (
-                    f"=== MEMORY CONTEXT ===\n"
-                    f"{chr(10).join(enhanced_parts)}\n\n"
-                    f"=== CURRENT USER MESSAGE ===\n{message}\n\n"
-                    f"Please respond to the current user message above, taking into account the conversation history "
-                    f"and any relevant long-term memories. The conversation history shows the complete context of "
-                    f"our recent discussion, so you can reference previous topics and maintain continuity."
-                )
-            else:
-                enhanced_message = message
-
-            logger.info("Using memory-aware AI agent with conversation context")
-
-            # Send the enhanced message
-            response = await self.send_message_with_tools_stream(
-                enhanced_message, on_chunk, on_error, enable_filesystem
-            )
-
-            # Store the assistant response in memory if successful
-            if response.success and response.content:
-                self._memory_system.store_assistant_message(response.content)
-
-            return response
-
-        except Exception as e:
-            logger.warning(
-                f"Memory-aware streaming failed: {e}. Falling back to regular streaming."
-            )
-            # Fall back to regular streaming on memory system errors
-            return await self.send_message_with_tools_stream(
-                message, on_chunk, on_error, enable_filesystem
-            )
-
-    def get_memory_statistics(self) -> dict[str, Any]:
-        """Get memory usage statistics.
+    @property
+    def is_streaming(self) -> bool:
+        """Check if currently streaming.
 
         Returns:
-            dict: Dictionary containing memory usage statistics
+            bool: True if currently streaming, False otherwise
         """
-        if not self.memory_aware_enabled or not self._memory_system:
-            return {"memory_enabled": False, "error": "Memory system not enabled"}
+        # Delegate to streaming service if available
+        if (
+            hasattr(self, "streaming_response_service")
+            and self.streaming_response_service is not None
+        ):
+            return self.streaming_response_service.is_streaming
 
-        try:
-            stats = self._memory_system.get_memory_stats()
-            stats["memory_enabled"] = True
-            return stats
-        except Exception as e:
-            logger.error(f"Failed to get memory statistics: {e}")
-            return {"memory_enabled": True, "error": str(e)}
+        # Legacy implementation - check if we have active stream handlers
+        return (
+            hasattr(self, "current_stream_handler")
+            and self.current_stream_handler is not None
+            and getattr(self.current_stream_handler, "is_streaming", False)
+        )
 
-    async def clear_all_memory(self) -> bool:
-        """Clear all stored memory data and start fresh.
-
-        This is useful when the memory format has changed or you want to reset
-        the AI agent's memory completely.
+    def get_stream_status(self) -> dict[str, Any]:
+        """Get the current streaming status.
 
         Returns:
-            True if successful, False otherwise
+            dict: Stream status information
         """
-        if not self.memory_aware_enabled or not self._memory_system:
-            logger.warning("Memory system not enabled - nothing to clear")
-            return False
+        # Delegate to streaming service if available
+        if (
+            hasattr(self, "streaming_response_service")
+            and self.streaming_response_service is not None
+        ):
+            return self.streaming_response_service.get_stream_status()
 
-        try:
-            success = await self._memory_system.clear_all_memory_data()
-            if success:
-                logger.info("Successfully cleared all AI agent memory data")
-            else:
-                logger.error("Failed to clear AI agent memory data")
-            return success
-        except Exception as e:
-            logger.error(f"Error clearing AI agent memory: {e}")
-            return False
+        # Legacy implementation
+        return {
+            "status": "streaming" if self.is_streaming else "idle",
+            "stream_id": getattr(self, "current_stream_id", None),
+        }
 
-    async def _ensure_mcp_servers_connected(self) -> bool:
-        """Ensure MCP servers are connected in the current event loop context.
+    def get_streaming_health_status(self) -> dict[str, Any]:
+        """Get streaming service health status.
 
         Returns:
-            True if servers are connected, False otherwise
+            dict: Health status information
         """
-        try:
-            if not self.mcp_registry:
-                logger.warning("No MCP registry available")
-                return False
+        # Delegate to streaming service if available
+        if (
+            hasattr(self, "streaming_response_service")
+            and self.streaming_response_service is not None
+        ):
+            return self.streaming_response_service.get_health_status()
 
-            # Check if servers are already connected
-            server_statuses = self.mcp_registry.get_all_server_statuses()
-            connected_count = sum(
-                1 for status in server_statuses.values() if status.connected
-            )
+        # Legacy implementation
+        return {
+            "status": "unavailable",
+            "active_streams": 0,
+        }
 
-            if connected_count > 0:
-                logger.debug(
-                    f"MCP servers already connected: {connected_count}/{len(server_statuses)}"
+    def validate_file_extension(self, file_path: str) -> None:
+        """Validate file extension is allowed.
+
+        Args:
+            file_path: File path to validate.
+
+        Raises:
+            ValueError: If file extension is not allowed.
+        """
+        if self.workspace_service is None:
+            # Legacy implementation for backwards compatibility
+            import os
+
+            _, ext = os.path.splitext(file_path)
+
+            # List of blocked extensions
+            blocked_extensions = {
+                ".exe",
+                ".bat",
+                ".cmd",
+                ".scr",
+                ".pif",
+                ".dll",
+                ".com",
+                ".vbs",
+                ".ps1",
+            }
+
+            if ext.lower() in blocked_extensions:
+                raise ValueError(f"File extension not allowed: {ext}")
+
+            # Require extension for most files (except known files without extensions)
+            if not ext and file_path not in {
+                "Makefile",
+                "Dockerfile",
+                "Jenkinsfile",
+                "Vagrantfile",
+            }:
+                raise ValueError("File extension required")
+
+            return
+
+        return self.workspace_service.validate_file_extension(file_path)
+
+    def validate_file_size(self, content: str, max_size_mb: int = 10) -> None:
+        """Validate file size is within limits.
+
+        Args:
+            content: File content to validate.
+            max_size_mb: Maximum allowed size in MB.
+
+        Raises:
+            ValueError: If file size exceeds limit.
+        """
+        if self.workspace_service is None:
+            # Legacy implementation for backwards compatibility
+            size_bytes = len(content.encode("utf-8"))
+            max_size_bytes = max_size_mb * 1024 * 1024
+
+            if size_bytes > max_size_bytes:
+                raise ValueError(
+                    f"File size exceeds maximum allowed: {size_bytes} bytes > {max_size_bytes} bytes"
                 )
-                return True
 
-            # Check if we need to connect servers on first use (fallback for lazy connection)
-            if self._mcp_servers_need_connection:
-                logger.info("First MCP access detected, connecting servers...")
-                await self._connect_mcp_servers_async()
-                self._mcp_servers_need_connection = False
-                return True
+            return
 
-            # If no servers connected and not flagged for connection, try to reconnect
-            logger.info("No MCP servers connected, attempting to reconnect...")
-            await self._connect_mcp_servers_async()
-
-            # Check again after reconnection attempt
-            server_statuses = self.mcp_registry.get_all_server_statuses()
-            connected_count = sum(
-                1 for status in server_statuses.values() if status.connected
-            )
-
-            return connected_count > 0
-
-        except Exception as e:
-            logger.error(f"Error ensuring MCP servers are connected: {e}")
-            return False
+        return self.workspace_service.validate_file_size(content, max_size_mb)

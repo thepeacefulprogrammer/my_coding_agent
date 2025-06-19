@@ -37,6 +37,7 @@ def chat_widget(app):
     return widget
 
 
+@pytest.mark.qt
 class TestChatWidgetStreamingState:
     """Test streaming state management in ChatWidget."""
 
@@ -248,6 +249,7 @@ class TestChatWidgetStreamingState:
         assert chat_widget.get_current_stream_id() is None
 
 
+@pytest.mark.qt
 class TestChatWidgetStreamingIntegration:
     """Test integration between ChatWidget and StreamHandler."""
 

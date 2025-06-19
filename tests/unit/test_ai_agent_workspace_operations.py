@@ -4,10 +4,9 @@ Tests for AI Agent workspace-aware file operations.
 
 from __future__ import annotations
 
-import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from src.my_coding_agent.core.ai_agent import AIAgent
@@ -31,41 +30,80 @@ class TestWorkspaceAwareOperations:
     @pytest.fixture
     def ai_agent(self, temp_workspace):
         """Create AI Agent instance with temporary workspace."""
-        from src.my_coding_agent.core.ai_agent import AIAgentConfig
         from src.my_coding_agent.core.mcp_file_server import MCPFileConfig
 
-        with patch.dict(
-            os.environ,
-            {
-                "ENDPOINT": "https://test.openai.azure.com/",
-                "API_KEY": "test_key",
-                "MODEL": "test_deployment",
-            },
+        # Create mock services
+        config_service = Mock()
+        config_service.azure_endpoint = "https://test.openai.azure.com/"
+        config_service.azure_api_key = "test_key"
+        config_service.deployment_name = "test_deployment"
+        config_service.api_version = "2024-02-15-preview"
+        config_service.max_tokens = 2000
+        config_service.temperature = 0.7
+        config_service.request_timeout = 30
+        config_service.max_retries = 3
+
+        # Create a real WorkspaceService for testing
+        from src.my_coding_agent.core.ai_services.workspace_service import (
+            WorkspaceService,
+        )
+
+        workspace_service = WorkspaceService()
+        workspace_service.set_workspace_root(temp_workspace)
+
+        error_service = Mock()
+
+        # Mock the AI model and agent creation
+        with (
+            patch("src.my_coding_agent.core.ai_agent.OpenAIModel"),
+            patch("src.my_coding_agent.core.ai_agent.Agent"),
         ):
-            config = AIAgentConfig.from_env()
             mcp_config = MCPFileConfig(base_directory=temp_workspace)
             agent = AIAgent(
-                config, mcp_config, enable_filesystem_tools=False
-            )  # Don't need MCP for workspace tests
-            agent.set_workspace_root(temp_workspace)
+                mcp_config=mcp_config,
+                enable_filesystem_tools=False,
+                config_service=config_service,
+                workspace_service=workspace_service,
+                error_service=error_service,
+            )
             return agent
 
     def test_set_workspace_root(self, temp_workspace):
         """Test setting workspace root directory."""
-        from src.my_coding_agent.core.ai_agent import AIAgentConfig
+        from unittest.mock import Mock, patch
+
+        from src.my_coding_agent.core.ai_services.workspace_service import (
+            WorkspaceService,
+        )
         from src.my_coding_agent.core.mcp_file_server import MCPFileConfig
 
-        with patch.dict(
-            os.environ,
-            {
-                "API_KEY": "test_key",
-                "ENDPOINT": "https://test.openai.azure.com/",
-                "MODEL": "test_deployment",
-            },
+        # Create mock services
+        config_service = Mock()
+        config_service.azure_endpoint = "https://test.openai.azure.com/"
+        config_service.azure_api_key = "test_key"
+        config_service.deployment_name = "test_deployment"
+        config_service.api_version = "2024-02-15-preview"
+        config_service.max_tokens = 2000
+        config_service.temperature = 0.7
+        config_service.request_timeout = 30
+        config_service.max_retries = 3
+
+        workspace_service = WorkspaceService()
+        error_service = Mock()
+
+        # Mock the AI model and agent creation
+        with (
+            patch("src.my_coding_agent.core.ai_agent.OpenAIModel"),
+            patch("src.my_coding_agent.core.ai_agent.Agent"),
         ):
-            config = AIAgentConfig.from_env()
             mcp_config = MCPFileConfig(base_directory=temp_workspace)
-            agent = AIAgent(config, mcp_config, enable_filesystem_tools=False)
+            agent = AIAgent(
+                mcp_config=mcp_config,
+                enable_filesystem_tools=False,
+                config_service=config_service,
+                workspace_service=workspace_service,
+                error_service=error_service,
+            )
             agent.set_workspace_root(temp_workspace)
             assert agent.workspace_root == temp_workspace
 
@@ -173,20 +211,40 @@ class TestWorkspaceAwareOperations:
 
     def test_workspace_root_not_set(self):
         """Test that operations fail when workspace root is not set."""
-        from src.my_coding_agent.core.ai_agent import AIAgentConfig
+        from unittest.mock import Mock, patch
+
+        from src.my_coding_agent.core.ai_services.workspace_service import (
+            WorkspaceService,
+        )
         from src.my_coding_agent.core.mcp_file_server import MCPFileConfig
 
-        with patch.dict(
-            os.environ,
-            {
-                "API_KEY": "test_key",
-                "ENDPOINT": "https://test.openai.azure.com/",
-                "MODEL": "test_deployment",
-            },
+        # Create mock services - workspace service without root set
+        config_service = Mock()
+        config_service.azure_endpoint = "https://test.openai.azure.com/"
+        config_service.azure_api_key = "test_key"
+        config_service.deployment_name = "test_deployment"
+        config_service.api_version = "2024-02-15-preview"
+        config_service.max_tokens = 2000
+        config_service.temperature = 0.7
+        config_service.request_timeout = 30
+        config_service.max_retries = 3
+
+        workspace_service = WorkspaceService()  # No root set
+        error_service = Mock()
+
+        # Mock the AI model and agent creation
+        with (
+            patch("src.my_coding_agent.core.ai_agent.OpenAIModel"),
+            patch("src.my_coding_agent.core.ai_agent.Agent"),
         ):
-            config = AIAgentConfig.from_env()
             mcp_config = MCPFileConfig(base_directory=Path("/tmp"))
-            agent = AIAgent(config, mcp_config, enable_filesystem_tools=False)
+            agent = AIAgent(
+                mcp_config=mcp_config,
+                enable_filesystem_tools=False,
+                config_service=config_service,
+                workspace_service=workspace_service,
+                error_service=error_service,
+            )
 
             with pytest.raises(ValueError, match="Workspace root not set"):
                 agent.resolve_workspace_path("test.txt")

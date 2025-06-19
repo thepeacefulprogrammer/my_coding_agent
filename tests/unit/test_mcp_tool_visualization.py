@@ -15,6 +15,7 @@ from my_coding_agent.core.theme_manager import ThemeManager
 from my_coding_agent.gui.components.mcp_tool_visualization import MCPToolCallWidget
 
 
+@pytest.mark.qt
 class TestMCPToolCallWidget:
     """Test cases for MCPToolCallWidget component."""
 

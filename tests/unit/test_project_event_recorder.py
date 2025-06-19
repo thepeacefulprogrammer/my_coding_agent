@@ -19,6 +19,7 @@ from my_coding_agent.core.file_change_detector import ChangeType, FileChangeEven
 from my_coding_agent.core.memory.memory_types import ProjectHistory
 
 
+@pytest.mark.qt
 class TestProjectEventTypes:
     """Test event type definitions and validation."""
 
@@ -51,6 +52,7 @@ class TestProjectEventTypes:
         assert ProjectEventType.REFACTORING.value == "refactoring"
 
 
+@pytest.mark.qt
 class TestProjectEvent:
     """Test ProjectEvent data model."""
 
@@ -124,6 +126,7 @@ class TestProjectEvent:
         assert project_history.metadata["complexity"] == "high"
 
 
+@pytest.mark.qt
 class TestEventClassifier:
     """Test automatic event classification system."""
 
@@ -230,6 +233,7 @@ class TestEventClassifier:
         assert event_type == ProjectEventType.FILE_MODIFICATION
 
 
+@pytest.mark.qt
 class TestProjectEventRecorder:
     """Test main ProjectEventRecorder class."""
 
@@ -497,6 +501,7 @@ class TestProjectEventRecorder:
         assert stats["manual_events_count"] == 3
 
 
+@pytest.mark.qt
 class TestManualAnnotationInterface:
     """Test manual event annotation interface."""
 
@@ -600,6 +605,7 @@ class TestManualAnnotationInterface:
         assert mock_chroma_engine.store_project_history_with_embedding.call_count == 2
 
 
+@pytest.mark.qt
 class TestIntegrationWithFileChangeDetector:
     """Test integration with FileChangeDetector system."""
 

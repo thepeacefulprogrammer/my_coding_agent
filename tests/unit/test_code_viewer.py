@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QWidget
 from my_coding_agent.core.code_viewer import CodeViewerWidget, LineNumbersWidget
 
 
+@pytest.mark.qt
 class TestCodeViewerWidget:
     """Test cases for CodeViewerWidget class."""
 
@@ -124,6 +125,7 @@ class TestCodeViewerWidget:
         assert len(selected_text) > 0
 
 
+@pytest.mark.qt
 class TestCodeViewerSyntaxHighlighting:
     """Test cases for syntax highlighting functionality."""
 
@@ -293,6 +295,7 @@ class MyClass {
         assert widget.get_current_language() == "python"
 
 
+@pytest.mark.qt
 class TestCodeViewerLineNumbers:
     """Test cases for line numbers functionality."""
 
@@ -468,6 +471,7 @@ class TestCodeViewerLineNumbers:
         assert line_numbers.get_current_line() == 1
 
 
+@pytest.mark.qt
 class TestCodeViewerLargeFileHandling:
     """Test cases for large file handling with lazy loading."""
 
@@ -733,6 +737,7 @@ class TestCodeViewerLargeFileHandling:
             widget._chunk_size = original_chunk_size
 
 
+@pytest.mark.qt
 class TestCodeViewerScrollbars:
     """Test cases for scrollbar functionality and smooth scrolling."""
 
@@ -960,6 +965,7 @@ class TestCodeViewerScrollbars:
         assert widget.textCursor().hasSelection()
 
 
+@pytest.mark.qt
 class TestCodeViewerEdgeCases:
     """Test cases for edge cases and integration scenarios."""
 

@@ -37,6 +37,7 @@ def sample_system_message():
     return ChatMessage.create_system_message("System: Connection established")
 
 
+@pytest.mark.qt
 class TestMessageDisplayComponent:
     """Test suite for MessageDisplay component."""
 

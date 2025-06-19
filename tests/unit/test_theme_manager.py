@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
 from my_coding_agent.core.theme_manager import ThemeManager
 
 
+@pytest.mark.qt
 class TestThemeManager:
     """Test suite for ThemeManager class."""
 

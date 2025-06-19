@@ -15,6 +15,7 @@ from src.my_coding_agent.gui.chat_widget import (
 )
 
 
+@pytest.mark.qt
 class TestMetadataRemoval:
     """Test that all metadata (timestamps and status indicators) are removed from message display."""
 

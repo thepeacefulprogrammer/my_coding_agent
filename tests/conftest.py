@@ -97,3 +97,23 @@ def setup_test_environment() -> Generator[None, None, None]:
     # Restore original environment
     os.environ.clear()
     os.environ.update(original_env)
+
+
+def pytest_collection_modifyitems(config, items):
+    """Modify test collection to handle Qt tests specially.
+
+    This hook ensures that Qt tests are marked appropriately and can be
+    handled differently during parallel execution.
+    """
+    for item in items:
+        # Check if the test is marked as a Qt test
+        if item.get_closest_marker("qt") is not None:
+            # Add a custom marker to indicate this test should run sequentially
+            item.add_marker(pytest.mark.no_parallel)
+
+
+def pytest_configure(config):
+    """Configure pytest with custom markers."""
+    config.addinivalue_line(
+        "markers", "no_parallel: mark test to run sequentially, not in parallel"
+    )

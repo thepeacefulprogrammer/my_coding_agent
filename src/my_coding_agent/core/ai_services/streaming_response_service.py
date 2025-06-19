@@ -13,17 +13,20 @@ import asyncio
 import logging
 from collections.abc import Callable
 from contextlib import suppress
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..streaming import StreamHandler
 from .ai_messaging_service import AIMessagingService
 from .core_ai_service import AIResponse
 
+if TYPE_CHECKING:
+    from typing import Any as MemorySystem  # type: ignore[misc]
+
 logger = logging.getLogger(__name__)
 
 # Type aliases for callbacks
 ChunkCallback = Callable[[str, bool], Any]
-ErrorCallback = Callable[[Exception], Any]
+ErrorCallback = Callable[[Exception], Any] | None
 
 
 class StreamingResponseService:
@@ -32,7 +35,7 @@ class StreamingResponseService:
     def __init__(
         self,
         ai_messaging_service: AIMessagingService,
-        memory_system=None,
+        memory_system: MemorySystem | None = None,  # noqa: ANN401  # noqa: ANN401
         enable_memory_awareness: bool = False,
     ) -> None:
         """Initialize the streaming response service.
@@ -156,7 +159,7 @@ class StreamingResponseService:
                             # This might be a coroutine (in tests), await it
                             try:
                                 chunks = await stream_text
-                                if isinstance(chunks, (list, tuple)):
+                                if isinstance(chunks, list | tuple):
                                     for chunk in chunks:
                                         full_content.append(chunk)
                                         chunk_count += 1
@@ -173,13 +176,6 @@ class StreamingResponseService:
                                             if on_error:
                                                 with suppress(Exception):
                                                     on_error(callback_error)
-                                else:
-                                    # Single chunk
-                                    full_content.append(str(chunks))
-                                    chunk_count += 1
-                                    callback_result = on_chunk(str(chunks), False)
-                                    if hasattr(callback_result, "__await__"):
-                                        await callback_result
                             except Exception as stream_await_error:
                                 logger.error(
                                     f"Error awaiting stream: {stream_await_error}"

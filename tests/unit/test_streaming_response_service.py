@@ -355,7 +355,6 @@ class TestStreamingResponseService:
         mock_agent.run_stream.return_value.__aexit__ = AsyncMock(return_value=None)
 
         # Override the run_stream method to add our retry logic
-        original_run_stream = mock_agent.run_stream
         mock_agent.run_stream = mock_run_stream
 
         streaming_service._ai_messaging_service._agent = mock_agent

@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
+
+if TYPE_CHECKING:
+    from ..ai_agent import AIAgentConfig
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +43,7 @@ class AIResponse(BaseModel):
 class CoreAIService:
     """Core AI service for Azure OpenAI communication."""
 
-    def __init__(self, config) -> None:
+    def __init__(self, config: AIAgentConfig) -> None:
         """Initialize the core AI service.
 
         Args:
@@ -128,7 +131,9 @@ class CoreAIService:
                 tokens_used=0,
             )
 
-    async def _run_with_retries(self, message: str, max_retries: int = None):
+    async def _run_with_retries(
+        self, message: str, max_retries: int | None = None
+    ) -> Any:  # noqa: ANN401
         """Run the agent with retry logic for transient errors."""
         if max_retries is None:
             max_retries = self.config.max_retries

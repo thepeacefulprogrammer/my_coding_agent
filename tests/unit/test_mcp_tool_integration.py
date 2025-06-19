@@ -7,6 +7,7 @@ from src.my_coding_agent.gui.chat_widget_v2 import SimplifiedChatWidget
 from src.my_coding_agent.gui.components.mcp_tool_visualization import MCPToolCallWidget
 
 
+@pytest.mark.qt
 class TestMCPToolIntegration:
     """Test integration of MCP tool visualization into chat display."""
 

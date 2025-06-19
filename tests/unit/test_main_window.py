@@ -14,12 +14,14 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import Mock
 
+import pytest
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QLabel, QMainWindow, QSplitter
 from src.my_coding_agent.core.main_window import MainWindow
 
 
+@pytest.mark.qt
 class TestMainWindow:
     """Test suite for MainWindow class."""
 
@@ -769,6 +771,7 @@ class TestMainWindow:
         window.close()
 
 
+@pytest.mark.qt
 class TestMainWindowCreation:
     """Test suite for MainWindow creation scenarios."""
 
@@ -825,6 +828,7 @@ class TestMainWindowCreation:
         window.close()
 
 
+@pytest.mark.qt
 class TestMainWindowIntegration:
     """Integration tests for MainWindow with Qt application."""
 
@@ -858,6 +862,7 @@ class TestMainWindowIntegration:
         window.close()
 
 
+@pytest.mark.qt
 class TestMainWindowThreePanelLayout:
     """Test suite for three-panel layout modifications."""
 

@@ -6,10 +6,15 @@ import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..mcp import MCPClient, MCPServerRegistry
 from ..mcp_file_server import MCPFileConfig
+
+if TYPE_CHECKING:
+    from typing import Any as SignalHandler
+
+    from .tool_registration_service import ToolRegistrationService
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +22,11 @@ logger = logging.getLogger(__name__)
 class MCPConnectionService:
     """Service for managing MCP server connections and lifecycle."""
 
-    def __init__(self, signal_handler=None, tool_registration_service=None) -> None:
+    def __init__(
+        self,
+        signal_handler: SignalHandler | None = None,  # noqa: ANN401
+        tool_registration_service: ToolRegistrationService | None = None,
+    ) -> None:
         """
         Initialize the MCP Connection Service.
 
