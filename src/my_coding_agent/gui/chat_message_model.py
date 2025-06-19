@@ -226,6 +226,11 @@ class ChatMessageModel(QStandardItemModel):
         """Get all messages."""
         return self._messages.copy()
 
+    @property
+    def messages(self) -> list[ChatMessage]:
+        """Property to access messages for testing compatibility."""
+        return self._messages
+
     def get_messages_by_role(self, role: MessageRole) -> list[ChatMessage]:
         """Get messages filtered by role."""
         return [msg for msg in self._messages if msg.role == role]

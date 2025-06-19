@@ -173,7 +173,6 @@ class MCPWorkerThread(QThread):
 
             # Track response content
             response_content = ""
-            message_started = False
 
             # Start streaming response
             self.start_streaming_signal.emit(stream_id)

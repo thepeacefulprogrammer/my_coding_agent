@@ -15,9 +15,12 @@
 
 - 🎨 **Modern GUI**: Beautiful, responsive interface with syntax highlighting
 - 🤖 **AI Integration**: Seamless coding agent integration for enhanced productivity
+- ☁️ **Azure OpenAI Support**: Direct integration with Azure OpenAI services via PydanticAI
+- 🔄 **Streaming AI Responses**: Real-time streaming conversations with AI models
+- 🔌 **MCP Protocol**: Model Context Protocol support for external AI architectures
 - 🔍 **Advanced Code Analysis**: Intelligent code insights and suggestions
 - 🎯 **Extensible Architecture**: Plugin system for custom functionality
-- 🛡️ **Type-Safe**: Full type hints and static analysis
+- 🛡️ **Type-Safe**: Full type hints and static analysis with PydanticAI integration
 - 📚 **Comprehensive Documentation**: Auto-generated API docs with examples
 - ⚡ **High Performance**: Optimized for large codebases
 
@@ -44,6 +47,29 @@ from my_coding_agent import CodeViewer
 viewer = CodeViewer()
 viewer.load_file("example.py")
 viewer.show()
+```
+
+### AI Service Configuration
+
+To use Azure OpenAI integration, set the required environment variables:
+
+```bash
+# Required for Azure OpenAI
+export AZURE_OPENAI_ENDPOINT='https://your-resource.openai.azure.com/'
+export AZURE_OPENAI_API_KEY='your-api-key-here'
+
+# Optional configuration
+export AZURE_OPENAI_API_VERSION='2024-07-01-preview'
+export AZURE_OPENAI_DEPLOYMENT='gpt-4o'
+```
+
+Example AI service usage:
+
+```python
+# AI services will be available once implemented
+from my_coding_agent.core.ai_services import AIServiceAdapter
+
+# Configuration and usage examples in examples/demo_ai_chat.py
 ```
 
 ## 🛠️ Development Setup
@@ -112,13 +138,22 @@ This project follows semantic versioning and maintains:
 
 ```
 src/my_coding_agent/
-├── core/          # Core functionality
-├── gui/           # GUI components
-├── agents/        # AI agent integration
-├── plugins/       # Plugin system
-├── config/        # Configuration management
-└── assets/        # Static resources
+├── core/                    # Core functionality
+│   ├── ai_services/        # AI service integration (Azure OpenAI, MCP)
+│   ├── mcp/               # Model Context Protocol support
+│   └── streaming/         # Streaming response handling
+├── gui/                   # GUI components with AI chat integration
+├── config/               # Configuration management (including AI settings)
+├── assets/              # Static resources
+└── py.typed            # Type checking support
 ```
+
+### Key Dependencies
+
+- **PydanticAI**: Type-safe AI model integration with Azure OpenAI support
+- **PyQt6**: Modern GUI framework for cross-platform desktop application
+- **MCP (Model Context Protocol)**: Protocol for AI agent communication
+- **OpenAI**: Azure OpenAI API client for direct model access
 
 ## 🔒 License
 

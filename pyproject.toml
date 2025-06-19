@@ -5,17 +5,20 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "my-coding-agent"
 dynamic = ["version"]
-description = "A clean, fast code viewing application with syntax highlighting"
+description = "A modern code viewer with AI integration supporting Azure OpenAI and MCP protocols"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [{ name = "Randy", email = "randy.herritt@gmail.com" }]
 maintainers = [{ name = "Randy", email = "randy.herritt@gmail.com" }]
-keywords = ["code", "viewer", "syntax", "highlighting", "gui"]
+keywords = ["code", "viewer", "syntax", "highlighting", "gui", "ai", "azure-openai", "mcp", "chat", "pydantic-ai"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: End Users/Desktop",
+    "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Text Editors",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Communications :: Chat",
     "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",

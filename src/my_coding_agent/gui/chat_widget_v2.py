@@ -505,6 +505,8 @@ class SimplifiedChatWidget(QWidget):
 
         # Initialize message model
         self.message_model = ChatMessageModel()
+        # Add alias for backward compatibility with tests
+        self._message_model = self.message_model
 
         # Streaming state
         self._is_streaming = False
@@ -524,6 +526,9 @@ class SimplifiedChatWidget(QWidget):
 
         # Initialize UI and connections
         self.setup_ui()
+
+        # Add alias for input widget after UI setup (for backward compatibility with tests)
+        self._input_widget = getattr(self, "input_text", None)
 
         # Apply theme if auto-adaptation is enabled
         if self._auto_adapt_theme and self.theme_manager:
@@ -567,6 +572,9 @@ class SimplifiedChatWidget(QWidget):
 
         # Create text input - full width
         self.input_text = EnhancedTextEdit()
+        # Add alias for backward compatibility with tests
+        self._input_widget = self.input_text
+
         self.input_text.setPlaceholderText(
             "Type your message... (Enter to send, Shift+Enter for new line)"
         )

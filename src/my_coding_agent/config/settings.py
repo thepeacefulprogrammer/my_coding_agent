@@ -109,7 +109,11 @@ class Settings:
         if auth_token := os.getenv("MCP_AUTH_TOKEN"):
             self.mcp_auth_token = auth_token
 
-        if (auth_type := os.getenv("MCP_AUTH_TYPE")) and auth_type.lower() in ("none", "bearer", "oauth2"):
+        if (auth_type := os.getenv("MCP_AUTH_TYPE")) and auth_type.lower() in (
+            "none",
+            "bearer",
+            "oauth2",
+        ):
             self.mcp_auth_type = auth_type.lower()
 
     def is_mcp_url_valid(self) -> bool:

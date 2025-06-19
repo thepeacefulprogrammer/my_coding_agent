@@ -36,7 +36,8 @@ class StreamingResponseService:
 
     def __init__(
         self,
-        ai_messaging_service: Any = None,  # TODO: Remove during simplification
+        ai_messaging_service: object
+        | None = None,  # TODO: Remove during simplification
         memory_system: Any | None = None,  # noqa: ANN401  # noqa: ANN401
         enable_memory_awareness: bool = False,
     ) -> None:
