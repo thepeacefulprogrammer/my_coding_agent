@@ -9,6 +9,9 @@ and will later host the file tree and code viewer components.
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
+import threading
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -17,38 +20,245 @@ if TYPE_CHECKING:
     from .code_viewer import CodeViewerWidget
     from .file_tree import FileTreeWidget
 
-from PyQt6.QtCore import QSize, QThread, QTimer, pyqtSignal
+from PyQt6.QtCore import (
+    QSettings,
+    QSize,
+    QThread,
+    QTimer,
+    pyqtSignal,
+)
 from PyQt6.QtGui import QAction, QCloseEvent, QKeySequence
 from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout
 
 from ..gui.chat_widget_v2 import SimplifiedChatWidget
 from .ai_agent import AIAgent, AIAgentConfig
+from .mcp_client_coordinator import MCPClientCoordinator, MCPCoordinatorConfig
 from .theme_manager import ThemeManager
 
+logger = logging.getLogger(__name__)
 
-class AIWorkerThread(QThread):
-    """Worker thread for handling AI requests asynchronously."""
+
+class MCPWorkerThread(QThread):
+    """Worker thread for handling MCP requests asynchronously."""
 
     response_ready = pyqtSignal(str, bool, str)  # content, success, error
 
-    def __init__(self, ai_agent: AIAgent, message: str) -> None:
+    def __init__(self, coordinator: MCPClientCoordinator, message: str) -> None:
         super().__init__()
-        self.ai_agent = ai_agent
+        self.coordinator = coordinator
         self.message = message
 
     def run(self) -> None:
-        """Run the AI request in a separate thread."""
+        """Execute the MCP request in the background thread."""
+        loop = None
         try:
-            # This is the old synchronous approach - kept for compatibility
-            # but should not be used with the new streaming implementation
-            response = None  # Placeholder - old sync method removed
-            if response and response.success:
-                self.response_ready.emit(response.content, True, "")
-            else:
-                error_msg = response.error if response else "Unknown error"
-                self.response_ready.emit("", False, error_msg)
+            # Create event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            # Send message and get response
+            response = loop.run_until_complete(
+                self.coordinator.send_message(self.message)
+            )
+
+            # Emit success signal
+            self.response_ready.emit(response.content, True, "")
+
         except Exception as e:
+            # Emit error signal
             self.response_ready.emit("", False, str(e))
+        finally:
+            if loop:
+                loop.close()
+
+    def _initialize_mcp_connection(self) -> None:
+        """Initialize MCP connection asynchronously after GUI startup."""
+        if not self._mcp_coordinator:
+            return
+
+        def run_mcp_initialization():
+            """Run MCP connection initialization in a separate thread with event loop."""
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            try:
+                print("🔗 Connecting to MCP server...")
+                # Connect to MCP server
+                loop.run_until_complete(self._mcp_coordinator.connect())
+                print("✅ MCP server connected successfully")
+
+                # Update chat widget with connection status
+                if hasattr(self, "_chat_widget") and self._chat_widget:
+                    QTimer.singleShot(
+                        0,
+                        lambda: self._chat_widget.add_system_message(
+                            "Connected to MCP server successfully"
+                        ),
+                    )
+
+            except Exception as e:
+                error_msg = f"❌ Failed to connect to MCP server: {e}"
+                print(error_msg)
+                if hasattr(self, "_chat_widget") and self._chat_widget:
+                    # Capture the error message in the lambda to avoid variable scope issues
+                    error_message = f"MCP server connection failed: {str(e)}"
+                    QTimer.singleShot(
+                        0,
+                        lambda msg=error_message: self._chat_widget.add_system_message(
+                            msg
+                        ),
+                    )
+            finally:
+                loop.close()
+
+        # Start initialization in background thread
+        thread = threading.Thread(target=run_mcp_initialization, daemon=True)
+        thread.start()
+
+    def _handle_chat_message(self, message: str) -> None:
+        """Handle messages from the chat widget and generate MCP responses with streaming."""
+        if not self._mcp_coordinator:
+            # If no MCP coordinator, show a simple message
+            self._chat_widget.add_assistant_message(
+                "MCP client is not available. Please check configuration."
+            )
+            return
+
+        # Show thinking indicator
+        self._chat_widget.show_ai_thinking(animated=True)
+
+        # Start streaming MCP response asynchronously
+        QTimer.singleShot(10, lambda: self._start_streaming_response(message))
+
+    def _start_streaming_response(self, message: str) -> None:
+        """Start the streaming MCP response."""
+
+        # Create a new thread for the async operation
+        def run_async_response():
+            # Create a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            try:
+                # Run the streaming response
+                loop.run_until_complete(self._stream_mcp_response(message))
+            except Exception as error:
+                # Handle any errors - capture exception variable properly
+                self.streaming_error_signal.emit(error)
+            finally:
+                loop.close()
+
+        # Start the thread
+        thread = threading.Thread(target=run_async_response, daemon=True)
+        thread.start()
+
+    async def _stream_mcp_response(self, message: str) -> None:
+        """Generate streaming MCP response."""
+        print(f"🚀 Starting MCP stream for message: '{message}'")
+
+        # Add None check for MCP coordinator
+        if not self._mcp_coordinator:
+            print("❌ No MCP coordinator available")
+            self.streaming_error_signal.emit(Exception("MCP coordinator not available"))
+            return
+
+        try:
+            print("🔄 Hiding typing indicator and starting stream")
+            # Hide thinking indicator and start streaming response
+            QTimer.singleShot(0, lambda: self._chat_widget.hide_typing_indicator())
+
+            # Generate a unique stream ID
+            stream_id = str(uuid.uuid4())
+            print(f"📝 Stream ID: {stream_id}")
+
+            # Track response content
+            response_content = ""
+            message_started = False
+
+            # Start streaming response
+            self.start_streaming_signal.emit(stream_id)
+            _message_started = True
+
+            # Send message with streaming support
+            print(f"📡 Sending message to MCP server. Message length: {len(message)}")
+
+            async for chunk in self._mcp_coordinator.send_message_streaming(message):
+                print(
+                    f"🔍 Received chunk: content='{chunk.content}', complete={chunk.is_complete}"
+                )
+
+                # Accumulate response content
+                if chunk.content:
+                    response_content += chunk.content
+                    self.append_chunk_signal.emit(chunk.content)
+
+                # Check if streaming is complete
+                if chunk.is_complete:
+                    print("🏁 Streaming response complete")
+                    self.complete_streaming_signal.emit()
+                    break
+
+            print(
+                f"✅ MCP response completed. Total content length: {len(response_content)}"
+            )
+
+        except Exception as error:
+            # Handle any unexpected errors
+            print(f"❌ MCP streaming error: {error}")
+            self.streaming_error_signal.emit(error)
+
+    def _connect_streaming_signals(self) -> None:
+        """Connect streaming signals between main window and chat widget."""
+        if not self._chat_widget:
+            return
+
+        # Connect streaming signals
+        self.start_streaming_signal.connect(self._chat_widget.start_streaming_response)
+        self.append_chunk_signal.connect(self._chat_widget.append_streaming_chunk)
+        self.complete_streaming_signal.connect(
+            self._chat_widget.complete_streaming_response
+        )
+        self.streaming_error_signal.connect(self._chat_widget.handle_streaming_error)
+
+        # Connect MCP tool call signals
+        self.tool_call_started_signal.connect(self._chat_widget.start_tool_call)
+        self.tool_call_completed_signal.connect(self._chat_widget.complete_tool_call)
+        self.tool_call_failed_signal.connect(self._chat_widget.fail_tool_call)
+
+        print("✅ MainWindow: All streaming signals connected")
+
+    def _handle_streaming_error(self, error: Exception) -> None:
+        """Handle streaming errors in the main thread."""
+        # Hide any indicators and show error
+        self._chat_widget.hide_typing_indicator()
+
+        # If there's an active stream, handle the error through the streaming system
+        if self._chat_widget.is_streaming():
+            self._chat_widget.handle_streaming_error(error)
+        else:
+            # Fallback: add error message directly
+            self._chat_widget.add_assistant_message(f"MCP Error: {str(error)}")
+
+    def _new_chat(self) -> None:
+        """Start a new chat conversation by clearing the current conversation."""
+        if hasattr(self, "_chat_widget") and self._chat_widget is not None:
+            # Reset streaming state if widget supports it
+            if hasattr(self._chat_widget, "_is_streaming"):
+                self._chat_widget._is_streaming = False
+
+            # Clear the conversation
+            self._chat_widget.clear_conversation()
+
+            # Provide status feedback
+            if hasattr(self, "_file_info_label"):
+                self._file_info_label.setText("New chat started")
+
+            # Also update the status bar with a temporary message
+            status_bar = self.statusBar()
+            if status_bar is not None:
+                status_bar.showMessage(
+                    "New chat conversation started", 3000
+                )  # Show for 3 seconds
 
 
 class MainWindow(QMainWindow):
@@ -94,6 +304,10 @@ class MainWindow(QMainWindow):
 
         self._ai_agent: AIAgent | None = None
         self._chat_widget: SimplifiedChatWidget | None = None
+
+        # Initialize MCP coordinator
+        self._mcp_coordinator: MCPClientCoordinator | None = None
+        self._mcp_worker_thread: MCPWorkerThread | None = None
 
         # Set up the user interface
         self._setup_ui()
@@ -473,7 +687,6 @@ class MainWindow(QMainWindow):
 
     def _setup_settings(self) -> None:
         """Set up QSettings for persistent application state."""
-        from PyQt6.QtCore import QSettings
 
         # Create settings object for persistent storage
         self._settings = QSettings("MyCodeViewerApp", "SimpleCodeViewer")
@@ -611,32 +824,10 @@ class MainWindow(QMainWindow):
             )
             self._ai_agent = None
 
-    def _connect_streaming_signals(self) -> None:
-        """Connect streaming signals between main window and chat widget."""
-        if not self._chat_widget:
-            return
-
-        # Connect streaming signals
-        self.start_streaming_signal.connect(self._chat_widget.start_streaming_response)
-        self.append_chunk_signal.connect(self._chat_widget.append_streaming_chunk)
-        self.complete_streaming_signal.connect(
-            self._chat_widget.complete_streaming_response
-        )
-        self.streaming_error_signal.connect(self._chat_widget.handle_streaming_error)
-
-        # Connect MCP tool call signals
-        self.tool_call_started_signal.connect(self._chat_widget.start_tool_call)
-        self.tool_call_completed_signal.connect(self._chat_widget.complete_tool_call)
-        self.tool_call_failed_signal.connect(self._chat_widget.fail_tool_call)
-
-        print("✅ MainWindow: All streaming signals connected")
-
     def _initialize_mcp_servers(self) -> None:
         """Initialize MCP servers asynchronously after GUI startup."""
         if not self._ai_agent or not self._ai_agent.mcp_tools_enabled:
             return
-
-        import threading
 
         def run_mcp_initialization():
             """Run MCP server initialization in a separate thread with event loop."""
@@ -719,7 +910,6 @@ class MainWindow(QMainWindow):
 
     def _start_streaming_response_with_context(self, message: str) -> None:
         """Start the streaming AI response with conversation context."""
-        import threading
 
         # Create a new thread for the async operation
         def run_async_response():
@@ -925,3 +1115,58 @@ class MainWindow(QMainWindow):
         # Implement logic to load conversation history
         # This is a placeholder and should be replaced with actual implementation
         pass
+
+    def _setup_mcp_integration(self) -> None:
+        """Setup MCP (Model Context Protocol) integration."""
+        try:
+            # Create MCP coordinator configuration
+            # Get server URL from environment or use default
+            server_url = os.getenv("MCP_SERVER_URL", "http://localhost:8080")
+
+            config = MCPCoordinatorConfig(
+                server_url=server_url,
+                timeout=30.0,
+                enable_streaming=True,
+                max_retries=3,
+            )
+
+            # Initialize MCP coordinator
+            self._mcp_coordinator = MCPClientCoordinator(config)
+
+            # Connect chat widget message_sent signal to our handler
+            self._chat_widget.message_sent.connect(self._handle_chat_message)
+
+            # Connect streaming signals
+            self._connect_streaming_signals()
+
+            # Show success message in chat
+            self._chat_widget.add_system_message("MCP Client initialized successfully")
+
+            # Schedule MCP server connection to happen after GUI initialization
+            QTimer.singleShot(1000, self._initialize_mcp_connection)  # 1 second delay
+
+        except Exception as e:
+            # If MCP initialization fails, show error in chat
+            self._chat_widget.add_system_message(
+                f"MCP initialization failed: {str(e)}. Chat will work with limited functionality."
+            )
+            self._mcp_coordinator = None
+
+    def _initialize_mcp_connection(self) -> None:
+        """Initialize MCP connection after GUI startup."""
+        if not self._mcp_coordinator:
+            return
+
+        # Create MCP worker thread
+        self._mcp_worker_thread = MCPWorkerThread(
+            self._mcp_coordinator, "Initial connection"
+        )
+        self._mcp_worker_thread.response_ready.connect(self._handle_mcp_response)
+        self._mcp_worker_thread.start()
+
+    def _handle_mcp_response(self, content: str, success: bool, error: str) -> None:
+        """Handle MCP response from worker thread."""
+        if success:
+            self.update_file_info_display(f"MCP connection successful: {content}")
+        else:
+            self.update_file_info_display(f"MCP connection failed: {error}")

@@ -18,14 +18,16 @@ from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 
 from .mcp import MCPClient, MCPServerRegistry
-from .mcp_file_server import FileOperationError, MCPFileConfig, MCPFileServer
+
+# from .mcp_file_server import FileOperationError, MCPFileConfig, MCPFileServer  # DELETED - file operations move to external AI agent
 
 # Foundation services
 try:
-    from .ai_services.configuration_service import ConfigurationService
-    from .ai_services.error_handling_service import ErrorCategory, ErrorHandlingService
     from .ai_services.mcp_connection_service import MCPConnectionService
-    from .ai_services.workspace_service import WorkspaceService
+# TODO: Remove other service imports during simplification
+# from .ai_services.configuration_service import ConfigurationService  # DELETED
+# from .ai_services.error_handling_service import ErrorCategory, ErrorHandlingService  # DELETED
+# from .ai_services.workspace_service import WorkspaceService  # DELETED
 except ImportError:
     # Handle case where services aren't available yet during development
     ConfigurationService = None
@@ -138,6 +140,8 @@ class AIAgent:
         streaming_response_service=None,  # StreamingResponseService for streaming functionality
         ai_messaging_service=None,  # AIMessagingService for enhanced messaging
         tool_registration_service=None,  # ToolRegistrationService for tool management
+        memory_context_service=None,  # MemoryContextService for memory functionality
+        project_history_service=None,  # ProjectHistoryService for project history functionality
     ) -> None:
         """
         Initialize the AI Agent.
@@ -158,6 +162,7 @@ class AIAgent:
             streaming_response_service: StreamingResponseService for streaming functionality
             ai_messaging_service: AIMessagingService for enhanced messaging capabilities
             tool_registration_service: ToolRegistrationService for tool management
+            memory_context_service: MemoryContextService for memory functionality
         """
         # Handle service-oriented vs legacy configuration
         if config_service is not None:
@@ -181,6 +186,12 @@ class AIAgent:
         self.ai_messaging_service = ai_messaging_service  # Can be None for legacy mode
         self.tool_registration_service = (
             tool_registration_service  # Can be None for legacy mode
+        )
+        self.memory_context_service = (
+            memory_context_service  # Can be None for legacy mode
+        )
+        self.project_history_service = (
+            project_history_service  # Can be None for legacy mode
         )
 
         self.mcp_config = mcp_config
@@ -222,7 +233,7 @@ class AIAgent:
         # Initialize memory system if requested
         if enable_memory_awareness:
             try:
-                from .memory_integration import ConversationMemoryHandler
+                # from .memory_integration import ConversationMemoryHandler  # DELETED - memory integration removed
 
                 self._memory_system = ConversationMemoryHandler()
                 logger.info("Memory system initialized successfully")
@@ -233,7 +244,7 @@ class AIAgent:
         # Initialize MCP file server if config provided
         if mcp_config:
             try:
-                from .mcp_file_server import MCPFileServer
+                # from .mcp_file_server import MCPFileServer  # DELETED - file operations move to external AI agent
 
                 self.mcp_file_server = MCPFileServer(mcp_config)
                 logger.info("AI Agent initialized with MCP file server integration")
@@ -670,6 +681,11 @@ class AIAgent:
 
     def _register_project_history_tools(self) -> None:
         """Register project history tools with the AI Agent."""
+        # Delegate to ProjectHistoryService if available (service-oriented mode)
+        if self.project_history_service is not None:
+            return self.project_history_service.register_tools(self._agent)
+
+        # Legacy implementation for backwards compatibility
         if not self.memory_aware_enabled or not hasattr(self, "_memory_system"):
             logger.warning("Project history tools require memory system")
             return
@@ -962,49 +978,53 @@ class AIAgent:
         self, file_path: str, limit: int = 20
     ) -> str:
         """Get project history for a specific file."""
+        if self.project_history_service is not None:
+            return await self.project_history_service._tool_get_file_project_history(
+                file_path, limit
+            )
+
+        # Legacy implementation for backwards compatibility
         try:
             if not hasattr(self, "_memory_system") or not self._memory_system:
                 return "Error: Memory system not available for project history"
 
-            # Use cached result if available
-            cache_key = f"file_history_{file_path}_{limit}"
-            if cache_key in self._project_history_cache:
-                return self._project_history_cache[cache_key]
-
-            # Get project history for the file
+            # Get project history for the specific file
             history = self._memory_system.get_project_history_for_file(file_path, limit)
 
             if not history:
-                result = f"No project history found for file: {file_path}"
-            else:
-                result_lines = [f"Project History for {file_path}:"]
-                result_lines.append("=" * 50)
+                return f"No project history found for file: {file_path}"
 
-                for event in history:
-                    timestamp = event.get("timestamp", 0)
-                    if isinstance(timestamp, int | float):
-                        from datetime import datetime
+            # Format the history for display
+            formatted_history = []
+            for entry in history:
+                timestamp = entry.get("timestamp", 0)
+                event_type = entry.get("event_type", "unknown")
+                summary = entry.get("summary", "No summary available")
+                content = entry.get("content", "")
 
-                        time_str = datetime.fromtimestamp(timestamp).strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-                    else:
-                        time_str = str(timestamp)
+                # Format timestamp
+                from datetime import datetime
 
-                    event_type = event.get("event_type", "unknown")
-                    summary = event.get("summary", "No summary available")
-                    content = event.get("content", "")
+                try:
+                    time_str = datetime.fromtimestamp(timestamp).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
+                except (ValueError, OSError):
+                    time_str = "Unknown time"
 
-                    result_lines.append(f"[{time_str}] {event_type.upper()}")
-                    result_lines.append(f"Summary: {summary}")
-                    if content:
-                        result_lines.append(f"Details: {content[:200]}...")
-                    result_lines.append("-" * 30)
+                formatted_entry = f"[{time_str}] {event_type.upper()}: {summary}"
+                if content:
+                    formatted_entry += f"\n  Details: {content[:200]}..."
 
-                result = "\n".join(result_lines)
+                formatted_history.append(formatted_entry)
 
-            # Cache the result
-            self._project_history_cache[cache_key] = result
+            result = (
+                f"Project History for {file_path}:\n"
+                + "=" * 50
+                + "\n"
+                + "\n\n".join(formatted_history)
+            )
+
             return result
 
         except Exception as e:
@@ -1013,6 +1033,12 @@ class AIAgent:
 
     async def _tool_search_project_history(self, query: str, limit: int = 25) -> str:
         """Search project history using semantic and text search."""
+        if self.project_history_service is not None:
+            return await self.project_history_service._tool_search_project_history(
+                query, limit
+            )
+
+        # Legacy implementation for backwards compatibility
         try:
             if not hasattr(self, "_memory_system") or not self._memory_system:
                 return "Error: Memory system not available for project history search"
@@ -1021,31 +1047,39 @@ class AIAgent:
             results = self._memory_system.search_project_history(query, limit)
 
             if not results:
-                return f"No project history found matching query: {query}"
+                return f"No search results found for query: {query}"
 
-            result_lines = [f"Project History Search Results for '{query}':"]
-            result_lines.append("=" * 60)
+            # Format the search results for display
+            formatted_results = []
+            for entry in results:
+                timestamp = entry.get("timestamp", 0)
+                file_path = entry.get("file_path", "Unknown file")
+                event_type = entry.get("event_type", "unknown")
+                summary = entry.get("summary", "No summary available")
 
-            for event in results:
-                timestamp = event.get("timestamp", 0)
-                if isinstance(timestamp, int | float):
-                    from datetime import datetime
+                # Format timestamp
+                from datetime import datetime
 
+                try:
                     time_str = datetime.fromtimestamp(timestamp).strftime(
                         "%Y-%m-%d %H:%M:%S"
                     )
-                else:
-                    time_str = str(timestamp)
+                except (ValueError, OSError):
+                    time_str = "Unknown time"
 
-                file_path = event.get("file_path", "unknown")
-                event_type = event.get("event_type", "unknown")
-                summary = event.get("summary", "No summary available")
+                formatted_entry = (
+                    f"[{time_str}] {file_path} - {event_type.upper()}: {summary}"
+                )
+                formatted_results.append(formatted_entry)
 
-                result_lines.append(f"[{time_str}] {file_path}")
-                result_lines.append(f"Type: {event_type} | Summary: {summary}")
-                result_lines.append("-" * 40)
+            result = (
+                f"Search Results for '{query}':\n"
+                + "=" * 50
+                + "\n"
+                + "\n\n".join(formatted_results)
+            )
 
-            return "\n".join(result_lines)
+            return result
 
         except Exception as e:
             logger.error(f"Error searching project history: {e}")
@@ -1056,6 +1090,15 @@ class AIAgent:
     ) -> str:
         """Get recent project changes within specified time period."""
         try:
+            # Delegate to ProjectHistoryService if available (service-oriented mode)
+            if self.project_history_service is not None:
+                return (
+                    await self.project_history_service._tool_get_recent_project_changes(
+                        hours, limit
+                    )
+                )
+
+            # Legacy implementation for backwards compatibility
             if not hasattr(self, "_memory_system") or not self._memory_system:
                 return "Error: Memory system not available for recent changes"
 
@@ -1089,6 +1132,13 @@ class AIAgent:
     ) -> str:
         """Get project timeline showing chronological development."""
         try:
+            # Delegate to ProjectHistoryService if available (service-oriented mode)
+            if self.project_history_service is not None:
+                return await self.project_history_service._tool_get_project_timeline(
+                    file_path, days_back
+                )
+
+            # Legacy implementation for backwards compatibility
             if not hasattr(self, "_memory_system") or not self._memory_system:
                 return "Error: Memory system not available for project timeline"
 
@@ -1127,192 +1177,100 @@ class AIAgent:
 
     def _should_lookup_project_history(self, message: str) -> bool:
         """Determine if a message should trigger project history lookup."""
-        if not self.project_history_enabled:
-            return False
+        if self.project_history_service is not None:
+            return self.project_history_service.should_lookup_project_history(message)
 
-        # Keywords that suggest file-related queries
-        file_keywords = [
-            "history",
-            "changes",
-            "modified",
-            "evolution",
-            "development",
-            "timeline",
-            "when",
-            "how",
-            "why",
-            "what happened",
-            "recent",
-            ".py",
-            ".js",
-            ".ts",
-            ".json",
-            ".md",
-            ".txt",
-            ".yaml",
-            ".yml",
-        ]
-
-        message_lower = message.lower()
-        return any(keyword in message_lower for keyword in file_keywords)
+        # Simple fallback when service not available
+        return self.project_history_enabled and any(
+            keyword in message.lower()
+            for keyword in [
+                "history",
+                "changes",
+                "modified",
+                "timeline",
+                ".py",
+                ".js",
+                ".json",
+            ]
+        )
 
     def _get_recent_project_history(self, limit: int = 50) -> list[dict]:
         """Get recent project history with caching."""
-        try:
-            if not hasattr(self, "_memory_system") or not self._memory_system:
-                return []
+        if self.project_history_service is not None:
+            return self.project_history_service.get_recent_project_history(limit)
 
-            cache_key = f"recent_history_{limit}"
-            if cache_key in self._project_history_cache:
-                return self._project_history_cache[cache_key]
-
-            history = self._memory_system.get_project_history(limit=limit)
-            self._project_history_cache[cache_key] = history
-            return history
-
-        except Exception as e:
-            logger.error(f"Error getting recent project history: {e}")
-            return []
+        # Simple fallback when service not available
+        return []
 
     def _generate_project_evolution_context(self, file_path: str = "") -> str:
         """Generate project evolution context for AI responses."""
-        try:
-            if not hasattr(self, "_memory_system") or not self._memory_system:
-                return ""
+        if self.project_history_service is not None:
+            return self.project_history_service.generate_project_evolution_context(
+                file_path
+            )
 
-            if file_path:
-                context = self._memory_system.get_project_context_for_ai(
-                    file_path=file_path
-                )
-            else:
-                context = self._memory_system.get_project_context_for_ai(
-                    recent_hours=72
-                )
-
-            return context or ""
-
-        except Exception as e:
-            logger.error(f"Error generating project evolution context: {e}")
-            return ""
+        # Simple fallback when service not available
+        return ""
 
     def _build_project_understanding(self, file_path: str = "") -> dict:
         """Build project understanding from historical changes."""
-        try:
-            cache_key = f"understanding_{file_path}"
-            if cache_key in self._project_understanding_cache:
-                return self._project_understanding_cache[cache_key]
+        if self.project_history_service is not None:
+            return self.project_history_service.build_project_understanding(file_path)
 
-            if not hasattr(self, "_memory_system") or not self._memory_system:
-                return {}
-
-            # Get recent project history
-            if file_path:
-                history = self._memory_system.get_project_history_for_file(
-                    file_path, limit=20
-                )
-            else:
-                history = self._memory_system.get_project_history(limit=50)
-
-            # Analyze patterns
-            understanding = {
-                "patterns": [],
-                "key_changes": [],
-                "development_focus": [],
-                "recent_activities": [],
-            }
-
-            if history:
-                # Extract development patterns
-                event_types = [event.get("event_type", "") for event in history]
-                understanding["patterns"] = list(set(event_types))
-
-                # Identify key changes (high impact)
-                key_changes = [
-                    event
-                    for event in history
-                    if event.get("metadata", {}).get("impact_score", 0) > 0.7
-                ]
-                understanding["key_changes"] = key_changes[:5]  # Top 5 key changes
-
-                # Extract focus areas from summaries
-                summaries = [event.get("summary", "") for event in history]
-                focus_keywords = []
-                for summary in summaries:
-                    words = summary.lower().split()
-                    focus_keywords.extend([word for word in words if len(word) > 5])
-
-                # Count common keywords to identify focus areas
-                from collections import Counter
-
-                common_keywords = Counter(focus_keywords).most_common(5)
-                understanding["development_focus"] = [
-                    keyword for keyword, count in common_keywords
-                ]
-
-                # Recent activities (last 5)
-                understanding["recent_activities"] = history[:5]
-
-            # Cache the understanding
-            self._project_understanding_cache[cache_key] = understanding
-            return understanding
-
-        except Exception as e:
-            logger.error(f"Error building project understanding: {e}")
-            return {}
+        # Simple fallback when service not available
+        return {}
 
     def _enhance_message_with_project_context(self, message: str) -> str:
         """Enhance user message with relevant project context."""
-        try:
-            if (
-                not self.project_history_enabled
-                or not self._should_lookup_project_history(message)
-            ):
-                return message
+        if self.project_history_service is not None:
+            return self.project_history_service.enhance_message_with_project_context(
+                message
+            )
 
-            # Extract file paths from message
-            import re
-
-            file_patterns = re.findall(r"[\w/\-\.]+\.\w+", message)
-
-            context_parts = []
-            for file_path in file_patterns:
-                context = self._generate_project_evolution_context(file_path)
-                if context:
-                    context_parts.append(f"Project Context for {file_path}:\n{context}")
-
-            # If no specific files, add general context
-            if not context_parts:
-                general_context = self._generate_project_evolution_context()
-                if general_context:
-                    context_parts.append(f"Recent Project Context:\n{general_context}")
-
-            if context_parts:
-                enhanced_message = message + "\n\n" + "\n\n".join(context_parts)
-                return enhanced_message
-
-            return message
-
-        except Exception as e:
-            logger.error(f"Error enhancing message with project context: {e}")
-            return message
+        # Simple fallback when service not available
+        return message
 
     def _generate_file_evolution_timeline(self, file_path: str) -> list:
         """Generate evolution timeline for a specific file."""
-        try:
-            if not hasattr(self, "_memory_system") or not self._memory_system:
-                return []
+        if self.project_history_service is not None:
+            return self.project_history_service.generate_file_evolution_timeline(
+                file_path
+            )
 
-            timeline = self._memory_system.generate_file_timeline(file_path, limit=20)
+        # Simple fallback when service not available
+        return []
 
-            # Sort by timestamp (most recent first)
-            if timeline:
-                timeline.sort(key=lambda x: x.get("timestamp", 0), reverse=True)
+    # Public Project History Methods (for service integration)
 
-            return timeline
+    def generate_project_evolution_context(self, file_path: str = "") -> str:
+        """Generate project evolution context for AI responses."""
+        if self.project_history_service is not None:
+            return self.project_history_service.generate_project_evolution_context(
+                file_path
+            )
+        return self._generate_project_evolution_context(file_path)
 
-        except Exception as e:
-            logger.error(f"Error generating file evolution timeline: {e}")
-            return []
+    def build_project_understanding(self, file_path: str = "") -> dict:
+        """Build project understanding from historical changes."""
+        if self.project_history_service is not None:
+            return self.project_history_service.build_project_understanding(file_path)
+        return self._build_project_understanding(file_path)
+
+    def enhance_message_with_project_context(self, message: str) -> str:
+        """Enhance user message with relevant project context."""
+        if self.project_history_service is not None:
+            return self.project_history_service.enhance_message_with_project_context(
+                message
+            )
+        return self._enhance_message_with_project_context(message)
+
+    def generate_file_evolution_timeline(self, file_path: str) -> list:
+        """Generate evolution timeline for a specific file."""
+        if self.project_history_service is not None:
+            return self.project_history_service.generate_file_evolution_timeline(
+                file_path
+            )
+        return self._generate_file_evolution_timeline(file_path)
 
     # MCP Tools Integration Methods
 
@@ -2307,6 +2265,20 @@ class AIAgent:
         Returns:
             AIResponse: The response from the AI
         """
+        # Delegate to AIMessagingService if available (service-oriented architecture)
+        if self.ai_messaging_service is not None:
+            try:
+                return await self.ai_messaging_service.send_message_with_tools(
+                    message, enable_filesystem=enable_filesystem
+                )
+            except Exception as e:
+                error_type, error_msg = self._categorize_error(e)
+                logger.error(f"Error in messaging service delegation: {error_msg}")
+                return AIResponse(
+                    success=False, content="", error=error_msg, error_type=error_type
+                )
+
+        # Legacy implementation for backwards compatibility
         try:
             if (
                 enable_filesystem
@@ -2333,6 +2305,18 @@ class AIAgent:
         Returns:
             AIResponse: Analysis results
         """
+        # Delegate to AIMessagingService if available (service-oriented architecture)
+        if self.ai_messaging_service is not None:
+            try:
+                return await self.ai_messaging_service.analyze_project_files()
+            except Exception as e:
+                error_type, error_msg = self._categorize_error(e)
+                logger.error(f"Error in messaging service delegation: {error_msg}")
+                return AIResponse(
+                    success=False, content="", error=error_msg, error_type=error_type
+                )
+
+        # Legacy implementation for backwards compatibility
         try:
             if not self.filesystem_tools_enabled or not self.mcp_file_server:
                 return AIResponse(
@@ -2374,6 +2358,20 @@ class AIAgent:
         Returns:
             AIResponse: Operation result
         """
+        # Delegate to AIMessagingService if available (service-oriented architecture)
+        if self.ai_messaging_service is not None:
+            try:
+                return await self.ai_messaging_service.generate_and_save_code(
+                    prompt, file_path, code
+                )
+            except Exception as e:
+                error_type, error_msg = self._categorize_error(e)
+                logger.error(f"Error in messaging service delegation: {error_msg}")
+                return AIResponse(
+                    success=False, content="", error=error_msg, error_type=error_type
+                )
+
+        # Legacy implementation for backwards compatibility
         try:
             if not self.filesystem_tools_enabled or not self.mcp_file_server:
                 return AIResponse(
@@ -3035,6 +3033,20 @@ class AIAgent:
         Raises:
             FileOperationError: If file cannot be read or MCP not connected.
         """
+        # Delegate to AIMessagingService if available (service-oriented architecture)
+        if self.ai_messaging_service is not None:
+            try:
+                return await self.ai_messaging_service.send_message_with_file_context(
+                    message, file_path
+                )
+            except Exception as e:
+                error_type, error_msg = self._categorize_error(e)
+                logger.error(f"Error in messaging service delegation: {error_msg}")
+                return AIResponse(
+                    success=False, content="", error=error_msg, error_type=error_type
+                )
+
+        # Legacy implementation for backwards compatibility
         self._ensure_mcp_connected()
 
         try:
@@ -3655,3 +3667,182 @@ User message: {message}
             return
 
         return self.workspace_service.validate_file_size(content, max_size_mb)
+
+    # Memory Context Service Delegation Methods
+
+    def store_user_message(
+        self, message: str, metadata: dict[str, Any] | None = None
+    ) -> str | None:
+        """Store a user message in memory."""
+        if self.memory_context_service is not None:
+            try:
+                return self.memory_context_service.store_user_message(message, metadata)
+            except Exception:
+                return None
+        return None
+
+    def store_assistant_message(
+        self, message: str, metadata: dict[str, Any] | None = None
+    ) -> str | None:
+        """Store an assistant message in memory."""
+        if self.memory_context_service is not None:
+            try:
+                return self.memory_context_service.store_assistant_message(
+                    message, metadata
+                )
+            except Exception:
+                return None
+        return None
+
+    def store_long_term_memory(
+        self,
+        content: str,
+        memory_type: str = "user_info",
+        importance_score: float = 0.8,
+    ) -> str | None:
+        """Store long-term memory information."""
+        if self.memory_context_service is not None:
+            try:
+                return self.memory_context_service.store_long_term_memory(
+                    content, memory_type, importance_score
+                )
+            except Exception:
+                return None
+        return None
+
+    def get_conversation_context(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Get recent conversation context."""
+        if self.memory_context_service is not None:
+            try:
+                return self.memory_context_service.get_conversation_context(limit)
+            except Exception:
+                return []
+        return []
+
+    def get_long_term_memories(
+        self, query: str = "", limit: int = 10
+    ) -> list[dict[str, Any]]:
+        """Get long-term memories that match a query."""
+        if self.memory_context_service is not None:
+            try:
+                return self.memory_context_service.get_long_term_memories(query, limit)
+            except Exception:
+                return []
+        return []
+
+    def enhance_message_with_memory_context(self, message: str) -> str:
+        """Enhance a message with memory context for AI processing."""
+        if self.memory_context_service is not None:
+            try:
+                return self.memory_context_service.enhance_message_with_memory_context(
+                    message
+                )
+            except Exception:
+                return message
+        return message
+
+    def get_memory_statistics(self) -> dict[str, Any]:
+        """Get memory system statistics."""
+        if self.memory_context_service is not None:
+            try:
+                return self.memory_context_service.get_memory_statistics()
+            except Exception:
+                return {"memory_enabled": False, "error": "Memory system error"}
+        return {"memory_enabled": False, "error": "Memory system not enabled"}
+
+    async def clear_all_memory(self) -> bool:
+        """Clear all memory data."""
+        if self.memory_context_service is not None:
+            try:
+                return await self.memory_context_service.clear_all_memory()
+            except Exception:
+                return False
+        return False
+
+    def start_new_session(self) -> str | None:
+        """Start a new conversation session."""
+        if self.memory_context_service is not None:
+            try:
+                return self.memory_context_service.start_new_session()
+            except Exception:
+                return None
+        return None
+
+    def get_current_session_id(self) -> str | None:
+        """Get the current session ID."""
+        if self.memory_context_service is not None:
+            try:
+                return self.memory_context_service.get_current_session_id()
+            except Exception:
+                return None
+        return None
+
+    def load_conversation_history(self, chat_widget) -> bool:
+        """Load conversation history into a chat widget."""
+        if self.memory_context_service is not None:
+            try:
+                return self.memory_context_service.load_conversation_history(
+                    chat_widget
+                )
+            except Exception:
+                return False
+        return False
+
+    def get_project_context_for_ai(
+        self, file_path: str | None = None, recent_hours: int = 24, max_events: int = 10
+    ) -> str:
+        """Get project context for AI processing."""
+        if self.memory_context_service is not None:
+            try:
+                return self.memory_context_service.get_project_context_for_ai(
+                    file_path, recent_hours, max_events
+                )
+            except Exception:
+                return ""
+        return ""
+
+    async def close_memory_service(self) -> None:
+        """Close the memory service and cleanup resources."""
+        if self.memory_context_service is not None:
+            await self.memory_context_service.close()
+
+    def get_memory_health_status(self) -> dict[str, Any]:
+        """Get memory service health status.
+
+        Returns:
+            Dictionary containing health status information
+        """
+        if self.memory_context_service is not None:
+            return self.memory_context_service.get_health_status()
+
+        # Legacy fallback - return unavailable status
+        return {
+            "service_name": "MemoryContextService",
+            "memory_enabled": False,
+            "memory_system_initialized": False,
+            "current_session_id": None,
+            "is_healthy": True,  # Still healthy, just not enabled
+        }
+
+    @property
+    def memory_aware_enabled(self) -> bool:
+        """Check if memory awareness is enabled.
+
+        Returns:
+            True if memory awareness is enabled, False otherwise
+        """
+        if self.memory_context_service is not None:
+            return self.memory_context_service.memory_aware_enabled
+
+        # Legacy fallback - check if memory awareness was enabled during initialization
+        return getattr(self, "_memory_aware_enabled", False)
+
+    @memory_aware_enabled.setter
+    def memory_aware_enabled(self, value: bool) -> None:
+        """Set memory awareness enabled state.
+
+        Args:
+            value: True to enable memory awareness, False to disable
+        """
+        # Store the value for legacy compatibility
+        self._memory_aware_enabled = value

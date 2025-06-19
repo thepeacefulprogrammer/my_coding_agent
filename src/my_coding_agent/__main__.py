@@ -60,24 +60,36 @@ Examples:
     )
 
     # Font options
-    parser.add_argument(
-        "--font-family", help="Font family for code display (default: from settings)"
-    )
-
-    parser.add_argument(
-        "--font-size",
-        type=int,
-        help="Font size for code display (default: from settings)",
-    )
 
     # Window options
     parser.add_argument(
         "--window-size",
-        metavar="WIDTHxHEIGHT",
-        help="Initial window size, e.g., 1200x800",
+        help="Window size in format WIDTHxHEIGHT (e.g., 1200x800)",
     )
 
-    # Debug options
+    # MCP server configuration options
+    parser.add_argument(
+        "--mcp-url",
+        help="MCP server URL (default: from settings)",
+    )
+
+    parser.add_argument(
+        "--mcp-timeout",
+        type=float,
+        help="MCP connection timeout in seconds (default: from settings)",
+    )
+
+    parser.add_argument(
+        "--mcp-auth-token",
+        help="MCP authentication token (default: from settings)",
+    )
+
+    parser.add_argument(
+        "--mcp-no-streaming",
+        action="store_true",
+        help="Disable streaming responses from MCP server",
+    )
+
     parser.add_argument(
         "--debug", action="store_true", help="Enable debug mode with verbose logging"
     )
@@ -145,13 +157,6 @@ def configure_settings_from_args(args: argparse.Namespace) -> Settings:
     if args.theme:
         settings.theme = args.theme
 
-    # Apply font overrides
-    if args.font_family:
-        settings.font_family = args.font_family
-
-    if args.font_size:
-        settings.font_size = args.font_size
-
     # Apply window size override
     if args.window_size:
         try:
@@ -160,6 +165,19 @@ def configure_settings_from_args(args: argparse.Namespace) -> Settings:
             settings.window_height = height
         except ValueError as e:
             print(f"Warning: {e}", file=sys.stderr)
+
+    # Apply MCP server overrides
+    if args.mcp_url:
+        settings.mcp_server_url = args.mcp_url
+
+    if args.mcp_timeout:
+        settings.mcp_timeout = args.mcp_timeout
+
+    if args.mcp_auth_token:
+        settings.mcp_auth_token = args.mcp_auth_token
+
+    if args.mcp_no_streaming:
+        settings.mcp_enable_streaming = False
 
     return settings
 
@@ -254,11 +272,14 @@ def main(argv: list[str] | None = None) -> None:
     app = QApplication(sys.argv)
 
     # Print configuration info
-    print("My Coding Agent - Simple Code Viewer")
+    print("My Coding Agent - MCP Client Interface")
     print(f"Opening directory: {directory}")
     print(f"Theme: {settings.theme}")
-    print(f"Font: {settings.font_family} {settings.font_size}pt")
     print(f"Window size: {settings.window_width}x{settings.window_height}")
+    print(f"MCP Server: {settings.mcp_server_url}")
+    print(
+        f"MCP Streaming: {'enabled' if settings.mcp_enable_streaming else 'disabled'}"
+    )
     print(f"Configuration: {settings.config_dir}")
     print("Starting GUI...")
 

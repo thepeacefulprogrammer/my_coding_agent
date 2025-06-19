@@ -9,7 +9,6 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, Any
 
 from ..mcp import MCPClient, MCPServerRegistry
-from ..mcp_file_server import MCPFileConfig
 
 if TYPE_CHECKING:
     from typing import Any as SignalHandler
@@ -476,25 +475,25 @@ class MCPConnectionService:
                 "registry_initialized": self.mcp_registry is not None,
             }
 
-    def update_mcp_config(self, new_config: MCPFileConfig) -> None:
-        """
-        Update MCP configuration dynamically (from AIAgent).
-
-        Args:
-            new_config: New MCP file configuration
-        """
-        try:
-            self.mcp_file_server = new_config
-            logger.info("MCP configuration updated successfully")
-
-            # Emit signal if available
-            if self.signal_handler and hasattr(
-                self.signal_handler, "mcp_config_updated"
-            ):
-                self.signal_handler.mcp_config_updated.emit()
-
-        except Exception as e:
-            logger.error(f"Failed to update MCP configuration: {e}")
+    # def update_mcp_config(self, new_config: MCPFileConfig) -> None:
+    #     """
+    #     Update MCP configuration dynamically (from AIAgent).
+    #
+    #     Args:
+    #         new_config: New MCP file configuration
+    #     """
+    #     try:
+    #         self.mcp_file_server = new_config
+    #         logger.info("MCP configuration updated successfully")
+    #
+    #         # Emit signal if available
+    #         if self.signal_handler and hasattr(
+    #             self.signal_handler, "mcp_config_updated"
+    #         ):
+    #             self.signal_handler.mcp_config_updated.emit()
+    #
+    #     except Exception as e:
+    #         logger.error(f"Failed to update MCP configuration: {e}")
 
     async def connect_mcp(self) -> bool:
         """

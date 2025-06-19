@@ -37,8 +37,8 @@
   - [x] 2.2 Remove duplicate file operations - Delete ai_agent.py methods that duplicate WorkspaceService functionality
   - [x] 2.3 Remove duplicate MCP functionality - Delete ai_agent.py methods that duplicate MCPConnectionService and ToolRegistrationService
   - [x] 2.4 Remove duplicate streaming functionality - Delete ai_agent.py methods that duplicate StreamingResponseService
-  - [ ] 2.5 Remove duplicate messaging functionality - Delete ai_agent.py methods that duplicate AIMessagingService
-  - [ ] 2.6 Remove duplicate memory functionality - Delete ai_agent.py methods that duplicate MemoryContextService
+  - [x] 2.5 Remove duplicate messaging functionality - Delete ai_agent.py methods that duplicate AIMessagingService
+  - [x] 2.6 Remove duplicate memory functionality - Delete ai_agent.py methods that duplicate MemoryContextService
   - [ ] 2.7 Remove duplicate project history functionality - Delete ai_agent.py methods that duplicate ProjectHistoryService
   - [ ] 2.8 Validate no functionality is lost - Ensure all removed methods are properly replaced by service calls
 
@@ -230,23 +230,4 @@ def read_workspace_file(self, file_path: str) -> str:
 
 ### ✅ **Phase 3: Code Organization & Legacy Support**
 - **Delegation pattern**: Each method checks `if self.streaming_response_service is not None:` then delegates to service, otherwise falls back to legacy implementation
-- **Legacy method extraction**: Moved complex streaming logic to `_send_message_with_tools_stream_legacy()` to keep delegation methods small (<25 lines)
-- **Backwards compatibility**: Maintains full compatibility for existing usage patterns
-
-**Test Results**:
-- **Streaming integration tests**: 7/7 passing (100% success rate)
-- **Duplication elimination tests**: 4/4 passing (100% success rate)
-- **Service delegation verification**: All methods properly delegate to StreamingResponseService
-- **Legacy fallback verification**: Backwards compatibility maintained when service not available
-
-**Architecture Benefits**:
-- **Separation of concerns**: Streaming functionality properly encapsulated in dedicated service
-- **Testability**: Streaming operations can be independently tested and mocked
-- **Maintainability**: Changes to streaming logic centralized in StreamingResponseService
-- **Flexibility**: Can switch between service-oriented and legacy modes
-- **Method size optimization**: Delegation methods are small and focused (<25 lines each)
-
-**Line Count Impact**:
-- **Current**: 3,430 lines (includes delegation infrastructure and legacy fallbacks)
-- **Service integration complete**: Foundation established for streaming service delegation
-- **Next phase**: Remove legacy streaming implementations to achieve line reduction (~100 lines)
+- **Legacy method extraction**: Moved complex streaming logic to `_send_message_with_tools_stream_legacy()`

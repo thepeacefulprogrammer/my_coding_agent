@@ -15,12 +15,14 @@ from collections.abc import Callable
 from contextlib import suppress
 from typing import TYPE_CHECKING, Any
 
+from ..ai_agent import AIResponse
 from ..streaming import StreamHandler
-from .ai_messaging_service import AIMessagingService
-from .core_ai_service import AIResponse
+
+# TODO: Remove dependency on AIMessagingService during simplification
+# from .ai_messaging_service import AIMessagingService
 
 if TYPE_CHECKING:
-    from typing import Any as MemorySystem  # type: ignore[misc]
+    pass  # type: ignore[misc]
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +36,8 @@ class StreamingResponseService:
 
     def __init__(
         self,
-        ai_messaging_service: AIMessagingService,
-        memory_system: MemorySystem | None = None,  # noqa: ANN401  # noqa: ANN401
+        ai_messaging_service: Any = None,  # TODO: Remove during simplification
+        memory_system: Any | None = None,  # noqa: ANN401  # noqa: ANN401
         enable_memory_awareness: bool = False,
     ) -> None:
         """Initialize the streaming response service.

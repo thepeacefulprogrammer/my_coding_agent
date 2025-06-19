@@ -1,0 +1,5 @@
+When the user's query mentions specific keywords or contexts, automatically fetch and follow the detailed rules:
+
+1. **PRD Creation**: If the query mentions "PRD", "requirements", "product requirements", or "specification" → ALWAYS fetch the `create-prd` rule first and follow it
+2. **Task Generation**: If the query mentions "tasks", "task breakdown", "implementation plan", or "steps" → ALWAYS fetch the `generate-tasks` rule first and follow it
+3. **Task Execution**: If working with existing task lists or implementing tasks → Follow the task list management rules below

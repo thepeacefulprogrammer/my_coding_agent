@@ -1,71 +1,60 @@
-"""Configuration settings for My Coding Agent.
+"""Simplified configuration settings for MCP Client Interface.
 
-This module provides a centralized configuration system that supports:
-- Environment variables
-- Default values
-- Type safety with dataclasses
-- Theme and UI settings
-- File handling preferences
+This module provides a simplified configuration system focused on:
+- MCP server connection settings
+- Essential UI preferences
+- Configuration file management
 """
 
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 
 @dataclass
 class Settings:
-    """Application settings with type-safe configuration options.
+    """Simplified application settings focused on MCP server configuration.
 
-    This class provides centralized configuration management with
-    support for environment variables and sensible defaults.
+    This class provides centralized configuration management for the MCP client,
+    including server connection settings and essential UI preferences.
 
     Attributes:
+        # Essential UI settings
         window_width: Default main window width in pixels
         window_height: Default main window height in pixels
-        splitter_position: Default splitter position (0.0 to 1.0)
         theme: UI theme name ('dark' or 'light')
-        font_family: Code viewer font family
-        font_size: Code viewer font size in points
-        line_numbers: Whether to show line numbers by default
-        word_wrap: Whether to enable word wrapping
-        max_file_size_mb: Maximum file size to load in MB
-        recent_files_count: Number of recent files to remember
-        auto_detect_language: Whether to auto-detect file language
-        highlight_current_line: Whether to highlight current line
-        show_whitespace: Whether to show whitespace characters
-        tab_width: Tab width in spaces
+
+        # MCP server configuration
+        mcp_server_url: URL of the MCP server to connect to
+        mcp_timeout: Connection timeout in seconds
+        mcp_enable_streaming: Whether to enable streaming responses
+        mcp_max_retries: Maximum number of connection retries
+        mcp_auth_token: Authentication token for MCP server
+        mcp_auth_type: Authentication type ('none', 'bearer', 'oauth2')
+
+        # Directories
         config_dir: Directory for storing configuration files
         cache_dir: Directory for storing cache files
     """
 
-    # Window settings
+    # Essential UI settings (preserved from original)
     window_width: int = 1200
     window_height: int = 800
-    splitter_position: float = 0.3
-
-    # Theme settings
     theme: str = "dark"
-    font_family: str = "JetBrains Mono"
-    font_size: int = 11
 
-    # Editor settings
-    line_numbers: bool = True
-    word_wrap: bool = False
-    highlight_current_line: bool = True
-    show_whitespace: bool = False
-    tab_width: int = 4
-
-    # File handling
-    max_file_size_mb: int = 10
-    auto_detect_language: bool = True
-
-    # Application settings
-    recent_files_count: int = 10
+    # MCP server configuration
+    mcp_server_url: str = "http://localhost:8080"
+    mcp_timeout: float = 30.0
+    mcp_enable_streaming: bool = True
+    mcp_max_retries: int = 3
+    mcp_auth_token: str = ""
+    mcp_auth_type: str = "none"
 
     # Directories
     config_dir: Path = field(default_factory=lambda: _get_config_dir())
@@ -90,7 +79,7 @@ class Settings:
         This method checks for environment variables that can
         override default settings values.
         """
-        # Window settings
+        # UI settings
         if width := os.getenv("MCA_WINDOW_WIDTH"):
             with contextlib.suppress(ValueError):
                 self.window_width = int(width)
@@ -99,16 +88,98 @@ class Settings:
             with contextlib.suppress(ValueError):
                 self.window_height = int(height)
 
-        # Theme settings
         if (theme := os.getenv("MCA_THEME")) and theme.lower() in ("dark", "light"):
             self.theme = theme.lower()
 
-        if font_family := os.getenv("MCA_FONT_FAMILY"):
-            self.font_family = font_family
+        # MCP server settings
+        if server_url := os.getenv("MCP_SERVER_URL"):
+            self.mcp_server_url = server_url
 
-        if font_size := os.getenv("MCA_FONT_SIZE"):
+        if timeout := os.getenv("MCP_TIMEOUT"):
             with contextlib.suppress(ValueError):
-                self.font_size = int(font_size)
+                self.mcp_timeout = float(timeout)
+
+        if streaming := os.getenv("MCP_ENABLE_STREAMING"):
+            self.mcp_enable_streaming = streaming.lower() in ("true", "1", "yes")
+
+        if retries := os.getenv("MCP_MAX_RETRIES"):
+            with contextlib.suppress(ValueError):
+                self.mcp_max_retries = int(retries)
+
+        if auth_token := os.getenv("MCP_AUTH_TOKEN"):
+            self.mcp_auth_token = auth_token
+
+        if (auth_type := os.getenv("MCP_AUTH_TYPE")) and auth_type.lower() in ("none", "bearer", "oauth2"):
+            self.mcp_auth_type = auth_type.lower()
+
+    def is_mcp_url_valid(self) -> bool:
+        """Validate MCP server URL format.
+
+        Returns:
+            True if URL is valid, False otherwise
+        """
+        try:
+            result = urlparse(self.mcp_server_url)
+            return all([result.scheme, result.netloc])
+        except Exception:
+            return False
+
+    def is_mcp_timeout_valid(self) -> bool:
+        """Validate MCP timeout value.
+
+        Returns:
+            True if timeout is valid, False otherwise
+        """
+        return self.mcp_timeout > 0
+
+    def get_mcp_config(self) -> dict[str, Any]:
+        """Get MCP configuration as dictionary.
+
+        Returns:
+            Dictionary containing MCP connection configuration
+        """
+        return {
+            "server_url": self.mcp_server_url,
+            "timeout": self.mcp_timeout,
+            "enable_streaming": self.mcp_enable_streaming,
+            "max_retries": self.mcp_max_retries,
+            "auth_token": self.mcp_auth_token,
+            "auth_type": self.mcp_auth_type,
+        }
+
+    def get_mcp_auth_config(self) -> dict[str, Any]:
+        """Get MCP authentication configuration.
+
+        Returns:
+            Dictionary containing authentication settings
+        """
+        return {"type": self.mcp_auth_type, "token": self.mcp_auth_token}
+
+    def validate_mcp_config(self) -> dict[str, Any]:
+        """Validate complete MCP configuration.
+
+        Returns:
+            Dictionary with validation results and any errors
+        """
+        errors = []
+
+        # Validate URL
+        if not self.is_mcp_url_valid():
+            errors.append("Invalid MCP server URL format")
+
+        # Validate timeout
+        if not self.is_mcp_timeout_valid():
+            errors.append("MCP timeout must be greater than 0")
+
+        # Validate max retries
+        if self.mcp_max_retries < 0:
+            errors.append("MCP max retries must be non-negative")
+
+        # Validate auth type
+        if self.mcp_auth_type not in ("none", "bearer", "oauth2"):
+            errors.append("Invalid MCP authentication type")
+
+        return {"valid": len(errors) == 0, "errors": errors}
 
     def to_dict(self) -> dict[str, Any]:
         """Convert settings to dictionary format.
@@ -192,18 +263,34 @@ def load_settings_from_file(config_path: Path) -> Settings:
     """Load settings from a configuration file.
 
     Args:
-        config_path: Path to configuration file (TOML format)
+        config_path: Path to configuration file (JSON format)
 
     Returns:
         Settings instance with values from file
-
-    Note:
-        This function is planned for future implementation
-        to support configuration files.
     """
-    # Future implementation for loading from TOML/JSON files
-    # For now, return default settings
-    return Settings()
+    try:
+        if config_path.exists():
+            with open(config_path) as f:
+                data = json.load(f)
+
+            # Create settings instance
+            settings = Settings()
+
+            # Update with loaded data
+            for key, value in data.items():
+                if hasattr(settings, key):
+                    # Convert string paths back to Path objects
+                    if key in ("config_dir", "cache_dir"):
+                        value = Path(value)
+                    setattr(settings, key, value)
+
+            return settings
+        else:
+            # Return default settings if file doesn't exist
+            return Settings()
+    except Exception:
+        # Return default settings on any error
+        return Settings()
 
 
 def save_settings_to_file(settings: Settings, config_path: Path) -> None:
@@ -212,10 +299,16 @@ def save_settings_to_file(settings: Settings, config_path: Path) -> None:
     Args:
         settings: Settings instance to save
         config_path: Path where to save configuration file
-
-    Note:
-        This function is planned for future implementation
-        to support configuration files.
     """
-    # Future implementation for saving to TOML/JSON files
-    pass
+    try:
+        # Ensure config directory exists
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Convert settings to dictionary and save as JSON
+        settings_dict = settings.to_dict()
+
+        with open(config_path, "w") as f:
+            json.dump(settings_dict, f, indent=2)
+    except Exception:
+        # Fail silently to avoid disrupting application
+        pass
