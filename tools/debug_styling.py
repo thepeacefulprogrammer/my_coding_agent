@@ -10,9 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QVBoxLayout, QWidget
 
-from my_coding_agent.gui.chat_widget_v2 import (
-    SimplifiedChatWidget,
-)
+from my_coding_agent.gui.chat_widget_v2 import SimplifiedChatWidget
 
 
 class StylingDebugWindow(QMainWindow):

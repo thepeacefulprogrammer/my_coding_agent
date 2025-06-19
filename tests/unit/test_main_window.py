@@ -18,6 +18,7 @@ import pytest
 from PyQt6.QtCore import QSize, Qt
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import QLabel, QMainWindow, QSplitter
+
 from src.my_coding_agent.core.main_window import MainWindow
 
 

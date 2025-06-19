@@ -4,6 +4,7 @@ import os
 
 import pytest
 from PyQt6.QtWidgets import QApplication
+
 from src.my_coding_agent.core.theme_manager import ThemeManager
 from src.my_coding_agent.gui.chat_message_model import ChatMessage
 from src.my_coding_agent.gui.chat_widget_v2 import SimplifiedChatWidget

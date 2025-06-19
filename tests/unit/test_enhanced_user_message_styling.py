@@ -2,15 +2,14 @@
 
 import pytest
 from PyQt6.QtWidgets import QApplication
+
 from src.my_coding_agent.gui.chat_message_model import (
     ChatMessage,
     ChatMessageModel,
     MessageRole,
     MessageStatus,
 )
-from src.my_coding_agent.gui.chat_widget import (
-    MessageDisplayArea,
-)
+from src.my_coding_agent.gui.chat_widget import MessageDisplayArea
 
 
 @pytest.mark.qt

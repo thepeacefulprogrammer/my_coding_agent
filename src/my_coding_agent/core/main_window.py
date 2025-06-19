@@ -20,13 +20,7 @@ if TYPE_CHECKING:
     from .code_viewer import CodeViewerWidget
     from .file_tree import FileTreeWidget
 
-from PyQt6.QtCore import (
-    QSettings,
-    QSize,
-    QThread,
-    QTimer,
-    pyqtSignal,
-)
+from PyQt6.QtCore import QSettings, QSize, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction, QCloseEvent, QKeySequence
 from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout
 

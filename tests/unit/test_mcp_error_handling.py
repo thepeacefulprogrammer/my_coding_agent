@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from src.my_coding_agent.core.mcp.error_handler import (
     CircuitBreakerState,
     ErrorCategory,
@@ -32,9 +33,7 @@ from src.my_coding_agent.core.mcp.mcp_client import (
     MCPProtocolError,
     MCPTimeoutError,
 )
-from src.my_coding_agent.core.mcp.oauth2_auth import (
-    OAuth2AuthenticationError,
-)
+from src.my_coding_agent.core.mcp.oauth2_auth import OAuth2AuthenticationError
 
 
 class TestMCPErrorCategories:

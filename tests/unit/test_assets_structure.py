@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
 from src.my_coding_agent.assets import (
     get_icon_path,
     get_theme_path,

@@ -6,10 +6,7 @@ Tests the MCPToolCallWidget component that displays tool calls with expandable d
 
 import pytest
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
-    QApplication,
-    QVBoxLayout,
-)
+from PyQt6.QtWidgets import QApplication, QVBoxLayout
 
 from my_coding_agent.core.theme_manager import ThemeManager
 from my_coding_agent.gui.components.mcp_tool_visualization import MCPToolCallWidget

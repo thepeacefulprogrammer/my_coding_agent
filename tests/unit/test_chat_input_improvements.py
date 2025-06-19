@@ -6,6 +6,7 @@ import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import QApplication
+
 from src.my_coding_agent.gui.chat_widget_v2 import SimplifiedChatWidget
 
 

@@ -13,9 +13,7 @@ from typing import Any, Optional
 
 from fastmcp import Client
 
-from .error_handler import (
-    MCPErrorHandler,
-)
+from .error_handler import MCPErrorHandler
 from .oauth2_auth import OAuth2AuthenticationError, OAuth2Authenticator, OAuth2Config
 
 logger = logging.getLogger(__name__)

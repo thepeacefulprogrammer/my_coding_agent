@@ -7,6 +7,7 @@ This coordinator replaces the complex AIAgent with a focused MCP communication l
 from unittest.mock import AsyncMock, patch
 
 import pytest
+
 from src.my_coding_agent.core.mcp_client_coordinator import (
     MCPClientCoordinator,
     MCPCoordinatorConfig,

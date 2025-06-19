@@ -14,6 +14,7 @@ import contextlib
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+
 from src.my_coding_agent.core.mcp.mcp_client import (
     MCPClient,
     MCPConnectionError,

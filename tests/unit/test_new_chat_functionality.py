@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import QApplication
+
 from src.my_coding_agent.core.main_window import MainWindow
 
 

@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+
 from src.my_coding_agent.core.ai_services.mcp_connection_service import (
     MCPConnectionService,
 )

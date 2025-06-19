@@ -44,11 +44,7 @@ from .oauth2_auth import (
     OAuth2Token,
     OAuth2TokenExpiredError,
 )
-from .server_registry import (
-    MCPServerRegistry,
-    ServerStatus,
-    ToolRegistry,
-)
+from .server_registry import MCPServerRegistry, ServerStatus, ToolRegistry
 
 __all__ = [
     # Core client

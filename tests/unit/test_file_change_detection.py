@@ -16,6 +16,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from PyQt6.QtTest import QSignalSpy
+
 from src.my_coding_agent.core.file_change_detector import (
     ChangeType,
     FileChangeAnalyzer,

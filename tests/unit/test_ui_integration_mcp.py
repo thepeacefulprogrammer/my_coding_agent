@@ -8,6 +8,7 @@ MCP architecture, especially the chat interface and streaming responses.
 import pytest
 from PyQt6.QtCore import Qt
 from PyQt6.QtTest import QTest
+
 from src.my_coding_agent.core.mcp_client_coordinator import (
     MCPClientCoordinator,
     MCPCoordinatorConfig,

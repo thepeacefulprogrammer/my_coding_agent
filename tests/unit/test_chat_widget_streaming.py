@@ -15,10 +15,7 @@ import pytest
 from PyQt6.QtWidgets import QApplication
 
 from my_coding_agent.core.streaming.stream_handler import StreamState
-from my_coding_agent.gui.chat_message_model import (
-    MessageRole,
-    MessageStatus,
-)
+from my_coding_agent.gui.chat_message_model import MessageRole, MessageStatus
 from my_coding_agent.gui.chat_widget import ChatWidget
 
 

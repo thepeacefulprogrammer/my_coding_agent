@@ -3,14 +3,7 @@
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import (
-    QBrush,
-    QColor,
-    QKeyEvent,
-    QPainter,
-    QPaintEvent,
-    QPen,
-)
+from PyQt6.QtGui import QBrush, QColor, QKeyEvent, QPainter, QPaintEvent, QPen
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,

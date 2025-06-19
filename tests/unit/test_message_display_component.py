@@ -2,9 +2,8 @@
 
 import pytest
 from PyQt6.QtWidgets import QApplication, QWidget
-from src.my_coding_agent.gui.chat_message_model import (
-    ChatMessage,
-)
+
+from src.my_coding_agent.gui.chat_message_model import ChatMessage
 from src.my_coding_agent.gui.components.message_display import (
     MessageDisplay,
     MessageDisplayTheme,

@@ -4,12 +4,7 @@ from __future__ import annotations
 
 import pytest
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
-    QApplication,
-    QScrollArea,
-    QVBoxLayout,
-    QWidget,
-)
+from PyQt6.QtWidgets import QApplication, QScrollArea, QVBoxLayout, QWidget
 
 from my_coding_agent.gui.chat_message_model import (
     ChatMessage,
