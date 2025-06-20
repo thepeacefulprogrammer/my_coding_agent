@@ -92,6 +92,21 @@ class MCPClientCoordinator:
         self.is_connected = False
         logger.info("Disconnected from MCP server")
 
+    async def cleanup(self) -> None:
+        """Clean up resources and ensure proper session closure."""
+        await self.disconnect()
+
+    def __del__(self) -> None:
+        """Destructor to ensure session cleanup."""
+        if self._session and not self._session.closed:
+            # Note: This is a fallback - proper cleanup should use disconnect() or cleanup()
+            import warnings
+            warnings.warn(
+                "MCPClientCoordinator session not properly closed. Call disconnect() or cleanup().",
+                ResourceWarning,
+                stacklevel=2
+            )
+
     async def send_message(self, message: str) -> MCPResponse:
         """
         Send a message to the MCP server.

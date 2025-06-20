@@ -8,10 +8,12 @@ application workflow and component interactions.
 from __future__ import annotations
 
 import contextlib
+import os
 
 import pytest
 from PyQt6.QtCore import Qt
 
+from my_coding_agent.core.ai_agent import AIAgent, AIAgentConfig
 from my_coding_agent.core.code_viewer import CodeViewerWidget
 from my_coding_agent.core.file_tree import FileTreeWidget
 from my_coding_agent.core.main_window import MainWindow
@@ -474,3 +476,63 @@ class TestUtils(unittest.TestCase):
         assert hasattr(window, "file_tree")
         assert hasattr(window, "code_viewer")
         assert hasattr(window, "theme_manager")
+
+
+@pytest.mark.integration
+class TestAIAgentRealAPIIntegration:
+    """Integration tests for AI Agent with real Azure OpenAI API."""
+
+    @pytest.mark.skipif(
+        not all(
+            [
+                os.getenv("AZURE_OPENAI_ENDPOINT"),
+                os.getenv("AZURE_OPENAI_API_KEY"),
+                os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
+            ]
+        ),
+        reason="Azure OpenAI credentials not available - set AZURE_OPENAI_* env vars to run this test",
+    )
+    @pytest.mark.asyncio
+    async def test_real_azure_openai_api_call(self):
+        """Test with real Azure OpenAI API (only runs if credentials are available)."""
+        config = AIAgentConfig.from_env()
+        agent = AIAgent(config)
+
+        response = await agent.send_message(
+            "Hello! Please respond with exactly 'Integration test successful'"
+        )
+
+        assert response.success is True
+        assert response.content is not None
+        assert len(response.content) > 0
+        assert response.tokens_used > 0
+        assert response.error is None
+        assert response.error_type is None
+
+    @pytest.mark.skipif(
+        not all(
+            [
+                os.getenv("AZURE_OPENAI_ENDPOINT"),
+                os.getenv("AZURE_OPENAI_API_KEY"),
+                os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
+            ]
+        ),
+        reason="Azure OpenAI credentials not available - set AZURE_OPENAI_* env vars to run this test",
+    )
+    @pytest.mark.asyncio
+    async def test_real_api_error_handling(self):
+        """Test real API error handling scenarios."""
+        config = AIAgentConfig.from_env()
+        agent = AIAgent(config)
+
+        # Test with a very long message that might hit token limits
+        very_long_message = "Please analyze this code: " + "x" * 10000
+
+        response = await agent.send_message(very_long_message)
+
+        # Should either succeed or fail gracefully
+        if not response.success:
+            assert response.error is not None
+            assert response.error_type is not None
+        else:
+            assert response.content is not None

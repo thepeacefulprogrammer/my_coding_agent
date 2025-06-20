@@ -513,32 +513,42 @@ class TestAIAgent:
             assert response.retry_count == 0  # No retries needed
 
 
-@pytest.mark.integration
-class TestAIAgentIntegration:
-    """Integration tests for AI Agent (require actual Azure OpenAI setup)."""
+class TestAIAgentIntegrationFlow:
+    """Integration flow tests for AI Agent (with mocked external dependencies)."""
 
-    @pytest.mark.skipif(
-        not all(
-            [
-                os.getenv("AZURE_OPENAI_ENDPOINT"),
-                os.getenv("AZURE_OPENAI_API_KEY"),
-                os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME"),
-            ]
-        ),
-        reason="Azure OpenAI credentials not available",
-    )
     @pytest.mark.asyncio
-    async def test_real_api_call(self):
-        """Test with real Azure OpenAI API (requires credentials)."""
-        config = AIAgentConfig.from_env()
-        agent = AIAgent(config)
+    async def test_integration_flow_with_mock_api(self):
+        """Test complete integration flow with mocked API responses."""
+        # Test the integration logic without requiring real API credentials
+        with patch.dict(
+            os.environ,
+            {
+                "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com/",
+                "AZURE_OPENAI_API_KEY": "test-key",
+                "AZURE_OPENAI_DEPLOYMENT_NAME": "test-deployment",
+            },
+        ):
+            config = AIAgentConfig.from_env()
+            agent = AIAgent(config)
 
-        response = await agent.send_message(
-            "Hello! Please respond with exactly 'Integration test successful'"
-        )
+            # Mock a successful API response
+            mock_usage = Mock()
+            mock_usage.total_tokens = 42
 
-        assert response.success is True
-        assert response.content is not None
-        assert len(response.content) > 0
-        assert response.tokens_used > 0
-        assert response.error is None
+            mock_result = Mock()
+            mock_result.data = "Integration test successful"
+            mock_result.usage.return_value = mock_usage
+
+            with patch.object(
+                agent._agent, "run", new_callable=AsyncMock, return_value=mock_result
+            ):
+                response = await agent.send_message(
+                    "Hello! Please respond with exactly 'Integration test successful'"
+                )
+
+                assert response.success is True
+                assert response.content == "Integration test successful"
+                assert response.tokens_used == 42
+                assert response.error is None
+                assert response.error_type is None
+                assert response.retry_count == 0

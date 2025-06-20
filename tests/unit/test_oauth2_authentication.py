@@ -15,7 +15,6 @@ from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from src.my_coding_agent.core.mcp.mcp_client import MCPClient, MCPConnectionError
 from src.my_coding_agent.core.mcp.oauth2_auth import (
     OAuth2AuthenticationError,

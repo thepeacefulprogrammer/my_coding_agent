@@ -9,7 +9,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from src.my_coding_agent.assets import (
     get_icon_path,
     get_theme_path,
@@ -245,7 +244,7 @@ class TestAssetsResourceManagement:
 class TestFileTypeIcons:
     """Test cases for file type icon functionality."""
 
-    def test_qtawesome_icons_available(self):
+    def test_qtawesome_icons_available(self, qapp):
         """Test that qtawesome and required Font Awesome icons are available."""
         import qtawesome as qta
 

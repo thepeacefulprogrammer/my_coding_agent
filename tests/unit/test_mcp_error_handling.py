@@ -16,7 +16,6 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from src.my_coding_agent.core.mcp.error_handler import (
     CircuitBreakerState,
     ErrorCategory,
@@ -536,34 +535,7 @@ class TestMCPClientErrorIntegration:
         assert client.error_handler.enable_fallback is True
 
 
-class TestMCPServerRegistryErrorHandling:
-    """Test suite for MCP server registry error handling."""
-
-    @pytest.mark.skip(
-        reason="Server registry error handling methods not yet implemented"
-    )
-    @pytest.mark.asyncio
-    async def test_server_registry_connection_failure_handling(self):
-        """Test server registry handling of connection failures."""
-        # This test will be implemented when server registry error handling is added
-        pass
-
-    @pytest.mark.skip(
-        reason="Server registry error handling methods not yet implemented"
-    )
-    @pytest.mark.asyncio
-    async def test_server_registry_partial_failure_handling(self):
-        """Test server registry handling of partial failures."""
-        # This test will be implemented when server registry error handling is added
-        pass
-
-    @pytest.mark.skip(
-        reason="Server registry error handling methods not yet implemented"
-    )
-    def test_server_registry_error_metrics(self):
-        """Test server registry error metrics collection."""
-        # This test will be implemented when server registry error handling is added
-        pass
+# Note: MCP Server Registry error handling tests will be added when that functionality is implemented
 
 
 class TestMCPErrorHandlerConfiguration:

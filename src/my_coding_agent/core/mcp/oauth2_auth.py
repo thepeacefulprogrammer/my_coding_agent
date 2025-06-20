@@ -420,8 +420,11 @@ class OAuth2Authenticator:
         Raises:
             OAuth2AuthenticationError: If request fails
         """
+        # Use existing session if available, otherwise create a temporary one
+        session_created = False
         if not self._session:
             self._session = aiohttp.ClientSession()
+            session_created = True
 
         headers = {
             "Content-Type": "application/x-www-form-urlencoded",
@@ -457,6 +460,11 @@ class OAuth2Authenticator:
             raise OAuth2Error(f"Network error during token request: {e}") from e
         except Exception as e:
             raise OAuth2Error(f"Unexpected error during token request: {e}") from e
+        finally:
+            # Close session if we created it temporarily
+            if session_created and self._session:
+                await self._session.close()
+                self._session = None
 
     async def get_authorization_header(self) -> str:
         """
@@ -534,8 +542,11 @@ class OAuth2Authenticator:
         # This is a best-effort implementation
         revoke_url = self.config.token_url.replace("/token", "/revoke")
 
+        # Use existing session if available, otherwise create a temporary one
+        session_created = False
         if not self._session:
             self._session = aiohttp.ClientSession()
+            session_created = True
 
         data = {"token": token, "client_id": self.config.client_id}
 
@@ -552,6 +563,11 @@ class OAuth2Authenticator:
         except Exception as e:
             logger.warning(f"Token revocation failed: {e}")
             return False
+        finally:
+            # Close session if we created it temporarily
+            if session_created and self._session:
+                await self._session.close()
+                self._session = None
 
     def clear_authentication(self) -> None:
         """Clear current authentication state."""
@@ -559,6 +575,23 @@ class OAuth2Authenticator:
         self._states.clear()
         self._code_verifiers.clear()
         logger.info("Authentication state cleared")
+
+    async def cleanup(self) -> None:
+        """Clean up resources, including closing any open sessions."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+            self._session = None
+
+    def __del__(self) -> None:
+        """Destructor to ensure session cleanup."""
+        if self._session and not self._session.closed:
+            # Note: This is a fallback - proper cleanup should use cleanup() method
+            import warnings
+            warnings.warn(
+                "OAuth2Authenticator session not properly closed. Use async context manager or call cleanup().",
+                ResourceWarning,
+                stacklevel=2
+            )
 
     def get_token_info(self) -> dict[str, Any] | None:
         """

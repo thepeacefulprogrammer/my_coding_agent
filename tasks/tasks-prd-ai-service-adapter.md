@@ -5,13 +5,15 @@ Based on PRD: `prd-ai-service-adapter.md`
 ## Relevant Files
 
 - `src/my_coding_agent/core/ai_services/__init__.py` - AI services package initialization
-- `src/my_coding_agent/core/ai_services/ai_service_adapter.py` - Main AI service adapter class
+- `src/my_coding_agent/core/ai_services/ai_service_adapter.py` - Main AI service adapter class with enhanced logging
 - `src/my_coding_agent/core/ai_services/query_processor.py` - Query processing logic with retry and error handling
+- `src/my_coding_agent/core/ai_services/logging_utils.py` - Comprehensive logging utilities for AI service operations
 - `src/my_coding_agent/core/ai_services/azure_openai_provider.py` - Azure OpenAI specific provider implementation
 - `src/my_coding_agent/core/ai_services/streaming_handler.py` - Streaming response handler
 - `src/my_coding_agent/config/settings.py` - Extended configuration for AI services
 - `src/my_coding_agent/gui/chat_widget_v2.py` - Enhanced chat widget with AI integration
 - `tests/unit/test_ai_service_adapter.py` - Unit tests for AI service adapter
+- `tests/unit/test_ai_service_logging.py` - Unit tests for AI service logging capabilities
 - `tests/unit/test_ai_query_processing.py` - Unit tests for query processing logic
 - `tests/unit/test_azure_openai_provider.py` - Unit tests for Azure OpenAI provider
 - `tests/unit/test_ai_streaming_handler.py` - Unit tests for streaming handler
@@ -39,8 +41,8 @@ Based on PRD: `prd-ai-service-adapter.md`
 - [ ] 2.0 Implement Core AI Service Adapter
     - [x] 2.1 Create `AIServiceAdapter` base class with abstract interface and data structures
     - [x] 2.2 Implement query processing logic with proper error handling and response management
-    - [ ] 2.3 Implement connection management with timeout and retry mechanisms
-    - [ ] 2.4 Implement comprehensive logging and debugging capabilities for AI service interactions
+    - [x] 2.3 Implement connection management with timeout and retry mechanisms
+    - [x] 2.4 Implement comprehensive logging and debugging capabilities for AI service interactions
 
 - [ ] 3.0 Create Azure OpenAI Provider Integration
     - [ ] 3.1 Implement Azure OpenAI provider using PydanticAI's `AzureProvider` with configuration and authentication

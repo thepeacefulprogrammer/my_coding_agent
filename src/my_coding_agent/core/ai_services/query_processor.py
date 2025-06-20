@@ -1,11 +1,13 @@
 """
-Query processor for AI service requests.
+Query Processor - Enhanced query handling with retry logic and validation.
 
-Handles query processing, error handling, retry mechanisms, and response validation.
+This module provides intelligent query processing with retry mechanisms,
+response validation, and comprehensive error handling for AI service interactions.
 """
 
 import asyncio
 import logging
+import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
@@ -130,6 +132,44 @@ class QueryProcessor:
         self.response_validator = response_validator or ResponseValidator()
         self._logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
 
+        # Enhanced logging capabilities
+        try:
+            from .logging_utils import AIServiceLogger, LogContext
+            self._ai_logger = AIServiceLogger(f"{__name__}.{self.__class__.__name__}")
+
+            # Safely get adapter properties, handling Mock objects
+            provider = None
+            endpoint = None
+            deployment_name = None
+
+            try:
+                if hasattr(adapter, 'provider') and not callable(getattr(adapter, 'provider', None)):
+                    provider = getattr(adapter, 'provider', None)
+                if hasattr(adapter, 'endpoint') and not callable(getattr(adapter, 'endpoint', None)):
+                    endpoint = getattr(adapter, 'endpoint', None)
+                if hasattr(adapter, 'deployment_name') and not callable(getattr(adapter, 'deployment_name', None)):
+                    deployment_name = getattr(adapter, 'deployment_name', None)
+            except (TypeError, AttributeError):
+                # Handle cases where adapter is a Mock or has unusual attributes
+                pass
+
+            self._base_context = LogContext(
+                operation="query_processing",
+                provider=provider,
+                endpoint=endpoint,
+                deployment_name=deployment_name
+            )
+        except ImportError:
+            # Fallback to basic logging if enhanced logging is not available
+            self._ai_logger = None
+            self._base_context = None
+
+        # Log processor initialization
+        if self._ai_logger:
+            self._ai_logger.info("Query processor initialized", context=self._base_context)
+        else:
+            self._logger.info("Query processor initialized")
+
     async def process_query(self, request: QueryRequest) -> AIResponse:
         """
         Process a query with retry logic and error handling.
@@ -143,12 +183,53 @@ class QueryProcessor:
         Raises:
             AIServiceError: If the query fails after all retries.
         """
+        # Enhanced logging setup for query
+        query_context = None
+        if self._ai_logger and self._base_context:
+            try:
+                from .logging_utils import LogContext
+                query_context = LogContext(
+                    operation="process_query",
+                    provider=self._base_context.provider,
+                    endpoint=self._base_context.endpoint,
+                    deployment_name=self._base_context.deployment_name,
+                    correlation_id=f"query_{time.time()}"
+                )
+            except ImportError:
+                query_context = None
+
         attempt = 0
         last_error = None
+        start_time = time.time()
+
+        # Log the query request
+        if query_context and self._ai_logger:
+            kwargs = self._prepare_query_kwargs(request)
+            self._ai_logger.log_query_request(
+                query_context,
+                request.query,
+                kwargs
+            )
+
+        # Track performance
+        metrics_id = None
+        if self._ai_logger and query_context:
+            metrics_id = self._ai_logger.start_performance_tracking(
+                "query_processing",
+                query_context
+            )
 
         while attempt <= self.retry_policy.max_retries:
             try:
-                self._logger.debug(f"Processing query attempt {attempt + 1}")
+                # Enhanced logging for attempt
+                if self._ai_logger and query_context:
+                    self._ai_logger.debug(
+                        f"Processing query attempt {attempt + 1}/{self.retry_policy.max_retries + 1}",
+                        context=query_context,
+                        extra_data={"attempt": attempt + 1, "max_attempts": self.retry_policy.max_retries + 1}
+                    )
+                else:
+                    self._logger.debug(f"Processing query attempt {attempt + 1}")
 
                 # Prepare query parameters
                 kwargs = self._prepare_query_kwargs(request)
@@ -159,7 +240,7 @@ class QueryProcessor:
                 # Validate response
                 if not self.response_validator.validate_response(response):
                     # Create error response for validation failure
-                    return AIResponse(
+                    validation_response = AIResponse(
                         content="",
                         success=False,
                         error="Response validation failed",
@@ -167,32 +248,128 @@ class QueryProcessor:
                         retry_count=attempt,
                     )
 
+                    # Log validation failure
+                    if self._ai_logger and query_context:
+                        self._ai_logger.log_query_response(
+                            query_context,
+                            validation_response,
+                            (time.time() - start_time) * 1000
+                        )
+                        if metrics_id:
+                            self._ai_logger.finish_performance_tracking(
+                                metrics_id,
+                                query_context,
+                                success=False,
+                                error_type="validation_error",
+                                retry_count=attempt
+                            )
+
+                    return validation_response
+
                 # Add retry count to successful response
                 response.retry_count = attempt
+
+                # Log successful response
+                duration_ms = (time.time() - start_time) * 1000
+                if self._ai_logger and query_context:
+                    self._ai_logger.log_query_response(
+                        query_context,
+                        response,
+                        duration_ms
+                    )
+                    if metrics_id:
+                        self._ai_logger.finish_performance_tracking(
+                            metrics_id,
+                            query_context,
+                            success=True,
+                            retry_count=attempt
+                        )
+                else:
+                    self._logger.info(f"Query completed successfully in {duration_ms:.1f}ms")
+
                 return response
 
             except Exception as error:
                 last_error = error
-                self._logger.warning(f"Query attempt {attempt + 1} failed: {error}")
+
+                # Enhanced error logging
+                if self._ai_logger and query_context:
+                    self._ai_logger.warning(
+                        f"Query attempt {attempt + 1} failed",
+                        context=query_context,
+                        exception=error,
+                        extra_data={
+                            "attempt": attempt + 1,
+                            "error_type": type(error).__name__,
+                            "should_retry": self.retry_policy.should_retry(error, attempt)
+                        }
+                    )
+                else:
+                    self._logger.warning(f"Query attempt {attempt + 1} failed: {error}")
 
                 # Check if we should retry
                 if not self.retry_policy.should_retry(error, attempt):
-                    self._logger.error(f"Query failed after {attempt + 1} attempts")
+                    # Final failure logging
+                    if self._ai_logger and query_context:
+                        self._ai_logger.error(
+                            f"Query failed after {attempt + 1} attempts",
+                            context=query_context,
+                            exception=error,
+                            extra_data={"total_attempts": attempt + 1}
+                        )
+                        if metrics_id:
+                            self._ai_logger.finish_performance_tracking(
+                                metrics_id,
+                                query_context,
+                                success=False,
+                                error_type=type(error).__name__,
+                                retry_count=attempt
+                            )
+                    else:
+                        self._logger.error(f"Query failed after {attempt + 1} attempts")
+
                     raise error
 
                 # Calculate delay and wait before retry
                 if attempt < self.retry_policy.max_retries:
                     delay = self.retry_policy.calculate_delay(attempt)
-                    self._logger.info(f"Retrying in {delay:.1f} seconds...")
+
+                    if self._ai_logger and query_context:
+                        self._ai_logger.info(
+                            f"Retrying query in {delay:.1f} seconds",
+                            context=query_context,
+                            extra_data={"retry_delay": delay, "attempt": attempt + 1}
+                        )
+                    else:
+                        self._logger.info(f"Retrying in {delay:.1f} seconds...")
+
                     await asyncio.sleep(delay)
 
                 attempt += 1
 
         # This should not be reached, but just in case
         if last_error:
+            # Final cleanup
+            if metrics_id and self._ai_logger and query_context:
+                self._ai_logger.finish_performance_tracking(
+                    metrics_id,
+                    query_context,
+                    success=False,
+                    error_type=type(last_error).__name__,
+                    retry_count=attempt
+                )
             raise last_error
         else:
-            raise AIServiceError("Query processing failed for unknown reason")
+            unknown_error = AIServiceError("Query processing failed for unknown reason")
+            if metrics_id and self._ai_logger and query_context:
+                self._ai_logger.finish_performance_tracking(
+                    metrics_id,
+                    query_context,
+                    success=False,
+                    error_type="unknown_error",
+                    retry_count=attempt
+                )
+            raise unknown_error
 
     async def process_streaming_query(
         self, request: QueryRequest
@@ -209,25 +386,110 @@ class QueryProcessor:
         Raises:
             AIServiceError: If the streaming query fails.
         """
-        self._logger.debug("Processing streaming query")
+        # Enhanced logging setup for streaming query
+        streaming_context = None
+        if self._ai_logger and self._base_context:
+            try:
+                from .logging_utils import LogContext
+                streaming_context = LogContext(
+                    operation="process_streaming_query",
+                    provider=self._base_context.provider,
+                    endpoint=self._base_context.endpoint,
+                    deployment_name=self._base_context.deployment_name,
+                    correlation_id=f"streaming_{time.time()}"
+                )
+            except ImportError:
+                streaming_context = None
 
-        # Prepare query parameters
-        kwargs = self._prepare_query_kwargs(request)
+        start_time = time.time()
+        chunk_count = 0
+
+        # Log streaming start
+        if streaming_context and self._ai_logger:
+            self._ai_logger.log_streaming_start(streaming_context, request.query)
+        else:
+            self._logger.debug("Processing streaming query")
+
+        # Track performance
+        metrics_id = None
+        if self._ai_logger and streaming_context:
+            metrics_id = self._ai_logger.start_performance_tracking(
+                "streaming_query_processing",
+                streaming_context
+            )
 
         try:
+            # Prepare query parameters
+            kwargs = self._prepare_query_kwargs(request)
+
             # Send streaming query to adapter
             async for chunk in self.adapter.send_streaming_query(
                 request.query, **kwargs
             ):
+                chunk_count += 1
+
                 # Validate streaming response
                 if self.response_validator.validate_streaming_response(chunk):
+                    # Log valid chunk
+                    if streaming_context and self._ai_logger:
+                        self._ai_logger.log_streaming_chunk(streaming_context, chunk)
+
                     yield chunk
                 else:
-                    self._logger.warning("Invalid streaming response chunk received")
+                    # Log invalid chunk
+                    if streaming_context and self._ai_logger:
+                        self._ai_logger.warning(
+                            f"Invalid streaming response chunk {chunk.chunk_index} received",
+                            context=streaming_context,
+                            extra_data={
+                                "chunk_index": chunk.chunk_index,
+                                "content_length": len(chunk.content),
+                                "is_complete": chunk.is_complete
+                            }
+                        )
+                    else:
+                        self._logger.warning("Invalid streaming response chunk received")
                     # Continue processing other chunks
 
+            # Log streaming completion
+            duration_ms = (time.time() - start_time) * 1000
+            if streaming_context and self._ai_logger:
+                self._ai_logger.log_streaming_complete(
+                    streaming_context,
+                    chunk_count,
+                    duration_ms
+                )
+                if metrics_id:
+                    self._ai_logger.finish_performance_tracking(
+                        metrics_id,
+                        streaming_context,
+                        success=True
+                    )
+            else:
+                self._logger.info(f"Streaming completed with {chunk_count} chunks in {duration_ms:.1f}ms")
+
         except Exception as error:
-            self._logger.error(f"Streaming query failed: {error}")
+            # Log streaming error
+            if streaming_context and self._ai_logger:
+                self._ai_logger.error(
+                    "Streaming query failed",
+                    context=streaming_context,
+                    exception=error,
+                    extra_data={
+                        "chunks_processed": chunk_count,
+                        "duration_ms": (time.time() - start_time) * 1000
+                    }
+                )
+                if metrics_id:
+                    self._ai_logger.finish_performance_tracking(
+                        metrics_id,
+                        streaming_context,
+                        success=False,
+                        error_type=type(error).__name__
+                    )
+            else:
+                self._logger.error(f"Streaming query failed: {error}")
+
             raise
 
     def _prepare_query_kwargs(self, request: QueryRequest) -> dict[str, Any]:
