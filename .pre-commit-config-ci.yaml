@@ -1,0 +1,99 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format-check
+        name: ruff-format-check
+        entry: ruff format --check
+        language: system
+        types: [python]
+        exclude: ^src/my_coding_agent/_version\.py$
+
+      - id: ruff-check-no-fix
+        name: ruff-check-no-fix
+        entry: ruff check --ignore I001
+        language: system
+        types: [python]
+        exclude: ^src/my_coding_agent/_version\.py$
+
+      # Check Python syntax and imports
+      - id: python-check-syntax
+        name: python-check-syntax
+        entry: python -m py_compile
+        language: system
+        types: [python]
+        exclude: ^src/my_coding_agent/_version\.py$
+
+      # Run comprehensive test suite
+      - id: pytest
+        name: pytest
+        entry: python -m pytest tests/unit/ -n auto -q --tb=line --maxfail=5
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      # Check that all modules can be imported without errors
+      - id: import-validation
+        name: import-validation
+        entry: python
+        args:
+          - -c
+          - |
+            import sys
+            import importlib
+            import traceback
+
+            # Test core imports
+            modules_to_test = [
+                'src.my_coding_agent.core.ai_services',
+                'src.my_coding_agent.core.ai_services.ai_service_adapter',
+                'src.my_coding_agent.core.ai_services.query_processor',
+                'src.my_coding_agent.core.ai_services.mcp_connection_service',
+                'src.my_coding_agent.core.ai_services.streaming_response_service',
+            ]
+
+            failed = []
+            for module in modules_to_test:
+                try:
+                    importlib.import_module(module)
+                    print(f'✅ {module}')
+                except Exception as e:
+                    print(f'❌ {module}: {e}')
+                    traceback.print_exc()
+                    failed.append(module)
+
+            if failed:
+                print(f'\n❌ Failed to import {len(failed)} modules')
+                sys.exit(1)
+            else:
+                print(f'\n✅ All {len(modules_to_test)} core modules imported successfully')
+        language: system
+        pass_filenames: false
+        always_run: true
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: check-ast # Check Python AST syntax
+      - id: debug-statements # Check for debug statements
+
+  # Additional Python-specific checks (check-only mode)
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort-check
+        args:
+          [
+            "--profile",
+            "black",
+            "--line-length",
+            "88",
+            "--check-only",
+            "--diff",
+          ]

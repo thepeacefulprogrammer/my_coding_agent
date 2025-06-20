@@ -49,7 +49,7 @@ jobs:
       if: matrix.python-version == '3.11'
       run: |
         pip install pre-commit
-        pre-commit run --all-files
+        pre-commit run --all-files --config .pre-commit-config-ci.yaml
 
     # TODO: Enable type checking after adding comprehensive type annotations
     # - name: Run type checking
