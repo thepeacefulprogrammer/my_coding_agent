@@ -25,7 +25,6 @@ from PyQt6.QtGui import QAction, QCloseEvent, QKeySequence
 from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout
 
 from ..gui.chat_widget_v2 import SimplifiedChatWidget
-from .ai_agent import AIAgent, AIAgentConfig
 from .mcp_client_coordinator import MCPClientCoordinator, MCPCoordinatorConfig
 from .theme_manager import ThemeManager
 
@@ -76,10 +75,10 @@ class MCPWorkerThread(QThread):
             asyncio.set_event_loop(loop)
 
             try:
-                logger.info("Connecting to MCP server...")
+                print("🔗 Connecting to MCP server...")
                 # Connect to MCP server
                 loop.run_until_complete(self._mcp_coordinator.connect())
-                logger.info("MCP server connected successfully")
+                print("✅ MCP server connected successfully")
 
                 # Update chat widget with connection status
                 if hasattr(self, "_chat_widget") and self._chat_widget:
@@ -91,8 +90,8 @@ class MCPWorkerThread(QThread):
                     )
 
             except Exception as e:
-                error_msg = f"Failed to connect to MCP server: {e}"
-                logger.error(error_msg)
+                error_msg = f"❌ Failed to connect to MCP server: {e}"
+                print(error_msg)
                 if hasattr(self, "_chat_widget") and self._chat_widget:
                     # Capture the error message in the lambda to avoid variable scope issues
                     error_message = f"MCP server connection failed: {str(e)}"
@@ -110,22 +109,129 @@ class MCPWorkerThread(QThread):
         thread.start()
 
     def _handle_chat_message(self, message: str) -> None:
-        """Handle messages from the chat widget and generate MCP responses with streaming."""
-        if not self._mcp_coordinator:
-            # If no MCP coordinator, show a simple message
-            self._chat_widget.add_assistant_message(
-                "MCP client is not available. Please check configuration."
-            )
-            return
+        """Handle messages from the chat widget and route to agent orchestrator."""
+        print(f"🔄 MainWindow received message: '{message}'")
+
+        # Check if agent bridge is available
+        if hasattr(self, '_agent_bridge') and self._agent_bridge and self._agent_bridge.is_connected:
+            print("✅ Routing to agent orchestrator")
+            # Route to agent orchestrator
+            self._handle_agent_message(message)
+        elif self._mcp_coordinator:
+            print("⚠️ Falling back to MCP")
+            # Fallback to MCP if agent is not available
+            self._handle_mcp_message(message)
+        else:
+            print("❌ No AI services available")
+            # Neither agent nor MCP available
+            if self._chat_widget:
+                self._chat_widget.add_assistant_message(
+                    "No AI services are available. Please check configuration."
+                )
+
+    def _handle_agent_message(self, message: str) -> None:
+        """Handle messages by routing to the agent orchestrator."""
+        print(f"🤖 Processing agent message: '{message}'")
 
         # Show thinking indicator
-        self._chat_widget.show_ai_thinking(animated=True)
+        if self._chat_widget:
+            self._chat_widget.show_ai_thinking(animated=True)
+
+        # Start agent response asynchronously
+        QTimer.singleShot(10, lambda: self._start_agent_response(message))
+
+    def _start_agent_response(self, message: str) -> None:
+        """Start the agent response in a separate thread."""
+        print(f"🚀 Starting agent response thread for: '{message}'")
+
+        def run_agent_response():
+            """Run agent response in a separate thread."""
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+            try:
+                loop.run_until_complete(self._process_agent_message(message))
+            except Exception as error:
+                print(f"❌ Agent response error: {error}")
+                self.streaming_error_signal.emit(error)
+            finally:
+                loop.close()
+
+        # Start the thread
+        thread = threading.Thread(target=run_agent_response, daemon=True)
+        thread.start()
+
+    async def _process_agent_message(self, message: str) -> None:
+        """Process message through the agent orchestrator."""
+        print(f"📡 Processing message through agent: '{message}'")
+
+        try:
+            # Process directly through bridge and use signals for UI updates
+            print("⚙️ Processing agent query in background thread")
+            if hasattr(self, '_agent_bridge') and self._agent_bridge:
+                # Use the streaming version with callback
+                if hasattr(self._agent_bridge, 'process_streaming_query'):
+                    print("🌊 Using agent bridge streaming")
+
+                    # Generate a unique stream ID
+                    import uuid
+                    stream_id = str(uuid.uuid4())
+
+                    # Start streaming response via signal
+                    self.start_streaming_signal.emit(stream_id)
+
+                    def chunk_callback(chunk: str):
+                        """Callback for streaming chunks - thread-safe via signals."""
+                        print(f"📦 Received agent chunk: '{chunk.strip()}'")
+                        self.append_chunk_signal.emit(chunk)
+
+                    # Process streaming query
+                    await self._agent_bridge.process_streaming_query(message, chunk_callback)
+
+                    # Complete streaming via signal
+                    self.complete_streaming_signal.emit()
+                    print("✅ Agent streaming completed")
+
+                else:
+                    print("📝 Using regular agent query")
+                    # Fallback to regular query
+                    response = await self._agent_bridge.process_query(message)
+
+                    # Extract content from AgentResponse object
+                    if hasattr(response, 'response'):
+                        content = response.response
+                    elif hasattr(response, 'content'):
+                        content = response.content
+                    elif isinstance(response, dict):
+                        content = response.get('content', str(response))
+                    else:
+                        content = str(response)
+
+                    print(f"📝 Adding agent response: '{content[:50]}...'")
+                    # Use signal for thread-safe UI updates
+                    self.agent_response_ready.emit(content)
+            else:
+                print("❌ No agent bridge available")
+                self.streaming_error_signal.emit(Exception("Agent bridge not available"))
+
+        except Exception as error:
+            print(f"❌ Error processing agent message: {error}")
+            self.streaming_error_signal.emit(error)
+
+    def _handle_mcp_message(self, message: str) -> None:
+        """Handle messages through MCP (fallback method)."""
+        print(f"🌐 Processing MCP message: '{message}'")
+
+        # Show thinking indicator
+        if self._chat_widget:
+            self._chat_widget.show_ai_thinking(animated=True)
 
         # Start streaming MCP response asynchronously
         QTimer.singleShot(10, lambda: self._start_streaming_response(message))
 
     def _start_streaming_response(self, message: str) -> None:
         """Start the streaming MCP response."""
+        print(f"🌊 Starting MCP streaming response for: '{message}'")
 
         # Create a new thread for the async operation
         def run_async_response():
@@ -138,6 +244,7 @@ class MCPWorkerThread(QThread):
                 loop.run_until_complete(self._stream_mcp_response(message))
             except Exception as error:
                 # Handle any errors - capture exception variable properly
+                print(f"❌ MCP streaming error: {error}")
                 self.streaming_error_signal.emit(error)
             finally:
                 loop.close()
@@ -148,36 +255,36 @@ class MCPWorkerThread(QThread):
 
     async def _stream_mcp_response(self, message: str) -> None:
         """Generate streaming MCP response."""
-        logger.info(f"Starting MCP stream for message: '{message}'")
+        print(f"🚀 Starting MCP stream for message: '{message}'")
 
         # Add None check for MCP coordinator
         if not self._mcp_coordinator:
-            logger.error("No MCP coordinator available")
+            print("❌ No MCP coordinator available")
             self.streaming_error_signal.emit(Exception("MCP coordinator not available"))
             return
 
         try:
-            logger.info("Hiding typing indicator and starting stream")
+            print("🔄 Hiding typing indicator and starting stream")
             # Hide thinking indicator and start streaming response
-            QTimer.singleShot(0, lambda: self._chat_widget.hide_typing_indicator())
+            if self._chat_widget:
+                QTimer.singleShot(0, lambda: self._chat_widget.hide_typing_indicator())
 
             # Generate a unique stream ID
             stream_id = str(uuid.uuid4())
-            logger.info(f"Stream ID: {stream_id}")
+            print(f"📝 Stream ID: {stream_id}")
 
             # Track response content
             response_content = ""
 
             # Start streaming response
             self.start_streaming_signal.emit(stream_id)
-            _message_started = True
 
             # Send message with streaming support
-            logger.info(f"Sending message to MCP server. Message length: {len(message)}")
+            print(f"📡 Sending message to MCP server. Message length: {len(message)}")
 
             async for chunk in self._mcp_coordinator.send_message_streaming(message):
-                logger.info(
-                    f"Received chunk: content='{chunk.content}', complete={chunk.is_complete}"
+                print(
+                    f"🔍 Received chunk: content='{chunk.content}', complete={chunk.is_complete}"
                 )
 
                 # Accumulate response content
@@ -187,18 +294,65 @@ class MCPWorkerThread(QThread):
 
                 # Check if streaming is complete
                 if chunk.is_complete:
-                    logger.info("Streaming response complete")
+                    print("🏁 Streaming response complete")
                     self.complete_streaming_signal.emit()
                     break
 
-            logger.info(
-                f"MCP response completed. Total content length: {len(response_content)}"
+            print(
+                f"✅ MCP response completed. Total content length: {len(response_content)}"
             )
 
         except Exception as error:
             # Handle any unexpected errors
-            logger.error(f"MCP streaming error: {error}")
+            print(f"❌ MCP streaming error: {error}")
             self.streaming_error_signal.emit(error)
+
+    def _connect_streaming_signals(self) -> None:
+        """Connect streaming signals between main window and chat widget."""
+        if not self._chat_widget:
+            return
+
+        # Connect streaming signals
+        self.start_streaming_signal.connect(self._chat_widget.start_streaming_response)
+        self.append_chunk_signal.connect(self._chat_widget.append_streaming_chunk)
+        self.complete_streaming_signal.connect(
+            self._chat_widget.complete_streaming_response
+        )
+        self.streaming_error_signal.connect(self._chat_widget.handle_streaming_error)
+
+        # Connect MCP tool call signals
+        self.tool_call_started_signal.connect(self._chat_widget.start_tool_call)
+        self.tool_call_completed_signal.connect(self._chat_widget.complete_tool_call)
+        self.tool_call_failed_signal.connect(self._chat_widget.fail_tool_call)
+
+        # Connect agent response signal
+        self.agent_response_ready.connect(self._handle_agent_response_ready)
+
+        print("✅ MainWindow: All streaming signals connected")
+
+    def _handle_agent_response_ready(self, response_content: str) -> None:
+        """Handle agent response in the main thread (thread-safe)."""
+        if self._chat_widget:
+            self._chat_widget.add_agent_message(response_content, "orchestrator")
+
+    def _handle_streaming_error(self, error: Exception) -> None:
+        """Handle streaming errors in the main thread."""
+        print(f"❌ Streaming error: {error}")
+        # Hide typing indicator and show error message
+        if self._chat_widget:
+            self._chat_widget.hide_typing_indicator()
+            self._chat_widget.add_assistant_message(
+                f"Error generating response: {str(error)}"
+            )
+
+    def _new_chat(self) -> None:
+        """Start a new chat conversation."""
+        if self._chat_widget:
+            self._chat_widget.clear_conversation()
+            # Add welcome message for new chat
+            self._chat_widget.add_system_message(
+                "New conversation started. You can ask questions about your code or request file operations."
+            )
 
 
 class MainWindow(QMainWindow):
@@ -219,6 +373,9 @@ class MainWindow(QMainWindow):
     tool_call_started_signal = pyqtSignal(dict)  # tool_call_data
     tool_call_completed_signal = pyqtSignal(dict)  # result_data
     tool_call_failed_signal = pyqtSignal(dict)  # error_data
+
+    # Agent response signal for thread-safe communication
+    agent_response_ready = pyqtSignal(str)  # response_content
 
     def __init__(self, directory_path: str) -> None:
         """Initialize the main window.
@@ -242,7 +399,6 @@ class MainWindow(QMainWindow):
         else:
             self._theme_manager = None
 
-        self._ai_agent: AIAgent | None = None
         self._chat_widget: SimplifiedChatWidget | None = None
 
         # Initialize MCP coordinator
@@ -257,9 +413,6 @@ class MainWindow(QMainWindow):
 
         # Apply initial theme and window settings
         self._setup_window()
-
-        # Set up AI integration
-        self._setup_ai_integration()
 
         # Load conversation history if available
         self._load_conversation_history()
@@ -380,6 +533,12 @@ class MainWindow(QMainWindow):
 
         self._chat_widget = ChatWidget()
         right_layout.addWidget(self._chat_widget)
+
+        # Initialize and connect agent bridge
+        self._setup_agent_integration()
+
+        # Initialize MCP integration (connects message_sent signal)
+        self._setup_mcp_integration()
 
         # Apply current theme to chat widget
         if hasattr(self, "_theme_manager"):
@@ -684,194 +843,286 @@ class MainWindow(QMainWindow):
             pass
 
     def closeEvent(self, a0: QCloseEvent | None) -> None:
-        """Handle window close event by saving state."""
-        # Save current window state before closing
+        """Handle window close event."""
         self.save_window_state()
+        super().closeEvent(a0)
 
-        # Accept the close event
-        if a0 is not None:
-            a0.accept()
+    def _get_or_create_session_id(self) -> str:
+        """Generate or restore session ID for conversation persistence."""
+        # Implement logic to get or create a session ID
+        # This is a placeholder and should be replaced with actual implementation
+        return str(uuid.uuid4())
 
-    def _setup_ai_integration(self) -> None:
-        """Set up AI integration and connect chat widget."""
-        print("DEBUG: [MainWindow] Running _setup_ai_integration...")  # Debug statement
+    def _load_conversation_history(self) -> None:
+        """Load conversation history if available."""
+        # Implement logic to load conversation history
+        # This is a placeholder and should be replaced with actual implementation
+        pass
+
+    def _setup_mcp_integration(self) -> None:
+        """Setup MCP (Model Context Protocol) integration."""
         try:
-            # Initialize AI agent with configuration
-            print("DEBUG: [MainWindow] Initializing AIAgentConfig...")  # Debug statement
-            self._ai_config = AIAgentConfig.from_env()
-            print("DEBUG: [MainWindow] AIAgentConfig initialized.")  # Debug statement
+            # Create MCP coordinator configuration
+            # Get server URL from environment or use default
+            server_url = os.getenv("MCP_SERVER_URL", "http://localhost:8080")
 
-            # Set up MCP configuration for filesystem tools
-            from pathlib import Path
-
-            from .ai_agent import MCPFileConfig
-
-            # Configure MCP for current workspace
-            workspace_path = Path.cwd()
-            mcp_config = MCPFileConfig(
-                base_directory=workspace_path,
-                allowed_extensions=[
-                    ".py",
-                    ".md",
-                    ".txt",
-                    ".json",
-                    ".yaml",
-                    ".yml",
-                    ".toml",
-                    ".cfg",
-                    ".ini",
-                ],
-                enable_write_operations=True,
-                enable_delete_operations=False,  # Safer to keep disabled
-                max_file_size=5 * 1024 * 1024,  # 5MB limit
+            config = MCPCoordinatorConfig(
+                server_url=server_url,
+                timeout=30.0,
+                enable_streaming=True,
+                max_retries=3,
             )
 
-            # Initialize AI agent with MCP support and memory awareness
-            self._ai_agent = AIAgent(
-                config=self._ai_config,
-                mcp_config=mcp_config,
-                enable_filesystem_tools=True,
-                enable_memory_awareness=True,
-                enable_mcp_tools=True,
-                auto_discover_mcp_servers=True,
-                signal_handler=self,  # Pass MainWindow as signal handler for MCP tool visualization
-            )
-            print("DEBUG: [MainWindow] AIAgent initialized.")  # Debug statement
+            # Initialize MCP coordinator
+            self._mcp_coordinator = MCPClientCoordinator(config)
 
             # Connect chat widget message_sent signal to our handler
-            print("DEBUG: [MainWindow] Connecting message_sent signal...")  # Debug statement
             self._chat_widget.message_sent.connect(self._handle_chat_message)
-            print("DEBUG: [MainWindow] message_sent signal connected.")  # Debug statement
 
-            # Initialize worker thread as None
-            self._ai_worker_thread = None
-
-            # Show success message in chat
-            available_tools = self._ai_agent.get_available_tools()
-            if available_tools:
-                tools_list = ", ".join(available_tools)
-                self._chat_widget.add_system_message(
-                    f"AI initialized with filesystem tools: {tools_list}"
-                )
-            else:
-                self._chat_widget.add_system_message("AI initialized successfully")
-
-            # Connect streaming signals now that chat widget is available
+            # Connect streaming signals
             self._connect_streaming_signals()
 
-            # Schedule MCP server connections to happen after GUI initialization
-            if self._ai_agent and self._ai_agent.mcp_tools_enabled:
-                QTimer.singleShot(1000, self._initialize_mcp_servers)  # 1 second delay
+            # Show success message in chat
+            self._chat_widget.add_system_message("MCP Client initialized successfully")
+
+            # Schedule MCP server connection to happen after GUI initialization
+            QTimer.singleShot(1000, self._initialize_mcp_connection)  # 1 second delay
 
         except Exception as e:
-            # If AI initialization fails, show error in chat
-            print(f"ERROR: [MainWindow] AI initialization failed: {e}")  # Debug statement
+            # If MCP initialization fails, show error in chat
             self._chat_widget.add_system_message(
-                f"AI initialization failed: {str(e)}. Chat will work without AI responses."
+                f"MCP initialization failed: {str(e)}. Chat will work with limited functionality."
             )
-            self._ai_agent = None
+            self._mcp_coordinator = None
 
-    def _initialize_mcp_servers(self) -> None:
-        """Initialize MCP servers asynchronously after GUI startup."""
-        if not self._ai_agent or not self._ai_agent.mcp_tools_enabled:
+    def _initialize_mcp_connection(self) -> None:
+        """Initialize MCP connection after GUI startup."""
+        if not self._mcp_coordinator:
             return
 
-        def run_mcp_initialization():
-            """Run MCP server initialization in a separate thread with event loop."""
+        # Create MCP worker thread
+        self._mcp_worker_thread = MCPWorkerThread(
+            self._mcp_coordinator, "Initial connection"
+        )
+        self._mcp_worker_thread.response_ready.connect(self._handle_mcp_response)
+        self._mcp_worker_thread.start()
+
+    def _handle_mcp_response(self, content: str, success: bool, error: str) -> None:
+        """Handle MCP response from worker thread."""
+        if success:
+            self.update_file_info_display(f"MCP connection successful: {content}")
+        else:
+            self.update_file_info_display(f"MCP connection failed: {error}")
+
+    def _new_chat(self) -> None:
+        """Start a new chat conversation."""
+        if self._chat_widget:
+            # Reset streaming state if active
+            if hasattr(self._chat_widget, '_is_streaming') and self._chat_widget._is_streaming:
+                self._chat_widget.complete_streaming_response()
+
+            # Clear the conversation
+            self._chat_widget.clear_conversation()
+
+            # Provide status feedback
+            status_bar = self.statusBar()
+            if status_bar:
+                status_bar.showMessage("New chat conversation started", 3000)  # Show for 3 seconds
+
+    def _setup_agent_integration(self) -> None:
+        """Initialize agent bridge and connect it to the chat widget."""
+        import asyncio
+        from pathlib import Path
+
+        from .agent_integration import AgentBridge
+
+        # Create agent bridge for the current workspace
+        workspace_path = Path(self.directory_path)
+
+        try:
+            self._agent_bridge = AgentBridge(
+                workspace_path=workspace_path,
+                config={
+                    "agent_timeout": 30,
+                    "retry_attempts": 3,
+                    "enable_streaming": True
+                }
+            )
+
+            # Connect the agent bridge to the chat widget
+            if hasattr(self._chat_widget, 'connect_agent_bridge'):
+                self._chat_widget.connect_agent_bridge(self._agent_bridge)
+
+            # Initialize the connection asynchronously
+            def initialize_agent_connection():
+                """Initialize agent connection in a separate thread."""
+                try:
+                    # Create a new event loop for this thread
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+
+                    # Initialize the agent bridge connection
+                    loop.run_until_complete(self._agent_bridge.initialize_connection())
+
+                    # Update status
+                    if hasattr(self, '_file_info_label'):
+                        self._file_info_label.setText("Agent: Connected")
+
+                except Exception as e:
+                    # Handle connection failure gracefully
+                    if hasattr(self, '_file_info_label'):
+                        self._file_info_label.setText("Agent: Unavailable")
+                    print(f"Agent connection failed: {e}")
+                finally:
+                    loop.close()
+
+            # Start initialization in a separate thread
+            import threading
+            init_thread = threading.Thread(target=initialize_agent_connection, daemon=True)
+            init_thread.start()
+
+        except Exception as e:
+            print(f"Failed to setup agent integration: {e}")
+            if hasattr(self, '_file_info_label'):
+                self._file_info_label.setText("Agent: Error")
+
+    def _handle_chat_message(self, message: str) -> None:
+        """Handle messages from the chat widget and route to agent orchestrator."""
+        print(f"🔄 MainWindow received message: '{message}'")
+
+        # Check if agent bridge is available
+        if hasattr(self, '_agent_bridge') and self._agent_bridge and self._agent_bridge.is_connected:
+            print("✅ Routing to agent orchestrator")
+            # Route to agent orchestrator
+            self._handle_agent_message(message)
+        elif self._mcp_coordinator:
+            print("⚠️ Falling back to MCP")
+            # Fallback to MCP if agent is not available
+            self._handle_mcp_message(message)
+        else:
+            print("❌ No AI services available")
+            # Neither agent nor MCP available
+            if self._chat_widget:
+                self._chat_widget.add_assistant_message(
+                    "No AI services are available. Please check configuration."
+                )
+
+    def _handle_agent_message(self, message: str) -> None:
+        """Handle messages by routing to the agent orchestrator."""
+        print(f"🤖 Processing agent message: '{message}'")
+
+        # Show thinking indicator
+        if self._chat_widget:
+            self._chat_widget.show_ai_thinking(animated=True)
+
+        # Start agent response asynchronously
+        QTimer.singleShot(10, lambda: self._start_agent_response(message))
+
+    def _start_agent_response(self, message: str) -> None:
+        """Start the agent response in a separate thread."""
+        print(f"🚀 Starting agent response thread for: '{message}'")
+
+        def run_agent_response():
+            """Run agent response in a separate thread."""
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
             try:
-                logger.info("Initializing MCP servers...")
-                # Connect to MCP servers using the startup method
-                loop.run_until_complete(
-                    self._ai_agent._connect_mcp_servers_on_startup()
-                )
-                logger.info("MCP servers initialized successfully")
-
-                # Update chat widget with MCP tool availability
-                if hasattr(self, "_chat_widget") and self._chat_widget:
-                    available_tools = self._ai_agent.get_available_tools()
-                    mcp_tools = [
-                        tool
-                        for tool in available_tools
-                        if not tool.startswith(
-                            (
-                                "read_file",
-                                "write_file",
-                                "list_directory",
-                                "create_directory",
-                                "get_file_info",
-                                "search_files",
-                            )
-                        )
-                    ]
-                    if mcp_tools:
-                        QTimer.singleShot(
-                            0,
-                            lambda: self._chat_widget.add_system_message(
-                                f"MCP tools are now available: {', '.join(mcp_tools)}"
-                            ),
-                        )
-
-            except Exception as e:
-                error_msg = f"Failed to initialize MCP servers: {e}"
-                logger.error(error_msg)
-                if hasattr(self, "_chat_widget") and self._chat_widget:
-                    # Capture the error message in the lambda to avoid variable scope issues
-                    error_message = f"MCP server initialization failed: {str(e)}"
-                    QTimer.singleShot(
-                        0,
-                        lambda msg=error_message: self._chat_widget.add_system_message(
-                            msg
-                        ),
-                    )
+                loop.run_until_complete(self._process_agent_message(message))
+            except Exception as error:
+                print(f"❌ Agent response error: {error}")
+                self.streaming_error_signal.emit(error)
             finally:
                 loop.close()
 
-        # Start initialization in background thread
-        thread = threading.Thread(target=run_mcp_initialization, daemon=True)
+        # Start the thread
+        thread = threading.Thread(target=run_agent_response, daemon=True)
         thread.start()
 
-    def _handle_chat_message(self, message: str) -> None:
-        """Handle messages from the chat widget and generate AI responses with streaming."""
-        logger.info(f"DEBUG: [MainWindow] _handle_chat_message triggered with: '{message}'")  # Debug statement
-        if not self._ai_agent:
-            # If no AI agent, show a simple echo response
-            self._chat_widget.add_assistant_message(
-                "AI is not available. Configuration required for responses."
-            )
-            return
+    async def _process_agent_message(self, message: str) -> None:
+        """Process message through the agent orchestrator."""
+        print(f"📡 Processing message through agent: '{message}'")
 
-        # Memory handling is now done by the AI agent's built-in memory system
-        logger.info(
-            f"💾 Using AI agent's built-in memory system for message: '{message[:50]}...'"
-        )
+        try:
+            # Process directly through bridge and use signals for UI updates
+            print("⚙️ Processing agent query in background thread")
+            if hasattr(self, '_agent_bridge') and self._agent_bridge:
+                # Use the streaming version with callback
+                if hasattr(self._agent_bridge, 'process_streaming_query'):
+                    print("🌊 Using agent bridge streaming")
+
+                    # Generate a unique stream ID
+                    import uuid
+                    stream_id = str(uuid.uuid4())
+
+                    # Start streaming response via signal
+                    self.start_streaming_signal.emit(stream_id)
+
+                    def chunk_callback(chunk: str):
+                        """Callback for streaming chunks - thread-safe via signals."""
+                        print(f"📦 Received agent chunk: '{chunk.strip()}'")
+                        self.append_chunk_signal.emit(chunk)
+
+                    # Process streaming query
+                    await self._agent_bridge.process_streaming_query(message, chunk_callback)
+
+                    # Complete streaming via signal
+                    self.complete_streaming_signal.emit()
+                    print("✅ Agent streaming completed")
+
+                else:
+                    print("📝 Using regular agent query")
+                    # Fallback to regular query
+                    response = await self._agent_bridge.process_query(message)
+
+                    # Extract content from AgentResponse object
+                    if hasattr(response, 'response'):
+                        content = response.response
+                    elif hasattr(response, 'content'):
+                        content = response.content
+                    elif isinstance(response, dict):
+                        content = response.get('content', str(response))
+                    else:
+                        content = str(response)
+
+                    print(f"📝 Adding agent response: '{content[:50]}...'")
+                    # Use signal for thread-safe UI updates
+                    self.agent_response_ready.emit(content)
+            else:
+                print("❌ No agent bridge available")
+                self.streaming_error_signal.emit(Exception("Agent bridge not available"))
+
+        except Exception as error:
+            print(f"❌ Error processing agent message: {error}")
+            self.streaming_error_signal.emit(error)
+
+    def _handle_mcp_message(self, message: str) -> None:
+        """Handle messages through MCP (fallback method)."""
+        print(f"🌐 Processing MCP message: '{message}'")
 
         # Show thinking indicator
-        self._chat_widget.show_ai_thinking(animated=True)
+        if self._chat_widget:
+            self._chat_widget.show_ai_thinking(animated=True)
 
-        # Start streaming AI response asynchronously with conversation context
-        logger.info("DEBUG: [MainWindow] Queuing _start_streaming_response_with_context")  # Debug statement
-        QTimer.singleShot(
-            10, lambda: self._start_streaming_response_with_context(message)
-        )
+        # Start streaming MCP response asynchronously
+        QTimer.singleShot(10, lambda: self._start_streaming_response(message))
 
-    def _start_streaming_response_with_context(self, message: str) -> None:
-        """Start the streaming AI response with conversation context."""
-        logger.info("DEBUG: [MainWindow] _start_streaming_response_with_context called")  # Debug statement
+    def _start_streaming_response(self, message: str) -> None:
+        """Start the streaming MCP response."""
+        print(f"🌊 Starting MCP streaming response for: '{message}'")
+
         # Create a new thread for the async operation
         def run_async_response():
-            logger.info("DEBUG: [MainWindow] run_async_response thread started")  # Debug statement
             # Create a new event loop for this thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
 
             try:
-                # Run the streaming response with context
-                loop.run_until_complete(self._stream_ai_response_with_context(message))
+                # Run the streaming response
+                loop.run_until_complete(self._stream_mcp_response(message))
             except Exception as error:
                 # Handle any errors - capture exception variable properly
+                print(f"❌ MCP streaming error: {error}")
                 self.streaming_error_signal.emit(error)
             finally:
                 loop.close()
@@ -880,210 +1131,59 @@ class MainWindow(QMainWindow):
         thread = threading.Thread(target=run_async_response, daemon=True)
         thread.start()
 
-    async def _stream_ai_response_with_context(self, message: str) -> None:
-        """Generate streaming AI response with conversation context."""
-        logger.info(f"DEBUG: [MainWindow] _stream_ai_response_with_context called with: '{message}'")  # Debug statement
-        logger.info(f"🚀 Starting stream with context for message: '{message}'")
+    async def _stream_mcp_response(self, message: str) -> None:
+        """Generate streaming MCP response."""
+        print(f"🚀 Starting MCP stream for message: '{message}'")
 
-        # Add None check for AI agent
-        if not self._ai_agent:
-            logger.error("❌ No AI agent available")
-            self.streaming_error_signal.emit(Exception("AI agent not available"))
+        # Add None check for MCP coordinator
+        if not self._mcp_coordinator:
+            print("❌ No MCP coordinator available")
+            self.streaming_error_signal.emit(Exception("MCP coordinator not available"))
             return
 
         try:
-            logger.info("🔄 Hiding typing indicator and starting stream")
+            print("🔄 Hiding typing indicator and starting stream")
             # Hide thinking indicator and start streaming response
-            QTimer.singleShot(0, lambda: self._chat_widget.hide_typing_indicator())
+            if self._chat_widget:
+                QTimer.singleShot(0, lambda: self._chat_widget.hide_typing_indicator())
 
             # Generate a unique stream ID
             stream_id = str(uuid.uuid4())
-            logger.info(f"📝 Stream ID: {stream_id}")
+            print(f"📝 Stream ID: {stream_id}")
 
-            # Note: We'll start the streaming response later, after reasoning appears
-            # This ensures reasoning shows first, then assistant response follows
+            # Track response content
+            response_content = ""
 
-            # Track assistant response content for memory storage
-            assistant_response_content = ""
+            # Start streaming response
+            self.start_streaming_signal.emit(stream_id)
 
-            # Track streaming state
-            assistant_message_started = False
+            # Send message with streaming support
+            print(f"📡 Sending message to MCP server. Message length: {len(message)}")
 
-            # Define streaming callbacks
-            def on_chunk(chunk: str, is_final: bool) -> None:
-                """Handle streaming chunks from AI response."""
-                nonlocal assistant_response_content, assistant_message_started
-                logger.info(f"🔍 MainWindow callback: chunk='{chunk}', is_final={is_final}")
+            async for chunk in self._mcp_coordinator.send_message_streaming(message):
+                print(
+                    f"🔍 Received chunk: content='{chunk.content}', complete={chunk.is_complete}"
+                )
 
-                # Accumulate assistant response content
-                if chunk:
-                    assistant_response_content += chunk
+                # Accumulate response content
+                if chunk.content:
+                    response_content += chunk.content
+                    self.append_chunk_signal.emit(chunk.content)
 
-                # Start streaming response if not already started
-                if chunk and not assistant_message_started:
-                    assistant_message_started = True
-                    logger.info("🎯 MainWindow: Starting assistant streaming response now")
-                    self.start_streaming_signal.emit(stream_id)
-                    logger.info("🎯 MainWindow: Emitted start_streaming_signal")
-
-                # Emit chunks for the assistant response
-                if chunk:
-                    logger.info("🎯 MainWindow: About to emit append_chunk_signal")
-                    self.append_chunk_signal.emit(chunk)
-                    logger.info("🎯 MainWindow: Emitted append_chunk_signal")
-
-                if is_final:
-                    logger.info("🏁 MainWindow: Completing streaming response")
-
-                    # Memory storage is handled by the AI agent's memory system
-                    logger.info(
-                        "💾 AI agent's memory system handles response storage automatically"
-                    )
-
-                    # Complete the streaming response
-                    logger.info("🎯 MainWindow: About to emit complete_streaming_signal")
+                # Check if streaming is complete
+                if chunk.is_complete:
+                    print("🏁 Streaming response complete")
                     self.complete_streaming_signal.emit()
-                    logger.info("🎯 MainWindow: Emitted complete_streaming_signal")
+                    break
 
-            def on_error(error: Exception) -> None:
-                """Handle streaming errors."""
-                logger.error(f"❌ MainWindow callback: error={error}")
-                self.streaming_error_signal.emit(error)
-
-            # Send message with streaming support and reasoning callbacks
-            logger.info(
-                f"📡 Calling AI agent memory-aware streaming. Message length: {len(message)}"
+            print(
+                f"✅ MCP response completed. Total content length: {len(response_content)}"
             )
-
-            # Import QTimer for main thread signal emission
-            # Start a timer to ensure assistant response starts even if no reasoning chunks come
-            # This prevents the UI from hanging if there's no reasoning
-            import asyncio
-
-            async def ensure_response_starts():
-                nonlocal assistant_message_started
-                try:
-                    await asyncio.sleep(
-                        1.0
-                    )  # Reduced to 1 second to prevent long hangs
-                    if not assistant_message_started:
-                        logger.info(
-                            "⏰ No response detected after 1s, starting assistant response"
-                        )
-                        self.start_streaming_signal.emit(stream_id)
-                        assistant_message_started = True
-                    else:
-                        logger.info("⏰ Assistant response already started, timer not needed")
-                except asyncio.CancelledError:
-                    logger.info("⏰ Fallback timer was cancelled")
-
-            # Start the fallback timer
-            asyncio.create_task(ensure_response_starts())
-
-            response = await self._ai_agent.send_memory_aware_message_stream(
-                message=message,  # Use original message, not manually constructed context
-                on_chunk=on_chunk,
-                on_error=on_error,
-                enable_filesystem=False,  # Disable filesystem tools to prevent fallback from MCP
-            )
-            logger.info(
-                f"✅ AI agent response: success={response.success}, content='{response.content}'"
-            )
-
-            # Check if response failed without calling callbacks
-            if not response.success and response.error:
-                logger.error(f"❌ AI agent failed: {response.error}")
-                self.streaming_error_signal.emit(Exception(response.error))
 
         except Exception as error:
-            # Handle any unexpected errors - capture exception variable properly
+            # Handle any unexpected errors
+            print(f"❌ MCP streaming error: {error}")
             self.streaming_error_signal.emit(error)
-
-    def _handle_streaming_error(self, error: Exception) -> None:
-        """Handle streaming errors in the main thread."""
-        # Hide any indicators and show error
-        self._chat_widget.hide_typing_indicator()
-
-        # If there's an active stream, handle the error through the streaming system
-        if self._chat_widget.is_streaming():
-            self._chat_widget.handle_streaming_error(error)
-        else:
-            # Fallback: add error message directly
-            self._chat_widget.add_assistant_message(f"AI Error: {str(error)}")
-
-    def _handle_ai_response(self, content: str, success: bool, error: str) -> None:
-        """Handle AI response from worker thread - DEPRECATED: Now using streaming."""
-        # This method is kept for compatibility but should not be used
-        # with the new streaming implementation
-        pass
-
-    def _new_chat(self) -> None:
-        """Start a new chat conversation by clearing the current conversation."""
-        if hasattr(self, "_chat_widget") and self._chat_widget is not None:
-            # Reset streaming state if widget supports it
-            if hasattr(self._chat_widget, "_is_streaming"):
-                self._chat_widget._is_streaming = False
-
-            # Start a new memory session to properly separate conversations
-            if (
-                hasattr(self, "_ai_agent")
-                and self._ai_agent
-                and hasattr(self._ai_agent, "_memory_system")
-                and self._ai_agent._memory_system
-            ):
-                try:
-                    self._ai_agent._memory_system.start_new_session()
-                    # Memory session started successfully
-                except Exception as e:
-                    logger.error(f"Failed to start new memory session: {e}")
-            else:
-                logger.info(
-                    "💾 AI agent's memory system will handle new conversation context"
-                )
-
-            # Clear the conversation
-            self._chat_widget.clear_conversation()
-
-            # Provide status feedback
-            if hasattr(self, "_file_info_label"):
-                self._file_info_label.setText("New chat started")
-
-            # Also update the status bar with a temporary message
-            status_bar = self.statusBar()
-            if status_bar:
-                status_bar.showMessage("New chat started", 3000)
-
-    def _get_or_create_session_id(self) -> str:
-        """Generate or restore session ID for conversation persistence."""
-        if not hasattr(self, "_session_id"):
-            self._session_id = str(uuid.uuid4())
-        return self._session_id
-
-    def _load_conversation_history(self) -> None:
-        """Load conversation history if available."""
-        if (
-            hasattr(self, "_ai_agent")
-            and self._ai_agent
-            and self._ai_agent.memory_aware_enabled
-        ):
-            if hasattr(self, "_chat_widget"):
-                self._ai_agent.load_conversation_history(self._chat_widget)
-
-    def _setup_mcp_integration(self) -> None:
-        """Setup MCP (Model Context Protocol) integration."""
-        if not hasattr(self, "_mcp_coordinator"):
-            self._mcp_coordinator = None
-
-        if self._ai_agent and self._ai_agent.mcp_tools_enabled:
-            # Use a more robust check for attribute existence
-            if not getattr(self, "_mcp_coordinator", None):
-                mcp_config = MCPCoordinatorConfig(
-                    mcp_server_url=os.getenv("MCP_SERVER_URL"),
-                    mcp_timeout=int(os.getenv("MCP_TIMEOUT", 30)),
-                    mcp_auth_token=os.getenv("MCP_AUTH_TOKEN"),
-                )
-                self._mcp_coordinator = MCPClientCoordinator(mcp_config)
-                self._initialize_mcp_connection()
 
     def _connect_streaming_signals(self) -> None:
         """Connect streaming signals between main window and chat widget."""
@@ -1103,4 +1203,22 @@ class MainWindow(QMainWindow):
         self.tool_call_completed_signal.connect(self._chat_widget.complete_tool_call)
         self.tool_call_failed_signal.connect(self._chat_widget.fail_tool_call)
 
-        logger.info("All streaming signals connected")
+        # Connect agent response signal
+        self.agent_response_ready.connect(self._handle_agent_response_ready)
+
+        print("✅ MainWindow: All streaming signals connected")
+
+    def _handle_agent_response_ready(self, response_content: str) -> None:
+        """Handle agent response in the main thread (thread-safe)."""
+        if self._chat_widget:
+            self._chat_widget.add_agent_message(response_content, "orchestrator")
+
+    def _handle_streaming_error(self, error: Exception) -> None:
+        """Handle streaming errors in the main thread."""
+        print(f"❌ Streaming error: {error}")
+        # Hide typing indicator and show error message
+        if self._chat_widget:
+            self._chat_widget.hide_typing_indicator()
+            self._chat_widget.add_assistant_message(
+                f"Error generating response: {str(error)}"
+            )

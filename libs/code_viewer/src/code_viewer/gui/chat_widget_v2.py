@@ -1,5 +1,6 @@
 """Clean, simplified chat widget implementation."""
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
@@ -24,6 +25,7 @@ from .chat_message_model import (
 )
 
 if TYPE_CHECKING:
+    from ..core.agent_integration import AgentBridge
     from .components.mcp_tool_visualization import MCPToolCallWidget
 else:
     from .components.mcp_tool_visualization import MCPToolCallWidget
@@ -131,6 +133,10 @@ class SimplifiedMessageBubble(QWidget):
                 bg_color = "#2d2d2d"
                 text_color = "#ffffff"
                 border_color = "#444444"
+            elif self.role == MessageRole.AGENT:
+                bg_color = "#1a3d2e"  # Dark green for agent
+                text_color = "#a8e6cf"
+                border_color = "#2e7d32"
             else:  # SYSTEM
                 bg_color = "#1a1a1a"
                 text_color = "#aaaaaa"
@@ -144,6 +150,10 @@ class SimplifiedMessageBubble(QWidget):
                 bg_color = "#f5f5f5"
                 text_color = "#000000"
                 border_color = "#e0e0e0"
+            elif self.role == MessageRole.AGENT:
+                bg_color = "#e8f5e8"  # Light green for agent
+                text_color = "#1b5e20"
+                border_color = "#4caf50"
             else:  # SYSTEM
                 bg_color = "#fff3e0"
                 text_color = "#666666"
@@ -517,6 +527,9 @@ class SimplifiedChatWidget(QWidget):
         # Tool call tracking
         self._active_tool_calls: dict[str, MCPToolCallWidget] = {}
 
+        # Initialize agent integration
+        self.__init_agent_integration()
+
         # Initialize UI and connections
         self.setup_ui()
 
@@ -673,7 +686,6 @@ class SimplifiedChatWidget(QWidget):
         """Send the current message."""
         text = self.input_text.toPlainText().strip()
         if text:
-            print(f"DEBUG: [ChatWidget] sending message: '{text}'")  # Debug statement
             # Add user message first and wait for it to be fully processed
             self.add_user_message(text)
 
@@ -817,13 +829,21 @@ class SimplifiedChatWidget(QWidget):
         # Hide typing indicator
         self.display_area.hide_typing_indicator()
 
-    def _show_streaming_indicators(self) -> None:
+    def _show_streaming_indicators(self, custom_text: str | None = None) -> None:
         """Show streaming visual indicators."""
         if self._streaming_container is None:
             self._create_streaming_indicators()
 
-        # Update indicator text based on retry count
-        if self._retry_count > 0:
+        # Store custom text for use in animations
+        if custom_text:
+            self._custom_streaming_text = custom_text
+        else:
+            self._custom_streaming_text = None
+
+        # Update indicator text based on retry count and custom text
+        if custom_text:
+            indicator_text = custom_text
+        elif self._retry_count > 0:
             indicator_text = f"AI is responding... (attempt {self._retry_count + 1})"
         else:
             indicator_text = "AI is responding..."
@@ -973,10 +993,13 @@ class SimplifiedChatWidget(QWidget):
         self._animation_dots = (self._animation_dots + 1) % 4
         dots = "." * self._animation_dots
 
-        # Update text with animated dots
-        base_text = "AI is responding"
-        if self._retry_count > 0:
+        # Update text with animated dots - use custom text if available
+        if hasattr(self, '_custom_streaming_text') and self._custom_streaming_text:
+            base_text = self._custom_streaming_text
+        elif self._retry_count > 0:
             base_text = f"AI is responding (attempt {self._retry_count + 1})"
+        else:
+            base_text = "AI is responding"
 
         self._streaming_indicator.setText(f"{base_text}{dots}")
 
@@ -1079,8 +1102,14 @@ class SimplifiedChatWidget(QWidget):
         if not self.is_streaming() or not self._streaming_message_id:
             return
 
-        # Update the message content
-        self.update_message_content(self._streaming_message_id, chunk)
+        # Get the current message and append the chunk to its content
+        message = self.message_model.get_message_by_id(self._streaming_message_id)
+        if message:
+            # Append chunk to existing content instead of replacing it
+            message.content += chunk
+            self.message_model.message_updated.emit(message)
+            # Update UI with the accumulated content
+            self.update_message_content(self._streaming_message_id, message.content)
 
         # Auto-scroll to show new content
         self.scroll_to_bottom()
@@ -1250,5 +1279,226 @@ class SimplifiedChatWidget(QWidget):
 
     def apply_theme_to_tool_calls(self, theme: str) -> None:
         """Apply theme to all active tool call widgets."""
-        for tool_widget in self._active_tool_calls.values():
-            tool_widget.apply_theme()  # Apply current theme without parameters
+        for widget in self._active_tool_calls.values():
+            widget.apply_theme(theme)
+
+    # Agent Integration Methods (Task 4.0)
+
+    def __init_agent_integration(self) -> None:
+        """Initialize agent integration components."""
+        self._agent_bridge: AgentBridge | None = None
+        self._agent_context: dict[str, Any] = {}
+        self._agent_state: str = "idle"
+        self._agent_status_message: str = "Ready"
+        self._agent_tasks: dict[str, dict[str, Any]] = {}
+        self._agent_streaming_message_id: str | None = None
+        self._custom_streaming_text: str | None = None
+
+    def start_agent_streaming_response(self, stream_id: str, agent_type: str) -> str:
+        """Start an agent streaming response."""
+        # Create agent message
+        message = ChatMessage(
+            content="",
+            role=MessageRole.AGENT,
+            status=MessageStatus.PENDING,
+            metadata={"stream_id": stream_id, "agent_type": agent_type}
+        )
+
+        self.message_model.add_message(message)
+        self._agent_streaming_message_id = message.message_id
+
+        # Set streaming state (same as regular streaming)
+        self._is_streaming = True
+        self._current_stream_id = stream_id
+
+        # Show streaming indicators with agent context
+        agent_text = f"Agent ({agent_type}) is processing"
+        self._show_streaming_indicators(custom_text=agent_text)
+
+        return message.message_id
+
+    def append_agent_streaming_chunk(self, chunk: str) -> None:
+        """Append a chunk to the current agent streaming response."""
+        if self._agent_streaming_message_id:
+            message = self.message_model.get_message_by_id(self._agent_streaming_message_id)
+            if message:
+                message.content += chunk
+                self.message_model.message_updated.emit(message)
+                self.update_message_content(self._agent_streaming_message_id, message.content)
+
+    def complete_agent_streaming_response(self) -> None:
+        """Complete the current agent streaming response."""
+        if self._agent_streaming_message_id:
+            self.message_model.update_message_status(
+                self._agent_streaming_message_id,
+                MessageStatus.DELIVERED
+            )
+            self._agent_streaming_message_id = None
+
+        # Reset streaming state
+        self._is_streaming = False
+        self._current_stream_id = None
+
+        self._hide_streaming_indicators()
+
+    def handle_agent_streaming_error(self, error: Exception) -> None:
+        """Handle error during agent streaming."""
+        if self._agent_streaming_message_id:
+            self.message_model.set_message_error(
+                self._agent_streaming_message_id,
+                str(error)
+            )
+            self._agent_streaming_message_id = None
+
+        # Reset streaming state
+        self._is_streaming = False
+        self._current_stream_id = None
+
+        self._hide_streaming_indicators()
+
+    def add_agent_message(self, content: str, agent_type: str = "agent",
+                         metadata: dict[str, Any] | None = None) -> str:
+        """Add an agent message to the chat."""
+        full_metadata = {"agent_type": agent_type}
+        if metadata:
+            full_metadata.update(metadata)
+
+        message = ChatMessage.create_agent_message(content, full_metadata)
+        self.message_model.add_message(message)
+        self.display_area.add_message(message)
+        self.scroll_to_bottom()
+        return message.message_id
+
+    def set_agent_context(self, context: dict[str, Any]) -> None:
+        """Set the agent context."""
+        self._agent_context = context.copy()
+
+    def get_agent_context(self) -> dict[str, Any]:
+        """Get the current agent context."""
+        return self._agent_context.copy()
+
+    def update_agent_state(self, state: str, status_message: str = "") -> None:
+        """Update the agent state and status message."""
+        self._agent_state = state
+        self._agent_status_message = status_message
+
+    def get_agent_state(self) -> str:
+        """Get the current agent state."""
+        return self._agent_state
+
+    def get_agent_status_message(self) -> str:
+        """Get the current agent status message."""
+        return self._agent_status_message
+
+    def start_agent_task(self, task_type: str, description: str) -> str:
+        """Start tracking an agent task."""
+        import uuid
+        task_id = str(uuid.uuid4())
+        self._agent_tasks[task_id] = {
+            "task_id": task_id,
+            "task_type": task_type,
+            "description": description,
+            "status": "started",
+            "progress": 0,
+            "start_time": datetime.now(),
+            "messages": []
+        }
+        return task_id
+
+    def update_agent_task_progress(self, task_id: str, progress: int, message: str = "") -> None:
+        """Update progress for an agent task."""
+        if task_id in self._agent_tasks:
+            self._agent_tasks[task_id]["progress"] = progress
+            if message:
+                self._agent_tasks[task_id]["messages"].append({
+                    "timestamp": datetime.now(),
+                    "message": message
+                })
+
+    def complete_agent_task(self, task_id: str, result: str = "") -> None:
+        """Complete an agent task."""
+        if task_id in self._agent_tasks:
+            self._agent_tasks[task_id]["status"] = "completed"
+            self._agent_tasks[task_id]["end_time"] = datetime.now()
+            if result:
+                self._agent_tasks[task_id]["result"] = result
+
+    def get_agent_task_history(self) -> list[dict[str, Any]]:
+        """Get the history of agent tasks."""
+        return list(self._agent_tasks.values())
+
+    def connect_agent_bridge(self, agent_bridge: "AgentBridge") -> None:
+        """Connect an agent bridge to the chat widget."""
+        self._agent_bridge = agent_bridge
+
+    async def send_query_to_agent(self, query: str) -> str:
+        """Send a query to the agent and return the response message ID."""
+        if not self._agent_bridge or not self._agent_bridge.is_connected:
+            return self.handle_agent_unavailable(query)
+
+        try:
+            response = await self._agent_bridge.process_query(query)
+            # Extract content from AgentResponse object
+            content = response.response if hasattr(response, 'response') else str(response)
+            return self.add_agent_message(content, "orchestrator")
+        except Exception as e:
+            return self.add_agent_message(f"Agent error: {str(e)}", "error",
+                                        {"error": True})
+
+    async def send_streaming_query_to_agent(self, query: str) -> str:
+        """Send a streaming query to the agent."""
+        if not self._agent_bridge or not self._agent_bridge.is_connected:
+            return self.handle_agent_unavailable(query)
+
+        message_id = self.start_agent_streaming_response("stream", "orchestrator")
+
+        try:
+            if hasattr(self._agent_bridge, 'process_streaming_query'):
+                # For streaming, the callback provides chunks for visual feedback
+                await self._agent_bridge.process_streaming_query(
+                    query,
+                    callback=self.append_agent_streaming_chunk
+                )
+            else:
+                response = await self._agent_bridge.process_query(query)
+                # Extract content from AgentResponse object
+                content = response.response if hasattr(response, 'response') else str(response)
+                self.append_agent_streaming_chunk(content)
+
+            self.complete_agent_streaming_response()
+            return message_id
+        except Exception as e:
+            self.handle_agent_streaming_error(e)
+            return message_id
+
+    def handle_agent_unavailable(self, query: str) -> str:
+        """Handle case when agent is unavailable."""
+        message = ChatMessage.create_agent_message(
+            "Agent architecture is not available. Please ensure the agent library is installed and configured.",
+            {"error": True, "original_query": query, "agent_type": "error"}
+        )
+        # Set error status
+        message.status = MessageStatus.ERROR
+
+        self.message_model.add_message(message)
+        self.display_area.add_message(message)
+        self.scroll_to_bottom()
+        return message.message_id
+
+    def is_agent_command(self, text: str) -> bool:
+        """Check if text is an agent command."""
+        agent_commands = ["/analyze", "/refactor", "/test", "/generate", "/explain"]
+        return any(text.startswith(cmd) for cmd in agent_commands)
+
+    def get_conversation_context_for_agent(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Get conversation context formatted for agent consumption."""
+        messages = self.message_model.get_recent_messages(limit)
+        return [
+            {
+                "role": msg.role.value,
+                "content": msg.content,
+                "metadata": msg.metadata,
+                "timestamp": msg.timestamp.isoformat()
+            }
+            for msg in messages
+        ]

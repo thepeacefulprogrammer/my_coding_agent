@@ -112,10 +112,22 @@ class FileOperationError(Exception):
 
 
 # Additional type for MCP file config
-class MCPFileConfig:
-    """Simple stub for MCPFileConfig during development."""
+class MCPFileConfig(BaseModel):
+    """Configuration for the MCP File Server."""
 
-    pass
+    base_directory: Path = Field(..., description="Root directory for file operations")
+    allowed_extensions: list[str] = Field(
+        default_factory=list, description="Allowed file extensions"
+    )
+    enable_write_operations: bool = Field(
+        default=False, description="Enable write operations"
+    )
+    enable_delete_operations: bool = Field(
+        default=False, description="Enable delete operations"
+    )
+    max_file_size: int = Field(
+        default=5 * 1024 * 1024, description="Maximum file size in bytes"
+    )
 
 
 # Load environment variables
@@ -2273,29 +2285,15 @@ class AIAgent:
         on_error: Callable[[Exception], None] = None,
         enable_filesystem: bool = True,
     ) -> AIResponse:
-        """Send a message with tools and stream the response.
-
-        Args:
-            message: The message to send
-            on_chunk: Callback function for streaming chunks
-            on_error: Optional callback function for handling errors
-            enable_filesystem: Whether to enable filesystem tools
-
-        Returns:
-            AIResponse: The complete response after streaming
-        """
-        # Delegate to streaming service if available
-        if (
-            hasattr(self, "streaming_response_service")
-            and self.streaming_response_service is not None
-        ):
-            return await self.streaming_response_service.send_message_with_tools_stream(
-                message, on_chunk, on_error, enable_filesystem
-            )
-
-        # Legacy implementation for backwards compatibility
+        """Send a message with tools and streaming response."""
+        print("DEBUG: [AIAgent] send_message_with_tools_stream called")  # Debug statement
+        # Simplified: Directly call the legacy implementation as the primary one is not available.
+        print("DEBUG: [AIAgent] Directly calling _send_message_with_tools_stream_legacy")  # Debug statement
         return await self._send_message_with_tools_stream_legacy(
-            message, on_chunk, on_error, enable_filesystem
+            message=message,
+            on_chunk=on_chunk,
+            on_error=on_error,
+            enable_filesystem=enable_filesystem,
         )
 
     async def _send_message_with_tools_stream_legacy(
@@ -2305,32 +2303,31 @@ class AIAgent:
         on_error: Callable[[Exception], None] = None,
         enable_filesystem: bool = True,
     ) -> AIResponse:
-        """Legacy streaming implementation for backwards compatibility."""
+        """Legacy implementation for sending a message with tools and streaming response."""
+        print("DEBUG: [AIAgent] _send_message_with_tools_stream_legacy called")  # Debug statement
         try:
             # Get the regular response first
+            print("DEBUG: [AIAgent] Calling send_message_with_tools to get full response")  # Debug statement
             response = await self.send_message_with_tools(message, enable_filesystem)
+            print(f"DEBUG: [AIAgent] Got response from send_message_with_tools: success={response.success}")  # Debug statement
 
             # Simulate streaming by sending the content in chunks
             if response.success and response.content:
+                print("DEBUG: [AIAgent] Simulating streaming by sending response in chunks")  # Debug statement
                 content = response.content
-                chunk_size = max(1, len(content) // 5)  # Split into ~5 chunks
-
-                for i in range(0, len(content), chunk_size):
-                    chunk = content[i : i + chunk_size]
-                    is_final = i + chunk_size >= len(content)
-
-                    # Handle both sync and async callbacks
-                    result = on_chunk(chunk, is_final)
-                    if hasattr(result, "__await__"):
-                        await result
+                # Send the whole content as a single chunk for simplicity
+                chunk = content
+                is_final = True
+                await on_chunk(chunk, is_final)
+                print("DEBUG: [AIAgent] Sent final chunk")  # Debug statement
             else:
                 # Send error or empty response
-                result = on_chunk(response.content or "No response", True)
-                if hasattr(result, "__await__"):
-                    await result
+                print("DEBUG: [AIAgent] No content to stream, sending empty/error response")  # Debug statement
+                await on_chunk(response.content or "No response", True)
 
             return response
         except Exception as e:
+            print(f"ERROR: [AIAgent] Error in legacy streaming: {e}")  # Debug statement
             # Call error callback if provided
             if on_error:
                 on_error(e)
@@ -3611,32 +3608,27 @@ User message: {message}
         self,
         message: str,
         on_chunk: Callable[[str, bool], Awaitable[None]],
+        on_error: Callable[[Exception], None] = None,
         enable_filesystem: bool = True,
     ) -> AIResponse:
-        """Send a memory-aware message with streaming response.
-
-        Args:
-            message: The message to send
-            on_chunk: Callback function for streaming chunks
-            enable_filesystem: Whether to enable filesystem tools
-
-        Returns:
-            AIResponse: The complete response after streaming
-        """
+        """Send a memory-aware message with streaming response."""
+        print("DEBUG: [AIAgent] Entering send_memory_aware_message_stream")  # Debug statement
         # Delegate to streaming service if available
         if (
             hasattr(self, "streaming_response_service")
             and self.streaming_response_service is not None
         ):
+            print("DEBUG: [AIAgent] Delegating to StreamingResponseService for memory-aware stream")  # Debug statement
             return (
                 await self.streaming_response_service.send_memory_aware_message_stream(
-                    message, on_chunk, enable_filesystem=enable_filesystem
+                    message, on_chunk, on_error, enable_filesystem=enable_filesystem
                 )
             )
 
         # Fallback to regular streaming
+        print("DEBUG: [AIAgent] No streaming service, falling back to send_message_with_tools_stream")  # Debug statement
         return await self.send_message_with_tools_stream(
-            message, on_chunk, enable_filesystem
+            message, on_chunk, on_error, enable_filesystem
         )
 
     @property
