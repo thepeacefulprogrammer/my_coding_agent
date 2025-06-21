@@ -60,7 +60,7 @@ async def test_streaming_agent():
         # Test regular query for comparison
         print("\n🔄 Testing regular query for comparison...")
         response = await agent_bridge.process_query(query)
-        content = response.response if hasattr(response, 'response') else str(response)
+        content = response.response if hasattr(response, "response") else str(response)
         print(f"📝 Regular response: '{content}'")
 
     except Exception as e:

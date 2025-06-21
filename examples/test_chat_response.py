@@ -10,8 +10,8 @@ import os
 import sys
 
 # Add the libs to the path
-sys.path.insert(0, os.path.join(os.getcwd(), 'libs', 'agent_arch', 'src'))
-sys.path.insert(0, os.path.join(os.getcwd(), 'libs', 'code_viewer', 'src'))
+sys.path.insert(0, os.path.join(os.getcwd(), "libs", "agent_arch", "src"))
+sys.path.insert(0, os.path.join(os.getcwd(), "libs", "code_viewer", "src"))
 
 from code_viewer.core.main_window import MainWindow
 from PyQt6.QtWidgets import QApplication
@@ -35,7 +35,7 @@ async def test_chat_response():
     await asyncio.sleep(3)
 
     # Check if agent is connected
-    if hasattr(main_window, '_agent_bridge') and main_window._agent_bridge:
+    if hasattr(main_window, "_agent_bridge") and main_window._agent_bridge:
         print(f"✅ Agent bridge available: {main_window._agent_bridge.is_connected}")
     else:
         print("❌ No agent bridge available")
@@ -57,7 +57,7 @@ async def test_chat_response():
         print(f"✅ User message added: {user_msg_id}")
 
         # Send the message to the agent through the chat widget
-        if hasattr(chat_widget, 'send_query_to_agent'):
+        if hasattr(chat_widget, "send_query_to_agent"):
             response_msg_id = await chat_widget.send_query_to_agent(test_message)
             print(f"✅ Agent query sent, response ID: {response_msg_id}")
         else:
@@ -72,7 +72,7 @@ async def test_chat_response():
         print(f"📊 Total messages in chat: {len(messages)}")
 
         # Look for agent responses
-        agent_messages = [msg for msg in messages if msg.role.value == 'agent']
+        agent_messages = [msg for msg in messages if msg.role.value == "agent"]
         if agent_messages:
             print("✅ Agent response found!")
             latest_response = agent_messages[-1]
@@ -88,6 +88,7 @@ async def test_chat_response():
     except Exception as e:
         print(f"❌ Error processing message: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 

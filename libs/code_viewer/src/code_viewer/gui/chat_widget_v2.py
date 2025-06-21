@@ -994,7 +994,7 @@ class SimplifiedChatWidget(QWidget):
         dots = "." * self._animation_dots
 
         # Update text with animated dots - use custom text if available
-        if hasattr(self, '_custom_streaming_text') and self._custom_streaming_text:
+        if hasattr(self, "_custom_streaming_text") and self._custom_streaming_text:
             base_text = self._custom_streaming_text
         elif self._retry_count > 0:
             base_text = f"AI is responding (attempt {self._retry_count + 1})"
@@ -1301,7 +1301,7 @@ class SimplifiedChatWidget(QWidget):
             content="",
             role=MessageRole.AGENT,
             status=MessageStatus.PENDING,
-            metadata={"stream_id": stream_id, "agent_type": agent_type}
+            metadata={"stream_id": stream_id, "agent_type": agent_type},
         )
 
         self.message_model.add_message(message)
@@ -1320,18 +1320,21 @@ class SimplifiedChatWidget(QWidget):
     def append_agent_streaming_chunk(self, chunk: str) -> None:
         """Append a chunk to the current agent streaming response."""
         if self._agent_streaming_message_id:
-            message = self.message_model.get_message_by_id(self._agent_streaming_message_id)
+            message = self.message_model.get_message_by_id(
+                self._agent_streaming_message_id
+            )
             if message:
                 message.content += chunk
                 self.message_model.message_updated.emit(message)
-                self.update_message_content(self._agent_streaming_message_id, message.content)
+                self.update_message_content(
+                    self._agent_streaming_message_id, message.content
+                )
 
     def complete_agent_streaming_response(self) -> None:
         """Complete the current agent streaming response."""
         if self._agent_streaming_message_id:
             self.message_model.update_message_status(
-                self._agent_streaming_message_id,
-                MessageStatus.DELIVERED
+                self._agent_streaming_message_id, MessageStatus.DELIVERED
             )
             self._agent_streaming_message_id = None
 
@@ -1345,8 +1348,7 @@ class SimplifiedChatWidget(QWidget):
         """Handle error during agent streaming."""
         if self._agent_streaming_message_id:
             self.message_model.set_message_error(
-                self._agent_streaming_message_id,
-                str(error)
+                self._agent_streaming_message_id, str(error)
             )
             self._agent_streaming_message_id = None
 
@@ -1356,8 +1358,12 @@ class SimplifiedChatWidget(QWidget):
 
         self._hide_streaming_indicators()
 
-    def add_agent_message(self, content: str, agent_type: str = "agent",
-                         metadata: dict[str, Any] | None = None) -> str:
+    def add_agent_message(
+        self,
+        content: str,
+        agent_type: str = "agent",
+        metadata: dict[str, Any] | None = None,
+    ) -> str:
         """Add an agent message to the chat."""
         full_metadata = {"agent_type": agent_type}
         if metadata:
@@ -1393,6 +1399,7 @@ class SimplifiedChatWidget(QWidget):
     def start_agent_task(self, task_type: str, description: str) -> str:
         """Start tracking an agent task."""
         import uuid
+
         task_id = str(uuid.uuid4())
         self._agent_tasks[task_id] = {
             "task_id": task_id,
@@ -1401,19 +1408,20 @@ class SimplifiedChatWidget(QWidget):
             "status": "started",
             "progress": 0,
             "start_time": datetime.now(),
-            "messages": []
+            "messages": [],
         }
         return task_id
 
-    def update_agent_task_progress(self, task_id: str, progress: int, message: str = "") -> None:
+    def update_agent_task_progress(
+        self, task_id: str, progress: int, message: str = ""
+    ) -> None:
         """Update progress for an agent task."""
         if task_id in self._agent_tasks:
             self._agent_tasks[task_id]["progress"] = progress
             if message:
-                self._agent_tasks[task_id]["messages"].append({
-                    "timestamp": datetime.now(),
-                    "message": message
-                })
+                self._agent_tasks[task_id]["messages"].append(
+                    {"timestamp": datetime.now(), "message": message}
+                )
 
     def complete_agent_task(self, task_id: str, result: str = "") -> None:
         """Complete an agent task."""
@@ -1439,11 +1447,14 @@ class SimplifiedChatWidget(QWidget):
         try:
             response = await self._agent_bridge.process_query(query)
             # Extract content from AgentResponse object
-            content = response.response if hasattr(response, 'response') else str(response)
+            content = (
+                response.response if hasattr(response, "response") else str(response)
+            )
             return self.add_agent_message(content, "orchestrator")
         except Exception as e:
-            return self.add_agent_message(f"Agent error: {str(e)}", "error",
-                                        {"error": True})
+            return self.add_agent_message(
+                f"Agent error: {str(e)}", "error", {"error": True}
+            )
 
     async def send_streaming_query_to_agent(self, query: str) -> str:
         """Send a streaming query to the agent."""
@@ -1453,16 +1464,19 @@ class SimplifiedChatWidget(QWidget):
         message_id = self.start_agent_streaming_response("stream", "orchestrator")
 
         try:
-            if hasattr(self._agent_bridge, 'process_streaming_query'):
+            if hasattr(self._agent_bridge, "process_streaming_query"):
                 # For streaming, the callback provides chunks for visual feedback
                 await self._agent_bridge.process_streaming_query(
-                    query,
-                    callback=self.append_agent_streaming_chunk
+                    query, callback=self.append_agent_streaming_chunk
                 )
             else:
                 response = await self._agent_bridge.process_query(query)
                 # Extract content from AgentResponse object
-                content = response.response if hasattr(response, 'response') else str(response)
+                content = (
+                    response.response
+                    if hasattr(response, "response")
+                    else str(response)
+                )
                 self.append_agent_streaming_chunk(content)
 
             self.complete_agent_streaming_response()
@@ -1475,7 +1489,7 @@ class SimplifiedChatWidget(QWidget):
         """Handle case when agent is unavailable."""
         message = ChatMessage.create_agent_message(
             "Agent architecture is not available. Please ensure the agent library is installed and configured.",
-            {"error": True, "original_query": query, "agent_type": "error"}
+            {"error": True, "original_query": query, "agent_type": "error"},
         )
         # Set error status
         message.status = MessageStatus.ERROR
@@ -1490,7 +1504,9 @@ class SimplifiedChatWidget(QWidget):
         agent_commands = ["/analyze", "/refactor", "/test", "/generate", "/explain"]
         return any(text.startswith(cmd) for cmd in agent_commands)
 
-    def get_conversation_context_for_agent(self, limit: int = 10) -> list[dict[str, Any]]:
+    def get_conversation_context_for_agent(
+        self, limit: int = 10
+    ) -> list[dict[str, Any]]:
         """Get conversation context formatted for agent consumption."""
         messages = self.message_model.get_recent_messages(limit)
         return [
@@ -1498,7 +1514,7 @@ class SimplifiedChatWidget(QWidget):
                 "role": msg.role.value,
                 "content": msg.content,
                 "metadata": msg.metadata,
-                "timestamp": msg.timestamp.isoformat()
+                "timestamp": msg.timestamp.isoformat(),
             }
             for msg in messages
         ]

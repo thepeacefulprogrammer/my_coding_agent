@@ -8,8 +8,12 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 
 # Add the libs to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'libs', 'code_viewer', 'src'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'libs', 'agent_arch', 'src'))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "..", "libs", "code_viewer", "src")
+)
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "..", "libs", "agent_arch", "src")
+)
 
 from code_viewer.core.main_window import MainWindow
 
@@ -29,6 +33,7 @@ def test_streaming_accumulation():
     QTimer.singleShot(500, lambda: test_accumulation_logic(main_window, app))
 
     return app.exec()
+
 
 def test_accumulation_logic(main_window, app):
     """Test the accumulation logic."""
@@ -55,12 +60,14 @@ def test_accumulation_logic(main_window, app):
             message = chat_widget.message_model.get_message_by_id(message_id)
             if message:
                 actual_content = message.content
-                print(f"📝 Chunk {i+1}: '{chunk}' -> Content: '{actual_content}'")
+                print(f"📝 Chunk {i + 1}: '{chunk}' -> Content: '{actual_content}'")
 
                 if actual_content == expected_content:
-                    print(f"✅ Chunk {i+1} accumulated correctly")
+                    print(f"✅ Chunk {i + 1} accumulated correctly")
                 else:
-                    print(f"❌ Chunk {i+1} failed! Expected: '{expected_content}', Got: '{actual_content}'")
+                    print(
+                        f"❌ Chunk {i + 1} failed! Expected: '{expected_content}', Got: '{actual_content}'"
+                    )
                     break
             else:
                 print(f"❌ Could not find message {message_id}")
@@ -76,10 +83,12 @@ def test_accumulation_logic(main_window, app):
     except Exception as e:
         print(f"❌ Test failed: {e}")
         import traceback
+
         traceback.print_exc()
 
     # Close after a short delay
     QTimer.singleShot(2000, app.quit)
+
 
 if __name__ == "__main__":
     exit_code = test_streaming_accumulation()

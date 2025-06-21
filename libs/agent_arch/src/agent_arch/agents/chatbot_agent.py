@@ -21,10 +21,10 @@ class ChatbotAgent(BaseAgent):
         self.agent_type = AgentType.CHATBOT
 
         # Get Azure OpenAI configuration from environment
-        api_version = os.getenv('API_VERSION')
-        endpoint = os.getenv('ENDPOINT')
-        api_key = os.getenv('API_KEY')
-        model = os.getenv('MODEL')
+        api_version = os.getenv("API_VERSION")
+        endpoint = os.getenv("ENDPOINT")
+        api_key = os.getenv("API_KEY")
+        model = os.getenv("MODEL")
 
         if not all([api_version, endpoint, api_key, model]):
             raise ValueError(
@@ -45,7 +45,7 @@ class ChatbotAgent(BaseAgent):
         # Create PydanticAI agent
         self.ai_agent = Agent(
             model=self.model,
-            system_prompt="You are a helpful AI assistant. Provide clear, concise, and helpful responses to user questions."
+            system_prompt="You are a helpful AI assistant. Provide clear, concise, and helpful responses to user questions.",
         )
 
     def can_handle_task(self, request: AgentRequest) -> bool:
@@ -64,8 +64,8 @@ class ChatbotAgent(BaseAgent):
                 success=True,
                 metadata={
                     "model": self.model.model_name,
-                    "usage": result.usage().__dict__ if result.usage() else None
-                }
+                    "usage": result.usage().__dict__ if result.usage() else None,
+                },
             )
 
         except Exception as e:
@@ -73,5 +73,5 @@ class ChatbotAgent(BaseAgent):
                 response="I'm sorry, I encountered an error while processing your request.",
                 agent_type=self.agent_type,
                 success=False,
-                error_message=str(e)
+                error_message=str(e),
             )

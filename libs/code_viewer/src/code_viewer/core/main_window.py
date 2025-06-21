@@ -113,7 +113,11 @@ class MCPWorkerThread(QThread):
         print(f"🔄 MainWindow received message: '{message}'")
 
         # Check if agent bridge is available
-        if hasattr(self, '_agent_bridge') and self._agent_bridge and self._agent_bridge.is_connected:
+        if (
+            hasattr(self, "_agent_bridge")
+            and self._agent_bridge
+            and self._agent_bridge.is_connected
+        ):
             print("✅ Routing to agent orchestrator")
             # Route to agent orchestrator
             self._handle_agent_message(message)
@@ -168,13 +172,14 @@ class MCPWorkerThread(QThread):
         try:
             # Process directly through bridge and use signals for UI updates
             print("⚙️ Processing agent query in background thread")
-            if hasattr(self, '_agent_bridge') and self._agent_bridge:
+            if hasattr(self, "_agent_bridge") and self._agent_bridge:
                 # Use the streaming version with callback
-                if hasattr(self._agent_bridge, 'process_streaming_query'):
+                if hasattr(self._agent_bridge, "process_streaming_query"):
                     print("🌊 Using agent bridge streaming")
 
                     # Generate a unique stream ID
                     import uuid
+
                     stream_id = str(uuid.uuid4())
 
                     # Start streaming response via signal
@@ -186,7 +191,9 @@ class MCPWorkerThread(QThread):
                         self.append_chunk_signal.emit(chunk)
 
                     # Process streaming query
-                    await self._agent_bridge.process_streaming_query(message, chunk_callback)
+                    await self._agent_bridge.process_streaming_query(
+                        message, chunk_callback
+                    )
 
                     # Complete streaming via signal
                     self.complete_streaming_signal.emit()
@@ -198,12 +205,12 @@ class MCPWorkerThread(QThread):
                     response = await self._agent_bridge.process_query(message)
 
                     # Extract content from AgentResponse object
-                    if hasattr(response, 'response'):
+                    if hasattr(response, "response"):
                         content = response.response
-                    elif hasattr(response, 'content'):
+                    elif hasattr(response, "content"):
                         content = response.content
                     elif isinstance(response, dict):
-                        content = response.get('content', str(response))
+                        content = response.get("content", str(response))
                     else:
                         content = str(response)
 
@@ -212,7 +219,9 @@ class MCPWorkerThread(QThread):
                     self.agent_response_ready.emit(content)
             else:
                 print("❌ No agent bridge available")
-                self.streaming_error_signal.emit(Exception("Agent bridge not available"))
+                self.streaming_error_signal.emit(
+                    Exception("Agent bridge not available")
+                )
 
         except Exception as error:
             print(f"❌ Error processing agent message: {error}")
@@ -918,7 +927,10 @@ class MainWindow(QMainWindow):
         """Start a new chat conversation."""
         if self._chat_widget:
             # Reset streaming state if active
-            if hasattr(self._chat_widget, '_is_streaming') and self._chat_widget._is_streaming:
+            if (
+                hasattr(self._chat_widget, "_is_streaming")
+                and self._chat_widget._is_streaming
+            ):
                 self._chat_widget.complete_streaming_response()
 
             # Clear the conversation
@@ -927,7 +939,9 @@ class MainWindow(QMainWindow):
             # Provide status feedback
             status_bar = self.statusBar()
             if status_bar:
-                status_bar.showMessage("New chat conversation started", 3000)  # Show for 3 seconds
+                status_bar.showMessage(
+                    "New chat conversation started", 3000
+                )  # Show for 3 seconds
 
     def _setup_agent_integration(self) -> None:
         """Initialize agent bridge and connect it to the chat widget."""
@@ -945,12 +959,12 @@ class MainWindow(QMainWindow):
                 config={
                     "agent_timeout": 30,
                     "retry_attempts": 3,
-                    "enable_streaming": True
-                }
+                    "enable_streaming": True,
+                },
             )
 
             # Connect the agent bridge to the chat widget
-            if hasattr(self._chat_widget, 'connect_agent_bridge'):
+            if hasattr(self._chat_widget, "connect_agent_bridge"):
                 self._chat_widget.connect_agent_bridge(self._agent_bridge)
 
             # Initialize the connection asynchronously
@@ -965,12 +979,12 @@ class MainWindow(QMainWindow):
                     loop.run_until_complete(self._agent_bridge.initialize_connection())
 
                     # Update status
-                    if hasattr(self, '_file_info_label'):
+                    if hasattr(self, "_file_info_label"):
                         self._file_info_label.setText("Agent: Connected")
 
                 except Exception as e:
                     # Handle connection failure gracefully
-                    if hasattr(self, '_file_info_label'):
+                    if hasattr(self, "_file_info_label"):
                         self._file_info_label.setText("Agent: Unavailable")
                     print(f"Agent connection failed: {e}")
                 finally:
@@ -978,12 +992,15 @@ class MainWindow(QMainWindow):
 
             # Start initialization in a separate thread
             import threading
-            init_thread = threading.Thread(target=initialize_agent_connection, daemon=True)
+
+            init_thread = threading.Thread(
+                target=initialize_agent_connection, daemon=True
+            )
             init_thread.start()
 
         except Exception as e:
             print(f"Failed to setup agent integration: {e}")
-            if hasattr(self, '_file_info_label'):
+            if hasattr(self, "_file_info_label"):
                 self._file_info_label.setText("Agent: Error")
 
     def _handle_chat_message(self, message: str) -> None:
@@ -991,7 +1008,11 @@ class MainWindow(QMainWindow):
         print(f"🔄 MainWindow received message: '{message}'")
 
         # Check if agent bridge is available
-        if hasattr(self, '_agent_bridge') and self._agent_bridge and self._agent_bridge.is_connected:
+        if (
+            hasattr(self, "_agent_bridge")
+            and self._agent_bridge
+            and self._agent_bridge.is_connected
+        ):
             print("✅ Routing to agent orchestrator")
             # Route to agent orchestrator
             self._handle_agent_message(message)
@@ -1046,13 +1067,14 @@ class MainWindow(QMainWindow):
         try:
             # Process directly through bridge and use signals for UI updates
             print("⚙️ Processing agent query in background thread")
-            if hasattr(self, '_agent_bridge') and self._agent_bridge:
+            if hasattr(self, "_agent_bridge") and self._agent_bridge:
                 # Use the streaming version with callback
-                if hasattr(self._agent_bridge, 'process_streaming_query'):
+                if hasattr(self._agent_bridge, "process_streaming_query"):
                     print("🌊 Using agent bridge streaming")
 
                     # Generate a unique stream ID
                     import uuid
+
                     stream_id = str(uuid.uuid4())
 
                     # Start streaming response via signal
@@ -1064,7 +1086,9 @@ class MainWindow(QMainWindow):
                         self.append_chunk_signal.emit(chunk)
 
                     # Process streaming query
-                    await self._agent_bridge.process_streaming_query(message, chunk_callback)
+                    await self._agent_bridge.process_streaming_query(
+                        message, chunk_callback
+                    )
 
                     # Complete streaming via signal
                     self.complete_streaming_signal.emit()
@@ -1076,12 +1100,12 @@ class MainWindow(QMainWindow):
                     response = await self._agent_bridge.process_query(message)
 
                     # Extract content from AgentResponse object
-                    if hasattr(response, 'response'):
+                    if hasattr(response, "response"):
                         content = response.response
-                    elif hasattr(response, 'content'):
+                    elif hasattr(response, "content"):
                         content = response.content
                     elif isinstance(response, dict):
-                        content = response.get('content', str(response))
+                        content = response.get("content", str(response))
                     else:
                         content = str(response)
 
@@ -1090,7 +1114,9 @@ class MainWindow(QMainWindow):
                     self.agent_response_ready.emit(content)
             else:
                 print("❌ No agent bridge available")
-                self.streaming_error_signal.emit(Exception("Agent bridge not available"))
+                self.streaming_error_signal.emit(
+                    Exception("Agent bridge not available")
+                )
 
         except Exception as error:
             print(f"❌ Error processing agent message: {error}")

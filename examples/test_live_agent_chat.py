@@ -38,7 +38,7 @@ def test_agent_chat_integration():
 
     def check_agent_status():
         """Check if agent is connected."""
-        if hasattr(main_window, '_agent_bridge'):
+        if hasattr(main_window, "_agent_bridge"):
             bridge = main_window._agent_bridge
             print(f"   Agent Bridge: {bridge}")
             print(f"   Connected: {bridge.is_connected if bridge else 'No bridge'}")
@@ -48,16 +48,17 @@ def test_agent_chat_integration():
             print("   No agent bridge found")
 
         # Check chat widget
-        if hasattr(main_window, '_chat_widget'):
+        if hasattr(main_window, "_chat_widget"):
             chat = main_window._chat_widget
             print(f"   Chat Widget: {chat}")
-            if hasattr(chat, '_agent_bridge'):
+            if hasattr(chat, "_agent_bridge"):
                 print(f"   Chat Agent Bridge: {chat._agent_bridge}")
         else:
             print("   No chat widget found")
 
     # Schedule status check after initialization
     from PyQt6.QtCore import QTimer
+
     timer = QTimer()
     timer.timeout.connect(check_agent_status)
     timer.setSingleShot(True)
@@ -67,7 +68,7 @@ def test_agent_chat_integration():
     def send_test_message():
         """Send a test message to verify agent routing."""
         print("\n📝 Sending test message to agent...")
-        if hasattr(main_window, '_chat_widget'):
+        if hasattr(main_window, "_chat_widget"):
             chat = main_window._chat_widget
 
             # Add user message
@@ -111,4 +112,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n💥 Test failed with error: {e}")
         import traceback
+
         traceback.print_exc()

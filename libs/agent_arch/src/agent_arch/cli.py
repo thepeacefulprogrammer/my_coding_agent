@@ -27,10 +27,7 @@ async def async_main():
 
     try:
         # Process query
-        response = await orchestrator.process_query(
-            query=args.query,
-            files=args.files
-        )
+        response = await orchestrator.process_query(query=args.query, files=args.files)
 
         print(f"Agent: {response.agent_type.value}")
         print(f"Status: {response.status.value}")

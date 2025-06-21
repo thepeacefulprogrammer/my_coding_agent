@@ -50,7 +50,7 @@ def trigger_manual_signal(main_window):
     print(f"🔗 Has message_sent signal: {hasattr(chat_widget, 'message_sent')}")
 
     # Check agent bridge
-    if hasattr(main_window, '_agent_bridge'):
+    if hasattr(main_window, "_agent_bridge"):
         bridge = main_window._agent_bridge
         print(f"🌉 Agent bridge: {bridge}")
         if bridge:
@@ -60,7 +60,7 @@ def trigger_manual_signal(main_window):
             print("   - Bridge is None")
 
     # Check if chat widget has agent bridge
-    if hasattr(chat_widget, '_agent_bridge'):
+    if hasattr(chat_widget, "_agent_bridge"):
         widget_bridge = chat_widget._agent_bridge
         print(f"💬 Chat widget bridge: {widget_bridge}")
         if widget_bridge:

@@ -8,8 +8,12 @@ from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
 
 # Add the libs to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'libs', 'code_viewer', 'src'))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'libs', 'agent_arch', 'src'))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "..", "libs", "code_viewer", "src")
+)
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "..", "libs", "agent_arch", "src")
+)
 
 from code_viewer.core.main_window import MainWindow
 
@@ -33,13 +37,14 @@ def test_simple_chatbot():
 
     return app.exec()
 
+
 def send_test_message(main_window):
     """Send a test message to verify streaming works."""
     try:
         chat_widget = main_window._chat_widget
 
         # Check agent bridge status
-        if hasattr(main_window, '_agent_bridge') and main_window._agent_bridge:
+        if hasattr(main_window, "_agent_bridge") and main_window._agent_bridge:
             bridge = main_window._agent_bridge
             print(f"🔗 Agent bridge connected: {bridge.is_connected}")
             print(f"🤖 Agent available: {bridge.agent_available}")
@@ -49,7 +54,7 @@ def send_test_message(main_window):
         print(f"📝 User message added: {user_msg_id}")
 
         # Trigger the message handling manually
-        if hasattr(main_window, '_handle_chat_message'):
+        if hasattr(main_window, "_handle_chat_message"):
             main_window._handle_chat_message("Hi! Tell me a very short joke.")
             print("🚀 Message sent to agent for processing")
             print("👀 Watch the GUI to see streaming chunks accumulate!")
@@ -59,7 +64,9 @@ def send_test_message(main_window):
     except Exception as e:
         print(f"❌ Error sending test message: {e}")
         import traceback
+
         traceback.print_exc()
+
 
 if __name__ == "__main__":
     exit_code = test_simple_chatbot()

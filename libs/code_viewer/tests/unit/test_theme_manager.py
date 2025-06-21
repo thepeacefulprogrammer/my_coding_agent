@@ -184,6 +184,7 @@ class TestThemeManager:
             for keyword in ["background-color", "color", "qwidget", "qtextedit"]
         )
 
+
 def test_get_theme_file_integration():
     """Test integration with assets get_theme_file function."""
     theme_manager = ThemeManager()

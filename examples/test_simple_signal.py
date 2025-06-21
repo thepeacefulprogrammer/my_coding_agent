@@ -41,7 +41,7 @@ def check_connections(main_window, app):
     print(f"💬 Chat widget: {chat_widget is not None}")
 
     # Check agent bridge
-    if hasattr(main_window, '_agent_bridge'):
+    if hasattr(main_window, "_agent_bridge"):
         bridge = main_window._agent_bridge
         print(f"🌉 Agent bridge exists: {bridge is not None}")
         if bridge:
@@ -52,17 +52,19 @@ def check_connections(main_window, app):
         print("❌ No _agent_bridge attribute")
 
     # Check chat widget agent bridge
-    if chat_widget and hasattr(chat_widget, '_agent_bridge'):
+    if chat_widget and hasattr(chat_widget, "_agent_bridge"):
         widget_bridge = chat_widget._agent_bridge
         print(f"💬 Chat widget has bridge: {widget_bridge is not None}")
         if widget_bridge:
-            print(f"   - Same as main bridge: {widget_bridge is main_window._agent_bridge}")
+            print(
+                f"   - Same as main bridge: {widget_bridge is main_window._agent_bridge}"
+            )
             print(f"   - Connected: {widget_bridge.is_connected}")
 
     # Check streaming methods
     if chat_widget:
-        has_streaming = hasattr(chat_widget, 'send_streaming_query_to_agent')
-        has_regular = hasattr(chat_widget, 'send_query_to_agent')
+        has_streaming = hasattr(chat_widget, "send_streaming_query_to_agent")
+        has_regular = hasattr(chat_widget, "send_query_to_agent")
         print("🔧 Chat widget methods:")
         print(f"   - send_streaming_query_to_agent: {has_streaming}")
         print(f"   - send_query_to_agent: {has_regular}")
@@ -76,7 +78,7 @@ def check_connections(main_window, app):
         print(f"✅ Signal received: '{message}'")
         app.quit()
 
-    if chat_widget and hasattr(chat_widget, 'message_sent'):
+    if chat_widget and hasattr(chat_widget, "message_sent"):
         chat_widget.message_sent.connect(signal_received)
         print(f"🎯 Emitting signal with: '{test_message}'")
         chat_widget.message_sent.emit(test_message)

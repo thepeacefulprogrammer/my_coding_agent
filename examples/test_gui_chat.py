@@ -10,8 +10,8 @@ import os
 import sys
 
 # Add the libs to the path
-sys.path.insert(0, os.path.join(os.getcwd(), 'libs', 'agent_arch', 'src'))
-sys.path.insert(0, os.path.join(os.getcwd(), 'libs', 'code_viewer', 'src'))
+sys.path.insert(0, os.path.join(os.getcwd(), "libs", "agent_arch", "src"))
+sys.path.insert(0, os.path.join(os.getcwd(), "libs", "code_viewer", "src"))
 
 from code_viewer.core.main_window import MainWindow
 from PyQt6.QtWidgets import QApplication
@@ -41,7 +41,10 @@ class ChatTester:
         await asyncio.sleep(3)
 
         # Check agent bridge
-        if hasattr(self.main_window, '_agent_bridge') and self.main_window._agent_bridge:
+        if (
+            hasattr(self.main_window, "_agent_bridge")
+            and self.main_window._agent_bridge
+        ):
             print(f"✅ Agent bridge: {self.main_window._agent_bridge.is_connected}")
         else:
             print("❌ No agent bridge")
@@ -76,7 +79,7 @@ class ChatTester:
             print(f"📊 Total messages: {len(messages)}")
 
             # Find agent responses
-            agent_responses = [msg for msg in messages if msg.role.value == 'agent']
+            agent_responses = [msg for msg in messages if msg.role.value == "agent"]
             if agent_responses:
                 print("✅ Agent response received!")
                 latest = agent_responses[-1]

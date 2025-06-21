@@ -2282,25 +2282,42 @@ class AIAgent:
         self,
         message: str,
         on_chunk: Callable[[str, bool], Awaitable[None]],
-        on_error: Callable[[Exception], None] = None,
+        on_error: Callable[[Exception], Awaitable[None]] | None = None,
         enable_filesystem: bool = True,
     ) -> AIResponse:
         """Send a message with tools and streaming response."""
         print("DEBUG: [AIAgent] send_message_with_tools_stream called")  # Debug statement
-        # Simplified: Directly call the legacy implementation as the primary one is not available.
-        print("DEBUG: [AIAgent] Directly calling _send_message_with_tools_stream_legacy")  # Debug statement
-        return await self._send_message_with_tools_stream_legacy(
-            message=message,
-            on_chunk=on_chunk,
-            on_error=on_error,
-            enable_filesystem=enable_filesystem,
-        )
+        try:
+            # Get the regular response first
+            print("DEBUG: [AIAgent] Calling send_message_with_tools to get full response")  # Debug statement
+            response = await self.send_message_with_tools(message, enable_filesystem)
+            print(f"DEBUG: [AIAgent] Got response from send_message_with_tools: success={response.success}")  # Debug statement
+
+            # Simulate streaming by sending the full response in a single chunk
+            print("DEBUG: [AIAgent] Simulating streaming by sending response in chunks")  # Debug statement
+            if response.success and response.content:
+                if on_chunk:
+                    # This is a regular function call now, not awaited
+                    await on_chunk(response.content, True)
+            elif not response.success:
+                # If there was an error, report it
+                print(f"DEBUG: [AIAgent] Reporting error from send_message_with_tools: {response.content}")  # Debug statement
+                if on_error and response.content:
+                    await on_error(Exception(response.content))
+            return response
+        except Exception as e:
+            print(f"ERROR: [AIAgent] Error in legacy streaming: {e}")  # Debug statement
+            if on_error:
+                await on_error(e)
+            return AIResponse(
+                success=False, content=f"An unexpected error occurred: {e}"
+            )
 
     async def _send_message_with_tools_stream_legacy(
         self,
         message: str,
         on_chunk: Callable[[str, bool], Awaitable[None]],
-        on_error: Callable[[Exception], None] = None,
+        on_error: Callable[[Exception], Awaitable[None]] | None = None,
         enable_filesystem: bool = True,
     ) -> AIResponse:
         """Legacy implementation for sending a message with tools and streaming response."""
@@ -2311,29 +2328,24 @@ class AIAgent:
             response = await self.send_message_with_tools(message, enable_filesystem)
             print(f"DEBUG: [AIAgent] Got response from send_message_with_tools: success={response.success}")  # Debug statement
 
-            # Simulate streaming by sending the content in chunks
+            # Simulate streaming by sending the full response in a single chunk
+            print("DEBUG: [AIAgent] Simulating streaming by sending response in chunks")  # Debug statement
             if response.success and response.content:
-                print("DEBUG: [AIAgent] Simulating streaming by sending response in chunks")  # Debug statement
-                content = response.content
-                # Send the whole content as a single chunk for simplicity
-                chunk = content
-                is_final = True
-                await on_chunk(chunk, is_final)
-                print("DEBUG: [AIAgent] Sent final chunk")  # Debug statement
-            else:
-                # Send error or empty response
-                print("DEBUG: [AIAgent] No content to stream, sending empty/error response")  # Debug statement
-                await on_chunk(response.content or "No response", True)
-
+                if on_chunk:
+                    # This is a regular function call now, not awaited
+                    await on_chunk(response.content, True)
+            elif not response.success:
+                # If there was an error, report it
+                print(f"DEBUG: [AIAgent] Reporting error from send_message_with_tools: {response.content}")  # Debug statement
+                if on_error and response.content:
+                    await on_error(Exception(response.content))
             return response
         except Exception as e:
             print(f"ERROR: [AIAgent] Error in legacy streaming: {e}")  # Debug statement
-            # Call error callback if provided
             if on_error:
-                on_error(e)
-            # Return error response
+                await on_error(e)
             return AIResponse(
-                success=False, content=f"Error: {e}", error_type=type(e).__name__
+                success=False, content=f"An unexpected error occurred: {e}"
             )
 
     async def send_message_with_tools(
@@ -2363,18 +2375,9 @@ class AIAgent:
 
         # Legacy implementation for backwards compatibility
         try:
-            if (
-                enable_filesystem
-                and self.filesystem_tools_enabled
-                and self.mcp_file_server
-                and not self.mcp_file_server.is_connected
-            ):
-                # Ensure MCP connection
-                await self.connect_mcp()
-
             response = await self._agent.run(message)
 
-            return AIResponse(success=True, content=response.data)
+            return AIResponse(success=True, content=response.output)
 
         except Exception as e:
             logger.error(f"Error in enhanced conversation: {e}")
@@ -2418,7 +2421,7 @@ class AIAgent:
 
             response = await self._agent.run(analysis_prompt)
 
-            return AIResponse(success=True, content=response.data)
+            return AIResponse(success=True, content=response.output)
 
         except Exception as e:
             logger.error(f"Error in project analysis: {e}")
@@ -2681,7 +2684,7 @@ class AIAgent:
                 )
 
                 response = AIResponse(
-                    content=result.data,
+                    content=result.output,
                     success=True,
                     error=None,
                     error_type=None,
@@ -3608,17 +3611,21 @@ User message: {message}
         self,
         message: str,
         on_chunk: Callable[[str, bool], Awaitable[None]],
-        on_error: Callable[[Exception], None] = None,
+        on_error: Callable[[Exception], Awaitable[None]] | None = None,
         enable_filesystem: bool = True,
     ) -> AIResponse:
         """Send a memory-aware message with streaming response."""
-        print("DEBUG: [AIAgent] Entering send_memory_aware_message_stream")  # Debug statement
+        print(
+            "DEBUG: [AIAgent] Entering send_memory_aware_message_stream"
+        )  # Debug statement
         # Delegate to streaming service if available
         if (
             hasattr(self, "streaming_response_service")
             and self.streaming_response_service is not None
         ):
-            print("DEBUG: [AIAgent] Delegating to StreamingResponseService for memory-aware stream")  # Debug statement
+            print(
+                "DEBUG: [AIAgent] Delegating to StreamingResponseService for memory-aware stream"
+            )  # Debug statement
             return (
                 await self.streaming_response_service.send_memory_aware_message_stream(
                     message, on_chunk, on_error, enable_filesystem=enable_filesystem
@@ -3626,7 +3633,9 @@ User message: {message}
             )
 
         # Fallback to regular streaming
-        print("DEBUG: [AIAgent] No streaming service, falling back to send_message_with_tools_stream")  # Debug statement
+        print(
+            "DEBUG: [AIAgent] No streaming service, falling back to send_message_with_tools_stream"
+        )  # Debug statement
         return await self.send_message_with_tools_stream(
             message, on_chunk, on_error, enable_filesystem
         )

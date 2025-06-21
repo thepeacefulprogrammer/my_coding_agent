@@ -48,7 +48,7 @@ def debug_chat_state(main_window):
     print(f"💬 Chat widget: {main_window.chat_widget}")
 
     # Check agent bridge
-    if hasattr(main_window, '_agent_bridge'):
+    if hasattr(main_window, "_agent_bridge"):
         bridge = main_window._agent_bridge
         print(f"🔗 Agent bridge: {bridge}")
         if bridge:
@@ -64,11 +64,15 @@ def debug_chat_state(main_window):
     chat_widget = main_window.chat_widget
     if chat_widget:
         print("🔧 Chat widget methods:")
-        print(f"   - has send_streaming_query_to_agent: {hasattr(chat_widget, 'send_streaming_query_to_agent')}")
-        print(f"   - has send_query_to_agent: {hasattr(chat_widget, 'send_query_to_agent')}")
+        print(
+            f"   - has send_streaming_query_to_agent: {hasattr(chat_widget, 'send_streaming_query_to_agent')}"
+        )
+        print(
+            f"   - has send_query_to_agent: {hasattr(chat_widget, 'send_query_to_agent')}"
+        )
         print(f"   - has _agent_bridge: {hasattr(chat_widget, '_agent_bridge')}")
 
-        if hasattr(chat_widget, '_agent_bridge'):
+        if hasattr(chat_widget, "_agent_bridge"):
             widget_bridge = chat_widget._agent_bridge
             print(f"   - widget bridge: {widget_bridge}")
             if widget_bridge:
@@ -80,9 +84,15 @@ def debug_chat_state(main_window):
 
     # Check main window handler method
     print("🎯 Main window handlers:")
-    print(f"   - has _handle_chat_message: {hasattr(main_window, '_handle_chat_message')}")
-    print(f"   - has _handle_agent_message: {hasattr(main_window, '_handle_agent_message')}")
-    print(f"   - has _process_agent_message: {hasattr(main_window, '_process_agent_message')}")
+    print(
+        f"   - has _handle_chat_message: {hasattr(main_window, '_handle_chat_message')}"
+    )
+    print(
+        f"   - has _handle_agent_message: {hasattr(main_window, '_handle_agent_message')}"
+    )
+    print(
+        f"   - has _process_agent_message: {hasattr(main_window, '_process_agent_message')}"
+    )
 
 
 def send_debug_message(main_window):
@@ -95,9 +105,9 @@ def send_debug_message(main_window):
         return
 
     # Add some debug hooks
-    original_handle_chat = getattr(main_window, '_handle_chat_message', None)
-    original_handle_agent = getattr(main_window, '_handle_agent_message', None)
-    original_process_agent = getattr(main_window, '_process_agent_message', None)
+    original_handle_chat = getattr(main_window, "_handle_chat_message", None)
+    original_handle_agent = getattr(main_window, "_handle_agent_message", None)
+    original_process_agent = getattr(main_window, "_process_agent_message", None)
 
     def debug_handle_chat(message):
         print(f"🎯 _handle_chat_message called with: '{message}'")

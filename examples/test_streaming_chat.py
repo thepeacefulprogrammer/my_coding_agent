@@ -46,7 +46,7 @@ def test_streaming_message(main_window):
         return
 
     # Check agent bridge connection
-    if hasattr(main_window, '_agent_bridge') and main_window._agent_bridge:
+    if hasattr(main_window, "_agent_bridge") and main_window._agent_bridge:
         bridge = main_window._agent_bridge
         print(f"🔗 Agent bridge connected: {bridge.is_connected}")
         print(f"🤖 Agent available: {bridge.agent_available}")

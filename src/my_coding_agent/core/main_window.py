@@ -25,7 +25,8 @@ from PyQt6.QtGui import QAction, QCloseEvent, QKeySequence
 from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout
 
 from ..gui.chat_widget_v2 import SimplifiedChatWidget
-from .ai_agent import AIAgent, AIAgentConfig
+from .ai_agent import AIAgent, AIAgentConfig, MCPFileConfig
+from .ai_services.streaming_response_service import StreamingResponseService
 from .mcp_client_coordinator import MCPClientCoordinator, MCPCoordinatorConfig
 from .theme_manager import ThemeManager
 
@@ -173,7 +174,9 @@ class MCPWorkerThread(QThread):
             _message_started = True
 
             # Send message with streaming support
-            logger.info(f"Sending message to MCP server. Message length: {len(message)}")
+            logger.info(
+                f"Sending message to MCP server. Message length: {len(message)}"
+            )
 
             async for chunk in self._mcp_coordinator.send_message_streaming(message):
                 logger.info(
@@ -697,14 +700,14 @@ class MainWindow(QMainWindow):
         print("DEBUG: [MainWindow] Running _setup_ai_integration...")  # Debug statement
         try:
             # Initialize AI agent with configuration
-            print("DEBUG: [MainWindow] Initializing AIAgentConfig...")  # Debug statement
+            print(
+                "DEBUG: [MainWindow] Initializing AIAgentConfig..."
+            )  # Debug statement
             self._ai_config = AIAgentConfig.from_env()
             print("DEBUG: [MainWindow] AIAgentConfig initialized.")  # Debug statement
 
             # Set up MCP configuration for filesystem tools
             from pathlib import Path
-
-            from .ai_agent import MCPFileConfig
 
             # Configure MCP for current workspace
             workspace_path = Path.cwd()
@@ -726,22 +729,38 @@ class MainWindow(QMainWindow):
                 max_file_size=5 * 1024 * 1024,  # 5MB limit
             )
 
+            # Create and connect services
+            streaming_service = StreamingResponseService(enable_memory_awareness=True)
+
             # Initialize AI agent with MCP support and memory awareness
             self._ai_agent = AIAgent(
                 config=self._ai_config,
                 mcp_config=mcp_config,
+                streaming_response_service=streaming_service,
                 enable_filesystem_tools=True,
                 enable_memory_awareness=True,
                 enable_mcp_tools=True,
                 auto_discover_mcp_servers=True,
                 signal_handler=self,  # Pass MainWindow as signal handler for MCP tool visualization
             )
+
+            # Set circular dependencies for services
+            streaming_service._ai_messaging_service = self._ai_agent
+            if self._ai_agent.memory_context_service:
+                streaming_service._memory_system = (
+                    self._ai_agent.memory_context_service
+                )
+
             print("DEBUG: [MainWindow] AIAgent initialized.")  # Debug statement
 
             # Connect chat widget message_sent signal to our handler
-            print("DEBUG: [MainWindow] Connecting message_sent signal...")  # Debug statement
+            print(
+                "DEBUG: [MainWindow] Connecting message_sent signal..."
+            )  # Debug statement
             self._chat_widget.message_sent.connect(self._handle_chat_message)
-            print("DEBUG: [MainWindow] message_sent signal connected.")  # Debug statement
+            print(
+                "DEBUG: [MainWindow] message_sent signal connected."
+            )  # Debug statement
 
             # Initialize worker thread as None
             self._ai_worker_thread = None
@@ -765,7 +784,9 @@ class MainWindow(QMainWindow):
 
         except Exception as e:
             # If AI initialization fails, show error in chat
-            print(f"ERROR: [MainWindow] AI initialization failed: {e}")  # Debug statement
+            print(
+                f"ERROR: [MainWindow] AI initialization failed: {e}"
+            )  # Debug statement
             self._chat_widget.add_system_message(
                 f"AI initialization failed: {str(e)}. Chat will work without AI responses."
             )
@@ -835,7 +856,9 @@ class MainWindow(QMainWindow):
 
     def _handle_chat_message(self, message: str) -> None:
         """Handle messages from the chat widget and generate AI responses with streaming."""
-        logger.info(f"DEBUG: [MainWindow] _handle_chat_message triggered with: '{message}'")  # Debug statement
+        logger.info(
+            f"DEBUG: [MainWindow] _handle_chat_message triggered with: '{message}'"
+        )  # Debug statement
         if not self._ai_agent:
             # If no AI agent, show a simple echo response
             self._chat_widget.add_assistant_message(
@@ -852,17 +875,24 @@ class MainWindow(QMainWindow):
         self._chat_widget.show_ai_thinking(animated=True)
 
         # Start streaming AI response asynchronously with conversation context
-        logger.info("DEBUG: [MainWindow] Queuing _start_streaming_response_with_context")  # Debug statement
+        logger.info(
+            "DEBUG: [MainWindow] Queuing _start_streaming_response_with_context"
+        )  # Debug statement
         QTimer.singleShot(
             10, lambda: self._start_streaming_response_with_context(message)
         )
 
     def _start_streaming_response_with_context(self, message: str) -> None:
         """Start the streaming AI response with conversation context."""
-        logger.info("DEBUG: [MainWindow] _start_streaming_response_with_context called")  # Debug statement
+        logger.info(
+            "DEBUG: [MainWindow] _start_streaming_response_with_context called"
+        )  # Debug statement
+
         # Create a new thread for the async operation
         def run_async_response():
-            logger.info("DEBUG: [MainWindow] run_async_response thread started")  # Debug statement
+            logger.info(
+                "DEBUG: [MainWindow] run_async_response thread started"
+            )  # Debug statement
             # Create a new event loop for this thread
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -882,7 +912,9 @@ class MainWindow(QMainWindow):
 
     async def _stream_ai_response_with_context(self, message: str) -> None:
         """Generate streaming AI response with conversation context."""
-        logger.info(f"DEBUG: [MainWindow] _stream_ai_response_with_context called with: '{message}'")  # Debug statement
+        logger.info(
+            f"DEBUG: [MainWindow] _stream_ai_response_with_context called with: '{message}'"
+        )  # Debug statement
         logger.info(f"🚀 Starting stream with context for message: '{message}'")
 
         # Add None check for AI agent
@@ -900,9 +932,6 @@ class MainWindow(QMainWindow):
             stream_id = str(uuid.uuid4())
             logger.info(f"📝 Stream ID: {stream_id}")
 
-            # Note: We'll start the streaming response later, after reasoning appears
-            # This ensures reasoning shows first, then assistant response follows
-
             # Track assistant response content for memory storage
             assistant_response_content = ""
 
@@ -910,10 +939,12 @@ class MainWindow(QMainWindow):
             assistant_message_started = False
 
             # Define streaming callbacks
-            def on_chunk(chunk: str, is_final: bool) -> None:
+            async def on_chunk(chunk: str, is_final: bool) -> None:
                 """Handle streaming chunks from AI response."""
                 nonlocal assistant_response_content, assistant_message_started
-                logger.info(f"🔍 MainWindow callback: chunk='{chunk}', is_final={is_final}")
+                logger.info(
+                    f"🔍 MainWindow callback: chunk='{chunk}', is_final={is_final}"
+                )
 
                 # Accumulate assistant response content
                 if chunk:
@@ -922,7 +953,9 @@ class MainWindow(QMainWindow):
                 # Start streaming response if not already started
                 if chunk and not assistant_message_started:
                     assistant_message_started = True
-                    logger.info("🎯 MainWindow: Starting assistant streaming response now")
+                    logger.info(
+                        "🎯 MainWindow: Starting assistant streaming response now"
+                    )
                     self.start_streaming_signal.emit(stream_id)
                     logger.info("🎯 MainWindow: Emitted start_streaming_signal")
 
@@ -941,11 +974,13 @@ class MainWindow(QMainWindow):
                     )
 
                     # Complete the streaming response
-                    logger.info("🎯 MainWindow: About to emit complete_streaming_signal")
+                    logger.info(
+                        "🎯 MainWindow: About to emit complete_streaming_signal"
+                    )
                     self.complete_streaming_signal.emit()
                     logger.info("🎯 MainWindow: Emitted complete_streaming_signal")
 
-            def on_error(error: Exception) -> None:
+            async def on_error(error: Exception) -> None:
                 """Handle streaming errors."""
                 logger.error(f"❌ MainWindow callback: error={error}")
                 self.streaming_error_signal.emit(error)
@@ -954,31 +989,6 @@ class MainWindow(QMainWindow):
             logger.info(
                 f"📡 Calling AI agent memory-aware streaming. Message length: {len(message)}"
             )
-
-            # Import QTimer for main thread signal emission
-            # Start a timer to ensure assistant response starts even if no reasoning chunks come
-            # This prevents the UI from hanging if there's no reasoning
-            import asyncio
-
-            async def ensure_response_starts():
-                nonlocal assistant_message_started
-                try:
-                    await asyncio.sleep(
-                        1.0
-                    )  # Reduced to 1 second to prevent long hangs
-                    if not assistant_message_started:
-                        logger.info(
-                            "⏰ No response detected after 1s, starting assistant response"
-                        )
-                        self.start_streaming_signal.emit(stream_id)
-                        assistant_message_started = True
-                    else:
-                        logger.info("⏰ Assistant response already started, timer not needed")
-                except asyncio.CancelledError:
-                    logger.info("⏰ Fallback timer was cancelled")
-
-            # Start the fallback timer
-            asyncio.create_task(ensure_response_starts())
 
             response = await self._ai_agent.send_memory_aware_message_stream(
                 message=message,  # Use original message, not manually constructed context
@@ -1001,15 +1011,11 @@ class MainWindow(QMainWindow):
 
     def _handle_streaming_error(self, error: Exception) -> None:
         """Handle streaming errors in the main thread."""
-        # Hide any indicators and show error
+        logger.error(f"Streaming error occurred: {error}", exc_info=True)
+        self._chat_widget.add_assistant_message(
+            f"An error occurred during streaming: {error}", is_error=True
+        )
         self._chat_widget.hide_typing_indicator()
-
-        # If there's an active stream, handle the error through the streaming system
-        if self._chat_widget.is_streaming():
-            self._chat_widget.handle_streaming_error(error)
-        else:
-            # Fallback: add error message directly
-            self._chat_widget.add_assistant_message(f"AI Error: {str(error)}")
 
     def _handle_ai_response(self, content: str, success: bool, error: str) -> None:
         """Handle AI response from worker thread - DEPRECATED: Now using streaming."""

@@ -49,7 +49,9 @@ class TestAgentBridge:
         bridge = AgentBridge(workspace_path)
 
         # Should raise error when agent is not available
-        with pytest.raises(AgentIntegrationError, match="Agent architecture not available"):
+        with pytest.raises(
+            AgentIntegrationError, match="Agent architecture not available"
+        ):
             await bridge.process_query("Test query")
 
     @pytest.mark.asyncio
@@ -61,7 +63,7 @@ class TestAgentBridge:
         mock_orchestrator = AsyncMock()
         mock_orchestrator.process.return_value = {
             "response": "Test response",
-            "status": "success"
+            "status": "success",
         }
 
         bridge = AgentBridge(workspace_path)
@@ -81,7 +83,9 @@ class TestAgentBridge:
         bridge = AgentBridge(workspace_path)
 
         # Test connection initialization
-        with patch('code_viewer.core.agent_integration.agent_bridge.import_agent_orchestrator') as mock_import:
+        with patch(
+            "code_viewer.core.agent_integration.agent_bridge.import_agent_orchestrator"
+        ) as mock_import:
             mock_orchestrator_class = Mock()
             mock_orchestrator = Mock()
             mock_orchestrator_class.return_value = mock_orchestrator
@@ -93,7 +97,7 @@ class TestAgentBridge:
             assert bridge.agent_available is True
             mock_orchestrator_class.assert_called_once_with(
                 workspace_path=workspace_path,
-                change_callback=bridge._handle_file_change
+                change_callback=bridge._handle_file_change,
             )
 
         # Test connection cleanup
@@ -114,11 +118,7 @@ class TestAgentBridge:
     def test_agent_bridge_configuration(self):
         """Test agent bridge configuration management."""
         workspace_path = Path("/test/workspace")
-        config = {
-            "agent_timeout": 30,
-            "retry_attempts": 3,
-            "enable_streaming": True
-        }
+        config = {"agent_timeout": 30, "retry_attempts": 3, "enable_streaming": True}
 
         bridge = AgentBridge(workspace_path, config=config)
 
@@ -133,10 +133,14 @@ class TestAgentBridge:
         bridge = AgentBridge(workspace_path)
 
         # Test import error handling
-        with patch('code_viewer.core.agent_integration.agent_bridge.import_agent_orchestrator') as mock_import:
+        with patch(
+            "code_viewer.core.agent_integration.agent_bridge.import_agent_orchestrator"
+        ) as mock_import:
             mock_import.side_effect = ImportError("Agent architecture not found")
 
-            with pytest.raises(AgentIntegrationError, match="Failed to import agent architecture"):
+            with pytest.raises(
+                AgentIntegrationError, match="Failed to import agent architecture"
+            ):
                 await bridge.initialize_connection()
 
         # Test query processing error
@@ -145,7 +149,9 @@ class TestAgentBridge:
         bridge._orchestrator = mock_orchestrator
         bridge._agent_available = True
 
-        with pytest.raises(AgentIntegrationError, match="Agent query processing failed"):
+        with pytest.raises(
+            AgentIntegrationError, match="Agent query processing failed"
+        ):
             await bridge.process_query("Test query")
 
     @pytest.mark.asyncio
@@ -160,7 +166,7 @@ class TestAgentBridge:
         mock_orchestrator.process.side_effect = [
             Exception("Temporary error"),
             Exception("Another error"),
-            {"response": "Success after retry", "status": "success"}
+            {"response": "Success after retry", "status": "success"},
         ]
         bridge._orchestrator = mock_orchestrator
         bridge._agent_available = True
@@ -183,13 +189,15 @@ class TestAgentBridgeIntegration:
         bridge = AgentBridge(workspace_path, file_change_callback=file_callback)
 
         # Mock successful agent architecture import and initialization
-        with patch('code_viewer.core.agent_integration.agent_bridge.import_agent_orchestrator') as mock_import:
+        with patch(
+            "code_viewer.core.agent_integration.agent_bridge.import_agent_orchestrator"
+        ) as mock_import:
             mock_orchestrator_class = Mock()
             mock_orchestrator = AsyncMock()
             mock_orchestrator.process.return_value = {
                 "response": "Code analysis complete",
                 "files_modified": ["/test/file.py"],
-                "status": "success"
+                "status": "success",
             }
             mock_orchestrator_class.return_value = mock_orchestrator
             mock_import.return_value = mock_orchestrator_class
@@ -237,7 +245,7 @@ class TestAgentBridgeUtilities:
         valid_config = {
             "agent_timeout": 30,
             "retry_attempts": 3,
-            "enable_streaming": True
+            "enable_streaming": True,
         }
         bridge = AgentBridge(workspace_path, config=valid_config)
         assert bridge.config == valid_config
@@ -250,7 +258,7 @@ class TestAgentBridgeUtilities:
         bridge = AgentBridge(workspace_path, config=invalid_config)
         # Should fall back to defaults for invalid values
         assert bridge.config["agent_timeout"] == 30  # Default
-        assert bridge.config["retry_attempts"] == 3   # Default
+        assert bridge.config["retry_attempts"] == 3  # Default
 
 
 if __name__ == "__main__":

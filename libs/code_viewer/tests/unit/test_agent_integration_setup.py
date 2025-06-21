@@ -25,7 +25,9 @@ class TestAgentIntegrationSetup:
             content = f.read().lower()
 
         # Should not contain pydantic-ai references in dependencies
-        assert "pydantic-ai" not in content, "pydantic-ai should be removed from pyproject.toml dependencies"
+        assert "pydantic-ai" not in content, (
+            "pydantic-ai should be removed from pyproject.toml dependencies"
+        )
 
     def test_agent_integration_package_exists(self):
         """Test that agent integration package directory exists."""
@@ -47,7 +49,9 @@ class TestAgentIntegrationSetup:
                 content = f.read()
 
             # Should have some basic structure for public API
-            assert "__all__" in content or "import" in content, "Should have public API exports"
+            assert "__all__" in content or "import" in content, (
+                "Should have public API exports"
+            )
 
     def test_readme_mentions_agent_integration(self):
         """Test that README.md mentions agent integration."""
@@ -60,7 +64,9 @@ class TestAgentIntegrationSetup:
         # Should mention agent integration or architecture
         agent_terms = ["agent", "integration", "architecture"]
         has_agent_reference = any(term in content for term in agent_terms)
-        assert has_agent_reference, "README should mention agent integration or architecture"
+        assert has_agent_reference, (
+            "README should mention agent integration or architecture"
+        )
 
 
 class TestProjectStructure:
@@ -73,7 +79,9 @@ class TestProjectStructure:
 
         # Check for agent_integration package
         agent_integration_path = core_path / "agent_integration"
-        assert agent_integration_path.exists(), "Agent integration package should exist in core"
+        assert agent_integration_path.exists(), (
+            "Agent integration package should exist in core"
+        )
 
 
 if __name__ == "__main__":

@@ -1078,7 +1078,6 @@ class TestFileTreeModel:
         """Test FileTreeModel directory check with invalid index."""
         model = FileTreeModel()
 
-
         invalid_index = QModelIndex()
 
         result = model.is_directory(invalid_index)

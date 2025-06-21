@@ -29,11 +29,7 @@ async def test_agent_connection():
     try:
         agent_bridge = AgentBridge(
             workspace_path=workspace_path,
-            config={
-                "agent_timeout": 30,
-                "retry_attempts": 3,
-                "enable_streaming": True
-            }
+            config={"agent_timeout": 30, "retry_attempts": 3, "enable_streaming": True},
         )
         print("✅ Agent bridge created successfully")
     except Exception as e:
@@ -58,7 +54,7 @@ async def test_agent_connection():
     test_queries = [
         "Hello, can you help me analyze some code?",
         "What can you do for me?",
-        "Analyze the structure of this project"
+        "Analyze the structure of this project",
     ]
 
     for i, query in enumerate(test_queries, 1):
@@ -69,12 +65,12 @@ async def test_agent_connection():
             print(f"   Type: {type(response)}")
 
             # Handle different response formats
-            if hasattr(response, 'response'):
+            if hasattr(response, "response"):
                 print(f"   Content: {response.response[:100]}...")
-            elif hasattr(response, 'content'):
+            elif hasattr(response, "content"):
                 print(f"   Content: {response.content[:100]}...")
             elif isinstance(response, dict):
-                content = response.get('content', str(response))
+                content = response.get("content", str(response))
                 print(f"   Content: {content[:100]}...")
             else:
                 print(f"   Content: {str(response)[:100]}...")
@@ -104,7 +100,9 @@ async def main():
 
     if success:
         print("\n🎉 Agent integration test completed successfully!")
-        print("The chat widget should now be able to communicate with the agent architecture.")
+        print(
+            "The chat widget should now be able to communicate with the agent architecture."
+        )
     else:
         print("\n💥 Agent integration test failed!")
         print("Please check that the agent_arch library is properly installed.")
